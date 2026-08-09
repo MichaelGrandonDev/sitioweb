@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}FluxusTerapia{% endblock %}
+
+{% block content %}
+<section id="inicio" class="hero">
+  <div class="hero-media" aria-hidden="true"></div>
+  <div class="hero-copy">
+    <p class="hero-kicker">La armonía nace del movimiento consciente</p>
+    <h1>FluxusTerapia</h1>
+    <p class="hero-sub">Acompañamiento terapéutico para el cuerpo, la emoción y la conciencia</p>
+    <a class="cta primary" href="#contacto">Contactanos</a>
+  </div>
+</section>
+
+<section id="quienes" class="about">
+  <div class="about-copy">
+    <h2>Quiénes somos</h2>
+    <p>
+      Somos un espacio dedicado al acompañamiento terapéutico, la presencia y el
+      desarrollo integral. Ofrecemos sesiones orientadas a personas que buscan
+      equilibrar cuerpo y emoción con un enfoque claro, humano y consciente.
+    </p>
+    <p>
+      Nuestra propuesta integra escucha, movimiento y herramientas terapéuticas
+      para acompañar procesos de transformación con calma y profundidad.
+    </p>
+  </div>
+  <div class="about-media">
+    <img
+      src="{{ url_for('static', filename='img/about.jpg') }}"
+      alt="Espacio de bienestar y calma"
+      width="640"
+      height="480"
+    >
+  </div>
+</section>
+
+<section id="servicios" class="services">
+  <div class="services-media" aria-hidden="true"></div>
+  <div class="services-inner">
+    <h2>Servicios</h2>
+    <div class="services-grid">
+      <article class="service">
+        <span class="service-icon" aria-hidden="true">
+          <svg viewBox="0 0 48 48" width="42" height="42" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M24 8c-2 6-8 10-8 18a8 8 0 0 0 16 0c0-8-6-12-8-18z"/><path d="M16 28c-4 2-7 6-7 10"/><path d="M32 28c4 2 7 6 7 10"/></svg>
+        </span>
+        <h3>Terapia individual</h3>
+        <p>Sesiones personalizadas para acompañar procesos emocionales, corporales y de autoconocimiento.</p>
+      </article>
+      <article class="service">
+        <span class="service-icon" aria-hidden="true">
+          <svg viewBox="0 0 48 48" width="42" height="42" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 30c6-10 10-14 16-14s10 4 16 14"/><path d="M12 22c4-7 7-10 12-10s8 3 12 10"/><path d="M16 36c3-5 5-7 8-7s5 2 8 7"/></svg>
+        </span>
+        <h3>Movimiento consciente</h3>
+        <p>Prácticas suaves que ayudan a soltar tensiones, recuperar el ritmo interno y habitar el cuerpo.</p>
+      </article>
+      <article class="service">
+        <span class="service-icon" aria-hidden="true">
+          <svg viewBox="0 0 48 48" width="42" height="42" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="24" cy="24" r="14"/><path d="M24 14v10l6 4"/></svg>
+        </span>
+        <h3>Acompañamiento continuo</h3>
+        <p>Un recorrido sostenido en el tiempo, con presencia, claridad y seguimiento cercano.</p>
+      </article>
+      <article class="service">
+        <span class="service-icon" aria-hidden="true">
+          <svg viewBox="0 0 48 48" width="42" height="42" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M24 10v28"/><path d="M14 18c4-4 6-6 10-6s6 2 10 6"/><path d="M14 30c4 4 6 6 10 6s6-2 10-6"/></svg>
+        </span>
+        <h3>Espacios de calma</h3>
+        <p>Encuentros orientados a restablecer el equilibrio, la respiración y la conexión interior.</p>
+      </article>
+      <article class="service">
+        <span class="service-icon" aria-hidden="true">
+          <svg viewBox="0 0 48 48" width="42" height="42" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 34c0-8 5-14 12-18 7 4 12 10 12 18"/><path d="M18 34a6 6 0 0 0 12 0"/></svg>
+        </span>
+        <h3>Talleres y jornadas</h3>
+        <p>Experiencias abiertas para profundizar el bienestar, el movimiento y la conciencia corporal.</p>
+      </article>
+      <article class="service">
+        <span class="service-icon" aria-hidden="true">
+          <svg viewBox="0 0 48 48" width="42" height="42" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 32l8-16 6 10 6-12 8 18"/><circle cx="24" cy="12" r="2.5" fill="currentColor" stroke="none"/></svg>
+        </span>
+        <h3>Orientación personalizada</h3>
+        <p>Te ayudamos a encontrar el camino terapéutico más adecuado a tu momento vital.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section id="contacto" class="contact">
+  <div class="contact-copy">
+    <h2>Conectá con tu bienestar</h2>
+    <p>
+      Si sentís el llamado a iniciar o profundizar un proceso terapéutico,
+      este es un buen momento. En FluxusTerapia te acompañamos con presencia
+      y una propuesta clara, humana y cercana.
+    </p>
+    <a class="cta primary" href="mailto:hola@fluxusterapia.com">Escribinos</a>
+  </div>
+  <div class="contact-details">
+    <div>
+      <h3>Contacto</h3>
+      <p><a href="mailto:hola@fluxusterapia.com">hola@fluxusterapia.com</a></p>
+    </div>
+    <div>
+      <h3>Atención</h3>
+      <p>Con turno previo</p>
+    </div>
+  </div>
+</section>
+{% endblock %}
