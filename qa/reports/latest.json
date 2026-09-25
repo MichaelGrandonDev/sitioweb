@@ -1,0 +1,313 @@
+{
+  "base": "https://www.fluxusterapia.com",
+  "generated_at": "2026-09-25 12:58:11 -03",
+  "summary": {
+    "total": 43,
+    "pass": 43,
+    "fail": 0
+  },
+  "failures": [],
+  "checks": [
+    {
+      "name": "HTTP /",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=200 expected=200",
+      "evidence": "https://www.fluxusterapia.com/"
+    },
+    {
+      "name": "HTTP /galeria/",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=200 expected=200",
+      "evidence": "https://www.fluxusterapia.com/galeria/"
+    },
+    {
+      "name": "HTTP /blogs/",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=200 expected=200",
+      "evidence": "https://www.fluxusterapia.com/blogs/"
+    },
+    {
+      "name": "HTTP /turnos/",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=200 expected=200",
+      "evidence": "https://www.fluxusterapia.com/turnos/"
+    },
+    {
+      "name": "HTTP /academia/login.php",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=200 expected=200",
+      "evidence": "https://www.fluxusterapia.com/academia/login.php"
+    },
+    {
+      "name": "HTTP /css/style.css",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=200 expected=200",
+      "evidence": "https://www.fluxusterapia.com/css/style.css"
+    },
+    {
+      "name": "HTTP /js/main.js",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=200 expected=200",
+      "evidence": "https://www.fluxusterapia.com/js/main.js"
+    },
+    {
+      "name": "HTTP /img/hero.jpg",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=200 expected=200",
+      "evidence": "https://www.fluxusterapia.com/img/hero.jpg"
+    },
+    {
+      "name": "HTTP /img/galeria/masoterapia.jpg",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=200 expected=200",
+      "evidence": "https://www.fluxusterapia.com/img/galeria/masoterapia.jpg"
+    },
+    {
+      "name": "HTTP /blogs/admin.php",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=200 expected=200",
+      "evidence": "https://www.fluxusterapia.com/blogs/admin.php"
+    },
+    {
+      "name": "HTTP /turnos/admin.php",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=200 expected=200",
+      "evidence": "https://www.fluxusterapia.com/turnos/admin.php"
+    },
+    {
+      "name": "HTTP /blogs/api.php?limit=3",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=200 expected=200",
+      "evidence": "https://www.fluxusterapia.com/blogs/api.php?limit=3"
+    },
+    {
+      "name": "HTTP /turnos/api.php?action=therapies",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=200 expected=200",
+      "evidence": "https://www.fluxusterapia.com/turnos/api.php?action=therapies"
+    },
+    {
+      "name": "Nav incluye Blogs",
+      "ok": true,
+      "severity": "info",
+      "detail": "ok",
+      "evidence": ""
+    },
+    {
+      "name": "Nav incluye AcademiaFluxus",
+      "ok": true,
+      "severity": "info",
+      "detail": "ok",
+      "evidence": ""
+    },
+    {
+      "name": "Nav no incluye Turnos",
+      "ok": true,
+      "severity": "info",
+      "detail": "ok",
+      "evidence": ""
+    },
+    {
+      "name": "Servicio gym pre/post parto",
+      "ok": true,
+      "severity": "info",
+      "detail": "ok",
+      "evidence": ""
+    },
+    {
+      "name": "Chi kung Online en servicios",
+      "ok": true,
+      "severity": "info",
+      "detail": "ok",
+      "evidence": ""
+    },
+    {
+      "name": "Taichi Online en servicios",
+      "ok": true,
+      "severity": "info",
+      "detail": "ok",
+      "evidence": ""
+    },
+    {
+      "name": "Consultorios Punta Alta",
+      "ok": true,
+      "severity": "info",
+      "detail": "ok",
+      "evidence": ""
+    },
+    {
+      "name": "Consultorios modalidad Online",
+      "ok": true,
+      "severity": "info",
+      "detail": "ok",
+      "evidence": ""
+    },
+    {
+      "name": "Galería justified",
+      "ok": true,
+      "severity": "info",
+      "detail": "ok",
+      "evidence": ""
+    },
+    {
+      "name": "Header Instagram brand",
+      "ok": true,
+      "severity": "info",
+      "detail": "ok",
+      "evidence": ""
+    },
+    {
+      "name": "Header YouTube brand",
+      "ok": true,
+      "severity": "info",
+      "detail": "ok",
+      "evidence": ""
+    },
+    {
+      "name": "Header sin WhatsApp",
+      "ok": true,
+      "severity": "info",
+      "detail": "ok",
+      "evidence": ""
+    },
+    {
+      "name": "Float WhatsApp presente",
+      "ok": true,
+      "severity": "info",
+      "detail": "ok",
+      "evidence": ""
+    },
+    {
+      "name": "Sin branding viejo AcademiFluxus",
+      "ok": true,
+      "severity": "info",
+      "detail": "ok",
+      "evidence": ""
+    },
+    {
+      "name": "Sin branding viejo FluxusAcademia",
+      "ok": true,
+      "severity": "info",
+      "detail": "ok",
+      "evidence": ""
+    },
+    {
+      "name": "CSS gallery-justified",
+      "ok": true,
+      "severity": "high",
+      "detail": "ok",
+      "evidence": ""
+    },
+    {
+      "name": "JS initLandingBlogs",
+      "ok": true,
+      "severity": "medium",
+      "detail": "",
+      "evidence": ""
+    },
+    {
+      "name": "JS initGalleryLightbox",
+      "ok": true,
+      "severity": "medium",
+      "detail": "",
+      "evidence": ""
+    },
+    {
+      "name": "Turnos API JSON válido",
+      "ok": true,
+      "severity": "critical",
+      "detail": "status=200",
+      "evidence": ""
+    },
+    {
+      "name": "Turnos incluye Curso gym pre y post parto",
+      "ok": true,
+      "severity": "high",
+      "detail": "Masoterapia, Rehabilitación kinésica, Medicina china, Talleres hipopresivos, Chi kung Online, Taichi Online, Curso gym pre y post parto",
+      "evidence": ""
+    },
+    {
+      "name": "Turnos incluye Chi kung Online",
+      "ok": true,
+      "severity": "high",
+      "detail": "Masoterapia, Rehabilitación kinésica, Medicina china, Talleres hipopresivos, Chi kung Online, Taichi Online, Curso gym pre y post parto",
+      "evidence": ""
+    },
+    {
+      "name": "Turnos incluye Taichi Online",
+      "ok": true,
+      "severity": "high",
+      "detail": "Masoterapia, Rehabilitación kinésica, Medicina china, Talleres hipopresivos, Chi kung Online, Taichi Online, Curso gym pre y post parto",
+      "evidence": ""
+    },
+    {
+      "name": "Blogs API posts",
+      "ok": true,
+      "severity": "high",
+      "detail": "count=1",
+      "evidence": ""
+    },
+    {
+      "name": "Turnos nav AcademiaFluxus",
+      "ok": true,
+      "severity": "medium",
+      "detail": "",
+      "evidence": ""
+    },
+    {
+      "name": "Turnos pie actualizado",
+      "ok": true,
+      "severity": "low",
+      "detail": "",
+      "evidence": ""
+    },
+    {
+      "name": "Turnos sin Incontro viejo",
+      "ok": true,
+      "severity": "low",
+      "detail": "",
+      "evidence": ""
+    },
+    {
+      "name": "Seguridad migrate bloqueado /academia/migrate_gym.php",
+      "ok": true,
+      "severity": "high",
+      "detail": "status=403; open=False; locked=True",
+      "evidence": "No autorizado. Usá ?key=...\n"
+    },
+    {
+      "name": "Seguridad migrate bloqueado /academia/migrate_online.php",
+      "ok": true,
+      "severity": "high",
+      "detail": "status=403; open=False; locked=True",
+      "evidence": "No autorizado. Usá ?key=...\n"
+    },
+    {
+      "name": "Seguridad migrate bloqueado /turnos/migrate_gym.php",
+      "ok": true,
+      "severity": "high",
+      "detail": "status=403; open=False; locked=True",
+      "evidence": "No autorizado. Usá ?key=...\n"
+    },
+    {
+      "name": "Seguridad migrate bloqueado /turnos/migrate_online.php",
+      "ok": true,
+      "severity": "high",
+      "detail": "status=403; open=False; locked=True",
+      "evidence": "No autorizado. Usá ?key=...\n"
+    }
+  ]
+}

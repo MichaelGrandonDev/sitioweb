@@ -1,0 +1,9 @@
+# Prefer HTML redirect first (HostGator sometimes ignores PHP DirectoryIndex alone)
+DirectoryIndex index.html index.php login.php
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # /academia/ or /academia → index.php
+  RewriteRule ^$ index.php [L]
+</IfModule>

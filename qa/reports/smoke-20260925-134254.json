@@ -1,0 +1,440 @@
+{
+  "base": "https://www.fluxusterapia.com",
+  "generated_at": "2026-09-25 13:42:54 -03",
+  "summary": {
+    "total": 61,
+    "pass": 61,
+    "fail": 0,
+    "hard_fail": 0
+  },
+  "failures": [],
+  "checks": [
+    {
+      "area": "acceso",
+      "name": "HTTP /",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=200 ttfb=0.248s total=0.248s size=18491"
+    },
+    {
+      "area": "velocidad",
+      "name": "Rápido /",
+      "ok": true,
+      "severity": "info",
+      "detail": "ttfb=0.248s"
+    },
+    {
+      "area": "acceso",
+      "name": "HTTP /galeria/",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=200 ttfb=0.247s total=0.247s size=9605"
+    },
+    {
+      "area": "velocidad",
+      "name": "Rápido /galeria/",
+      "ok": true,
+      "severity": "info",
+      "detail": "ttfb=0.247s"
+    },
+    {
+      "area": "acceso",
+      "name": "HTTP /blogs/",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=200 ttfb=0.188s total=0.188s size=4839"
+    },
+    {
+      "area": "velocidad",
+      "name": "Rápido /blogs/",
+      "ok": true,
+      "severity": "info",
+      "detail": "ttfb=0.188s"
+    },
+    {
+      "area": "acceso",
+      "name": "HTTP /turnos/",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=200 ttfb=0.187s total=0.187s size=4279"
+    },
+    {
+      "area": "velocidad",
+      "name": "Rápido /turnos/",
+      "ok": true,
+      "severity": "info",
+      "detail": "ttfb=0.187s"
+    },
+    {
+      "area": "acceso",
+      "name": "HTTP /academia/login.php",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=200 ttfb=0.194s total=0.194s size=1490"
+    },
+    {
+      "area": "velocidad",
+      "name": "Rápido /academia/login.php",
+      "ok": true,
+      "severity": "info",
+      "detail": "ttfb=0.194s"
+    },
+    {
+      "area": "acceso",
+      "name": "HTTP /css/style.css",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=200 ttfb=0.251s total=0.251s size=14937"
+    },
+    {
+      "area": "velocidad",
+      "name": "Rápido /css/style.css",
+      "ok": true,
+      "severity": "info",
+      "detail": "ttfb=0.251s"
+    },
+    {
+      "area": "acceso",
+      "name": "HTTP /js/main.js",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=200 ttfb=0.185s total=0.185s size=6445"
+    },
+    {
+      "area": "velocidad",
+      "name": "Rápido /js/main.js",
+      "ok": true,
+      "severity": "info",
+      "detail": "ttfb=0.185s"
+    },
+    {
+      "area": "acceso",
+      "name": "HTTP /blogs/api.php?limit=3",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=200 ttfb=0.191s total=0.191s size=248"
+    },
+    {
+      "area": "velocidad",
+      "name": "Rápido /blogs/api.php?limit=3",
+      "ok": true,
+      "severity": "info",
+      "detail": "ttfb=0.191s"
+    },
+    {
+      "area": "acceso",
+      "name": "HTTP /turnos/api.php?action=therapies",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=200 ttfb=0.194s total=0.194s size=2824"
+    },
+    {
+      "area": "velocidad",
+      "name": "Rápido /turnos/api.php?action=therapies",
+      "ok": true,
+      "severity": "info",
+      "detail": "ttfb=0.194s"
+    },
+    {
+      "area": "velocidad",
+      "name": "TTFB promedio páginas clave",
+      "ok": true,
+      "severity": "info",
+      "detail": "avg=0.210s n=9"
+    },
+    {
+      "area": "velocidad",
+      "name": "Home TTFB warm (x3)",
+      "ok": true,
+      "severity": "info",
+      "detail": "samples=[0.242, 0.241, 0.238] avg=0.240s"
+    },
+    {
+      "area": "fluidez",
+      "name": "Link galería en home",
+      "ok": true,
+      "severity": "info",
+      "detail": "ok"
+    },
+    {
+      "area": "fluidez",
+      "name": "Link blogs en home",
+      "ok": true,
+      "severity": "info",
+      "detail": "ok"
+    },
+    {
+      "area": "fluidez",
+      "name": "Link AcademiaFluxus",
+      "ok": true,
+      "severity": "info",
+      "detail": "ok"
+    },
+    {
+      "area": "fluidez",
+      "name": "CTA/contacto o WhatsApp float",
+      "ok": true,
+      "severity": "info",
+      "detail": "ok"
+    },
+    {
+      "area": "fluidez",
+      "name": "Galería justified + lightbox hooks",
+      "ok": true,
+      "severity": "info",
+      "detail": "ok"
+    },
+    {
+      "area": "fluidez",
+      "name": "Galería carga imágenes",
+      "ok": true,
+      "severity": "high",
+      "detail": "status=200"
+    },
+    {
+      "area": "fluidez",
+      "name": "Turnos UI + API hooks",
+      "ok": true,
+      "severity": "high",
+      "detail": "ok"
+    },
+    {
+      "area": "fluidez",
+      "name": "Blogs API usable",
+      "ok": true,
+      "severity": "high",
+      "detail": "count=1"
+    },
+    {
+      "area": "privacidad",
+      "name": "Bloqueado /academia/data/",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=403 leaked=False"
+    },
+    {
+      "area": "privacidad",
+      "name": "Bloqueado /turnos/data/",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=403 leaked=False"
+    },
+    {
+      "area": "privacidad",
+      "name": "Bloqueado /blogs/data/",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=403 leaked=False"
+    },
+    {
+      "area": "privacidad",
+      "name": "Bloqueado /academia/data/academia.sqlite",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=403 leaked=False"
+    },
+    {
+      "area": "privacidad",
+      "name": "Bloqueado /turnos/data/turnos.sqlite",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=403 leaked=False"
+    },
+    {
+      "area": "privacidad",
+      "name": "Bloqueado /blogs/data/blogs.sqlite",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=403 leaked=False"
+    },
+    {
+      "area": "privacidad",
+      "name": "Bloqueado /academia/migrate_gym.php",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=403 leaked=False"
+    },
+    {
+      "area": "privacidad",
+      "name": "Bloqueado /turnos/migrate_gym.php",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=403 leaked=False"
+    },
+    {
+      "area": "privacidad",
+      "name": "Bloqueado /.env",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=406 leaked=False"
+    },
+    {
+      "area": "privacidad",
+      "name": "Bloqueado /.git/config",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=404 leaked=False"
+    },
+    {
+      "area": "privacidad",
+      "name": "Bloqueado /ACCESOS.md",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=404 leaked=False"
+    },
+    {
+      "area": "privacidad",
+      "name": "Config sin leak /academia/config.php",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=200 size=0"
+    },
+    {
+      "area": "privacidad",
+      "name": "Config sin leak /turnos/config.php",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=200 size=0"
+    },
+    {
+      "area": "privacidad",
+      "name": "Config sin leak /blogs/config.php",
+      "ok": true,
+      "severity": "info",
+      "detail": "status=200 size=0"
+    },
+    {
+      "area": "privacidad",
+      "name": "Admin gate /academia/admin/users.php",
+      "ok": true,
+      "severity": "high",
+      "detail": "status=200 url=https://www.fluxusterapia.com/academia/login.php"
+    },
+    {
+      "area": "privacidad",
+      "name": "Admin gate /academia/dashboard.php",
+      "ok": true,
+      "severity": "high",
+      "detail": "status=200 url=https://www.fluxusterapia.com/academia/login.php"
+    },
+    {
+      "area": "privacidad",
+      "name": "Admin gate /turnos/admin.php",
+      "ok": true,
+      "severity": "high",
+      "detail": "status=200"
+    },
+    {
+      "area": "privacidad",
+      "name": "Admin gate /blogs/admin.php",
+      "ok": true,
+      "severity": "high",
+      "detail": "status=200"
+    },
+    {
+      "area": "privacidad",
+      "name": "API sin listado appointments",
+      "ok": true,
+      "severity": "high",
+      "detail": "status=400 body={\"ok\":false,\"error\":\"Acción no válida\"}"
+    },
+    {
+      "area": "privacidad",
+      "name": "API sin listado bookings",
+      "ok": true,
+      "severity": "high",
+      "detail": "status=400 body={\"ok\":false,\"error\":\"Acción no válida\"}"
+    },
+    {
+      "area": "privacidad",
+      "name": "API sin listado list",
+      "ok": true,
+      "severity": "high",
+      "detail": "status=400 body={\"ok\":false,\"error\":\"Acción no válida\"}"
+    },
+    {
+      "area": "privacidad",
+      "name": "API sin listado export",
+      "ok": true,
+      "severity": "high",
+      "detail": "status=400 body={\"ok\":false,\"error\":\"Acción no válida\"}"
+    },
+    {
+      "area": "privacidad",
+      "name": "API sin listado admin",
+      "ok": true,
+      "severity": "high",
+      "detail": "status=400 body={\"ok\":false,\"error\":\"Acción no válida\"}"
+    },
+    {
+      "area": "privacidad",
+      "name": "Sin secretos en /",
+      "ok": true,
+      "severity": "info",
+      "detail": "ok"
+    },
+    {
+      "area": "privacidad",
+      "name": "Sin secretos en /turnos/",
+      "ok": true,
+      "severity": "info",
+      "detail": "ok"
+    },
+    {
+      "area": "privacidad",
+      "name": "Sin secretos en /blogs/",
+      "ok": true,
+      "severity": "info",
+      "detail": "ok"
+    },
+    {
+      "area": "privacidad",
+      "name": "Sin secretos en /academia/login.php",
+      "ok": true,
+      "severity": "info",
+      "detail": "ok"
+    },
+    {
+      "area": "privacidad",
+      "name": "Sin secretos en /css/style.css",
+      "ok": true,
+      "severity": "info",
+      "detail": "ok"
+    },
+    {
+      "area": "privacidad",
+      "name": "Sin secretos en /js/main.js",
+      "ok": true,
+      "severity": "info",
+      "detail": "ok"
+    },
+    {
+      "area": "acceso",
+      "name": "HTTP→HTTPS redirect",
+      "ok": true,
+      "severity": "medium",
+      "detail": "final=https://fluxusterapia.com/ status=200"
+    },
+    {
+      "area": "velocidad",
+      "name": "Cache headers /css/style.css",
+      "ok": true,
+      "severity": "low",
+      "detail": "presente"
+    },
+    {
+      "area": "velocidad",
+      "name": "Cache headers /js/main.js",
+      "ok": true,
+      "severity": "low",
+      "detail": "presente"
+    },
+    {
+      "area": "velocidad",
+      "name": "Cache headers /img/hero.jpg",
+      "ok": true,
+      "severity": "low",
+      "detail": "presente"
+    }
+  ]
+}
