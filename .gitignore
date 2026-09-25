@@ -15,3 +15,14 @@ build/
 .pytest_cache/
 .mypy_cache/
 *.log
+.cursor/
+.deploy.lock
+tmp/
+fluxusterapia-deploy.zip
+ACCESOS.md
+public_html/academia/data/*.sqlite
+public_html/academia/data/*.sqlite-journal
+public_html/**/data/*.sqlite
+public_html/**/data/*.sqlite-journal
+public_html/**/error_log
+public_html/error_log
