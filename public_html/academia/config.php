@@ -1,7 +1,8 @@
 <?php
 /**
  * FluxusTerapia Academia — config
- * Cambiá ADMIN_USER / ADMIN_PASS solo antes de la primera instalación.
+ * Plantilla: los valores reales viven solo en el servidor (deploy.py nunca sube config.php).
+ * Cambiá admin_user / admin_pass solo antes de la primera instalación.
  */
 return [
     'app_name' => 'AcademiaFluxus',
@@ -21,11 +22,11 @@ return [
     'payments' => [
         'currency' => 'ARS',
         'default_monthly_amount' => 25000, // pesos
-        'transfer_holder' => 'Michael Grandon',
-        'transfer_bank' => 'Mercado Pago',
+        'transfer_holder' => '',
+        'transfer_bank' => '',
         'transfer_cbu' => '',
-        'transfer_alias' => 'michael.grandon.mp',
-        'transfer_note' => 'En el concepto poné tu nombre y el mes (ej: Juan Pérez · Septiembre). Alias: michael.grandon.mp',
+        'transfer_alias' => '',
+        'transfer_note' => 'En el concepto poné tu nombre y el mes (ej: Juan Pérez · Septiembre).',
         // Mercado Pago · https://www.mercadopago.com.ar/developers
         // Dejá vacío hasta cargar credenciales de producción/test
         'mp_access_token' => '',

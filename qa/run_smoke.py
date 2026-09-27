@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -28,11 +29,13 @@ TTFB_WARN = 0.80
 TTFB_FAIL = 2.00
 TOTAL_FAIL = 4.00
 
-SENSITIVE_RE = re.compile(
-    r"admin_pass|FTP_PASS|FTP_USER|"
-    r"password_hash|BEGIN TRANSACTION|SQLite format|migrate_key",
-    re.I,
-)
+_SENSITIVE_PATTERNS = [
+    r"admin_pass", r"FTP_PASS", r"FTP_USER", r"password_hash",
+    r"BEGIN TRANSACTION", r"SQLite format", r"migrate_key", r"mp_access_token",
+]
+# Secretos reales a buscar en las respuestas, separados por coma (nunca en el código).
+_SENSITIVE_PATTERNS += [re.escape(s.strip()) for s in os.environ.get("QA_SECRETS", "").split(",") if s.strip()]
+SENSITIVE_RE = re.compile("|".join(_SENSITIVE_PATTERNS), re.I)
 
 
 class Check:

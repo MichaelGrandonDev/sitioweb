@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Sube public_html/ al Document Root de HostGator por FTP.
 
-IMPORTANTE: la cuenta FTP debe tener como directorio home:
-  <Document Root del dominio>
-(cPanel → Cuentas FTP → directorio de la cuenta)
+IMPORTANTE: el directorio home de la cuenta FTP debe ser el Document Root
+del dominio (cPanel → Cuentas FTP → directorio de la cuenta).
 
 Uso:
   python3 deploy.py

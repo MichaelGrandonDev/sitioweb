@@ -1,2 +1,3 @@
-qa/reports/*
-!qa/reports/.gitkeep
+*
+!.gitkeep
+!.gitignore

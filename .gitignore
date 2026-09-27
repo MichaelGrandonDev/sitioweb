@@ -20,6 +20,8 @@ build/
 tmp/
 fluxusterapia-deploy.zip
 ACCESOS.md
+HOSTGATOR.md
+DNS.md
 public_html/academia/data/*.sqlite
 public_html/academia/data/*.sqlite-journal
 public_html/**/data/*.sqlite

@@ -17,10 +17,10 @@ Mini LMS en PHP + SQLite, integrado al sitio en `/academia/`.
    (queda en `.../fluxusterapia.com/academia/`).
 2. Abrí una sola vez:  
    `https://fluxusterapia.com/academia/install.php`
-3. Ingresá con:
-   - Usuario: `admin`
-   - Contraseña: `(definida en config.php)`  
-   (cambiala después en Admin → Usuarios / o recreando admin)
+3. Ingresá con el usuario y la contraseña que definiste en `academia/config.php`
+   (`admin_user` / `admin_pass`) **antes** de instalar. Ese archivo vive solo en el
+   servidor: el repo trae `CHANGE_ME` y `deploy.py` nunca lo sube.
+   Después cambiá la contraseña desde Admin → Administradores.
 4. En Admin:
    - Creá alumnos y asignales cursos
    - Agregá clases con links de YouTube/Drive

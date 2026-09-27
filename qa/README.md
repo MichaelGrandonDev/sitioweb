@@ -27,4 +27,4 @@ Exit code `1` si hay FAIL (útil para CI). En smoke, los FAIL `low` (p.ej. cache
 
 ## Migrates
 
-Requieren `?key=<migrate_key>`
+Requieren `?key=<migrate_key>`, con la clave definida en el `config.php` del servidor (no se versiona).

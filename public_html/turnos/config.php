@@ -17,9 +17,9 @@ return [
     'deposit' => [
         'amount' => 15000,
         'currency' => 'ARS',
-        'transfer_holder' => 'Michael Grandon',
-        'transfer_bank' => 'Mercado Pago',
-        'transfer_alias' => 'michael.grandon.mp',
+        'transfer_holder' => '',
+        'transfer_bank' => '',
+        'transfer_alias' => '',
         'transfer_cbu' => '',
         'transfer_note' => 'Concepto: Seña turno + tu nombre + fecha.',
         'mp_access_token' => '', // mismo token de MP o el de la cuenta Fluxus
