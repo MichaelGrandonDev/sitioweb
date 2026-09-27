@@ -173,6 +173,13 @@ function mp_enabled(): bool
     return $token !== '' && !str_starts_with($token, 'TEST_REPLACE');
 }
 
+/** Un pago aprobado solo habilita algo si cubre el monto esperado (defensa ante montos alterados). */
+function mp_amount_covers(array $paymentData, int $expected): bool
+{
+    $paid = (float) ($paymentData['transaction_amount'] ?? 0);
+    return $expected <= 0 || $paid + 0.009 >= $expected;
+}
+
 function mp_api(string $method, string $path, ?array $body = null): array
 {
     $token = trim((string) (payment_cfg()['mp_access_token'] ?? ''));
@@ -295,6 +302,10 @@ function apply_mp_payment(array $paymentData): void
         'rejected', 'cancelled' => 'rejected',
         default => 'pending',
     };
+    if ($payStatus === 'approved' && !mp_amount_covers($paymentData, (int) $invoice['amount'])) {
+        $payStatus = 'pending';
+        $status = 'approved_amount_mismatch';
+    }
 
     // Upsert payment row by mp_payment_id
     $find = db()->prepare('SELECT id FROM payments WHERE mp_payment_id = ? LIMIT 1');

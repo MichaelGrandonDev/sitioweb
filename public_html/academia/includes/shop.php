@@ -166,9 +166,19 @@ function apply_shop_mp_payment(array $paymentData): void
     }
     $status = (string) ($paymentData['status'] ?? '');
     $mpId = (string) ($paymentData['id'] ?? '');
-    if ($status === 'approved') {
-        db()->prepare('UPDATE shop_orders SET mp_payment_id = ? WHERE id = ?')->execute([$mpId, $orderId]);
-        fulfill_shop_order($orderId);
-        cart_clear();
+    if ($status !== 'approved') {
+        return;
     }
+    $order = db()->prepare('SELECT total FROM shop_orders WHERE id = ? LIMIT 1');
+    $order->execute([$orderId]);
+    $total = $order->fetchColumn();
+    if ($total === false) {
+        return;
+    }
+    db()->prepare('UPDATE shop_orders SET mp_payment_id = ? WHERE id = ?')->execute([$mpId, $orderId]);
+    if (!mp_amount_covers($paymentData, (int) $total)) {
+        return;
+    }
+    fulfill_shop_order($orderId);
+    cart_clear();
 }

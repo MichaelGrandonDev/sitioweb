@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 $config = require __DIR__ . '/config.php';
 date_default_timezone_set($config['timezone']);
+require_once __DIR__ . '/../includes/session.php';
 
-if (session_status() !== PHP_SESSION_ACTIVE) {
-    session_start();
-}
+fluxus_session_start();
 
 function db(): PDO
 {
@@ -346,6 +345,17 @@ function migrate_turnos_schema(): void
     }
     if (!in_array('deposit_paid_at', $apptCols, true)) {
         $pdo->exec('ALTER TABLE appointments ADD COLUMN deposit_paid_at TEXT DEFAULT NULL');
+    }
+
+    // Un solo turno activo por día y horario: dos reservas simultáneas no pueden tomar el mismo.
+    try {
+        $pdo->exec("
+          CREATE UNIQUE INDEX IF NOT EXISTS uniq_appointments_active_slot
+          ON appointments(date, substr(time, 1, 5))
+          WHERE status IN ('confirmed', 'pending_deposit')
+        ");
+    } catch (Throwable $e) {
+        // Si ya hay turnos duplicados cargados, el índice no se puede crear hasta que se cancele uno.
     }
 
     if (!$tableExists($pdo, 'deposit_payments')) {

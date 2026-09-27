@@ -8,6 +8,8 @@ if (db_ready()) {
     flash('info', 'Blogs ya está instalado.');
     redirect('index.php');
 }
+require_once __DIR__ . '/../includes/migrate_guard.php';
+require_migrate_key(['migrate_key' => $config['migrate_key'] ?? $config['admin_pass'] ?? '']);
 
 $pdo = db();
 $pdo->exec("

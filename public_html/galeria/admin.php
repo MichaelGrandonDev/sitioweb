@@ -16,10 +16,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'login') {
         $pass = (string) ($_POST['password'] ?? '');
-        if (hash_equals((string) $config['admin_pass'], $pass)) {
+        $adminPass = (string) $config['admin_pass'];
+        if (fluxus_password_configured($adminPass) && hash_equals($adminPass, $pass)) {
+            fluxus_session_login();
             site_admin_grant();
             flash('success', 'Ingreso correcto.');
         } else {
+            fluxus_login_failed();
             flash('error', 'Contraseña incorrecta. También podés entrar como Administrador en AcademiaFluxus.');
         }
         redirect('admin.php');

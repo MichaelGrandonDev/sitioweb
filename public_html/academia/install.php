@@ -8,6 +8,8 @@ if (db_ready()) {
     flash('info', 'La academia ya está instalada. Iniciá sesión.');
     redirect('login.php');
 }
+require_once __DIR__ . '/../includes/migrate_guard.php';
+require_migrate_key($config);
 
 $pdo = db();
 $pdo->exec("

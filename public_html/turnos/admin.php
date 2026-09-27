@@ -11,10 +11,13 @@ if (!db_ready()) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     if ($action === 'login') {
-        if (hash_equals((string) $config['admin_pass'], (string) ($_POST['password'] ?? ''))) {
+        $adminPass = (string) $config['admin_pass'];
+        if (fluxus_password_configured($adminPass) && hash_equals($adminPass, (string) ($_POST['password'] ?? ''))) {
+            fluxus_session_login();
             $_SESSION['turnos_admin'] = true;
             redirect('admin.php');
         }
+        fluxus_login_failed();
         flash('error', 'Contraseña incorrecta.');
         redirect('admin.php');
     }

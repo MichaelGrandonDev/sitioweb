@@ -9,10 +9,9 @@ require_once __DIR__ . '/includes/payments.php';
 require_once __DIR__ . '/includes/shop.php';
 require_once __DIR__ . '/includes/uploads.php';
 require_once __DIR__ . '/includes/inscriptions.php';
+require_once __DIR__ . '/../includes/session.php';
 
-if (session_status() !== PHP_SESSION_ACTIVE) {
-    session_start();
-}
+fluxus_session_start();
 
 function db(): PDO
 {
@@ -382,9 +381,11 @@ function migrate_schema(): void
         ");
     }
 
-    $insSetDefaults = $pdo->prepare('INSERT OR IGNORE INTO payment_settings (key, value) VALUES (?, ?)');
-    $insSetDefaults->execute(['inscription_amount', '0']);
-    $insSetDefaults->execute(['admin_notify_email', (string) ($config['mail_from'] ?? 'hola@fluxusterapia.com')]);
+    if ($tableExists($pdo, 'payment_settings')) {
+        $insSetDefaults = $pdo->prepare('INSERT OR IGNORE INTO payment_settings (key, value) VALUES (?, ?)');
+        $insSetDefaults->execute(['inscription_amount', '0']);
+        $insSetDefaults->execute(['admin_notify_email', (string) ($config['mail_from'] ?? 'hola@fluxusterapia.com')]);
+    }
 
     if (!$tableExists($pdo, 'fee_invoices')) {
         $pdo->exec("

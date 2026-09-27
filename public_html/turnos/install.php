@@ -8,6 +8,8 @@ if (db_ready()) {
     flash('info', 'El sistema de turnos ya está instalado.');
     redirect('index.php');
 }
+require_once __DIR__ . '/../includes/migrate_guard.php';
+require_migrate_key($config);
 
 $pdo = db();
 $pdo->exec("

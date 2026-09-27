@@ -5,10 +5,9 @@ declare(strict_types=1);
 $config = require __DIR__ . '/config.php';
 date_default_timezone_set($config['timezone']);
 require_once __DIR__ . '/../includes/site_admin.php';
+require_once __DIR__ . '/../includes/session.php';
 
-if (session_status() !== PHP_SESSION_ACTIVE) {
-    session_start();
-}
+fluxus_session_start();
 
 function db(): PDO
 {

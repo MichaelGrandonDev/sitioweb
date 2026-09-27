@@ -133,7 +133,16 @@ function apply_inscription_mp_payment(array $paymentData): void
     if ($id <= 0 || (string) ($paymentData['status'] ?? '') !== 'approved') {
         return;
     }
+    $ins = db()->prepare('SELECT amount FROM inscriptions WHERE id = ? LIMIT 1');
+    $ins->execute([$id]);
+    $amount = $ins->fetchColumn();
+    if ($amount === false) {
+        return;
+    }
     db()->prepare('UPDATE inscriptions SET mp_payment_id = ?, method = ? WHERE id = ?')
         ->execute([(string) ($paymentData['id'] ?? ''), 'mercadopago', $id]);
+    if (!mp_amount_covers($paymentData, (int) $amount)) {
+        return;
+    }
     mark_inscription_awaiting_approval($id);
 }

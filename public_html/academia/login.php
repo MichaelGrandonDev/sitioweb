@@ -43,6 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } elseif ($expect === 'alumno' && $role === 'admin') {
                 $error = 'Esta es una cuenta de administrador. Entrá por “Administrador”.';
             } else {
+                fluxus_session_login();
                 $_SESSION['user_id'] = (int) $found['id'];
                 if ($role === 'admin') {
                     require_once __DIR__ . '/../includes/site_admin.php';
@@ -54,6 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 redirect($role === 'admin' ? 'admin/index.php' : 'dashboard.php');
             }
         } else {
+            fluxus_login_failed();
             $error = 'Usuario o contraseña incorrectos.';
         }
     }

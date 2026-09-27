@@ -173,6 +173,17 @@ function apply_deposit_mp_payment(array $paymentData): void
         'rejected', 'cancelled' => 'rejected',
         default => 'pending',
     };
+    $appt = db()->prepare('SELECT deposit_amount FROM appointments WHERE id = ? LIMIT 1');
+    $appt->execute([$apptId]);
+    $expected = $appt->fetchColumn();
+    if ($expected === false) {
+        return;
+    }
+    $paid = (float) ($paymentData['transaction_amount'] ?? 0);
+    if ($payStatus === 'approved' && (int) $expected > 0 && $paid + 0.009 < (int) $expected) {
+        $payStatus = 'pending';
+        $status = 'approved_amount_mismatch';
+    }
 
     $find = db()->prepare('SELECT id FROM deposit_payments WHERE mp_payment_id = ? LIMIT 1');
     $find->execute([$mpId]);

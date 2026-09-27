@@ -10,6 +10,8 @@ if (db_ready()) {
 }
 
 global $config;
+require_once __DIR__ . '/../includes/migrate_guard.php';
+require_migrate_key(['migrate_key' => $config['migrate_key'] ?? $config['admin_pass'] ?? '']);
 $pdo = db();
 migrate_galeria();
 
