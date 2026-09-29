@@ -185,7 +185,7 @@ function turno_consentimiento_pdf(array $appt): string
     $pdf = new FluxusPdf();
     turno_pdf_header($pdf, 'Consentimiento informado');
     $pdf->heading('Datos');
-    $pdf->paragraph('Paciente: ' . $appt['patient_name'] . ' · Teléfono: ' . $appt['patient_phone']);
+    $pdf->paragraph('Paciente: ' . $appt['patient_name'] . (trim((string) $appt['patient_phone']) !== '' ? ' · Teléfono: ' . $appt['patient_phone'] : ''));
     $pdf->paragraph('Terapia: ' . $appt['therapy_name'] . ' · ' . format_date_es((string) $appt['date']) . ' · ' . format_time_es((string) $appt['time']) . ' · Código ' . $appt['code']);
     $pdf->heading('Declaro que');
     foreach (turno_lines(turno_text_setting('consentimiento_text', TURNO_CONSENTIMIENTO_DEFAULT)) as $i => $line) {
@@ -198,8 +198,69 @@ function turno_consentimiento_pdf(array $appt): string
     return $pdf->render();
 }
 
+/** Evento de calendario (iCalendar, RFC 5545) para agregar el turno a Google/Apple/Outlook. */
+function turno_ics(array $appt): string
+{
+    global $config;
+    $tz = new DateTimeZone((string) ($config['timezone'] ?? 'America/Argentina/Buenos_Aires'));
+    $utc = new DateTimeZone('UTC');
+    $start = new DateTimeImmutable($appt['date'] . ' ' . substr((string) $appt['time'], 0, 5), $tz);
+    $end = $start->modify('+' . max(15, (int) ($appt['duration_min'] ?? 60)) . ' minutes');
+    $stamp = static fn (DateTimeImmutable $d): string => $d->setTimezone($utc)->format('Ymd\THis\Z');
+    $esc = static fn (string $v): string => str_replace(['\\', ';', ',', "\r\n", "\n", "\r"], ['\\\\', '\\;', '\\,', '\\n', '\\n', '\\n'], $v);
+    $fold = static function (string $line): string {
+        $out = '';
+        $limit = 75;
+        while (strlen($line) > $limit) {
+            $cut = $limit;
+            while ($cut > 0 && (ord($line[$cut]) & 0xC0) === 0x80) {
+                $cut--;
+            }
+            $out .= substr($line, 0, $cut) . "\r\n ";
+            $line = substr($line, $cut);
+            $limit = 74;
+        }
+        return $out . $line;
+    };
+
+    $desc = 'Código: ' . $appt['code'];
+    if (empty($appt['consent_accepted_at'])) {
+        $desc .= "\nFirmá el consentimiento online: " . turno_page_url($appt, 'consentimiento.php');
+    }
+    if (turno_deposit_open($appt)) {
+        $desc .= "\nSeña opcional (" . money_ars((int) $appt['deposit_amount']) . '): ' . turno_page_url($appt, 'pay.php');
+    }
+    $desc .= "\nRequisitos: " . turno_doc_url($appt, 'requisitos')
+        . "\nWhatsApp: https://wa.me/" . preg_replace('/\D+/', '', (string) ($config['whatsapp'] ?? ''));
+
+    $lines = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//FluxusTerapia//Turnos//ES',
+        'CALSCALE:GREGORIAN',
+        'METHOD:PUBLISH',
+        'BEGIN:VEVENT',
+        'UID:' . $appt['code'] . '@fluxusterapia.com',
+        'DTSTAMP:' . $stamp(new DateTimeImmutable('now')),
+        'DTSTART:' . $stamp($start),
+        'DTEND:' . $stamp($end),
+        'SUMMARY:' . $esc('Turno ' . $appt['therapy_name'] . ' · FluxusTerapia'),
+        'LOCATION:' . $esc(($config['place_name'] ?? 'FluxusTerapia') . ', ' . ($config['place_city'] ?? '')),
+        'DESCRIPTION:' . $esc($desc),
+        'STATUS:CONFIRMED',
+        'BEGIN:VALARM',
+        'ACTION:DISPLAY',
+        'DESCRIPTION:' . $esc('Turno ' . $appt['therapy_name'] . ' en FluxusTerapia'),
+        'TRIGGER:-PT2H',
+        'END:VALARM',
+        'END:VEVENT',
+        'END:VCALENDAR',
+    ];
+    return implode("\r\n", array_map($fold, $lines)) . "\r\n";
+}
+
 /**
- * Correo HTML + texto con PDF adjuntos. $inline son imágenes PNG que el HTML usa como
+ * Correo HTML + texto con adjuntos (PDF; .ics como calendario). $inline son imágenes PNG que el HTML usa como
  * src="cid:<clave>" (muchos clientes bloquean data: URIs). Devuelve true si mail() lo aceptó.
  */
 function turno_send_mail(string $to, string $subject, string $html, string $text, array $attachments, array $inline = []): bool
@@ -237,7 +298,8 @@ function turno_send_mail(string $to, string $subject, string $html, string $text
         . "--{$alt}\r\n" . $htmlPart
         . "--{$alt}--\r\n";
     foreach ($attachments as $name => $bytes) {
-        $body .= "--{$mixed}\r\nContent-Type: application/pdf; name=\"{$name}\"\r\n"
+        $type = str_ends_with(strtolower($name), '.ics') ? 'text/calendar; charset=utf-8; method=PUBLISH' : 'application/pdf';
+        $body .= "--{$mixed}\r\nContent-Type: {$type}; name=\"{$name}\"\r\n"
             . "Content-Transfer-Encoding: base64\r\nContent-Disposition: attachment; filename=\"{$name}\"\r\n\r\n"
             . chunk_split(base64_encode($bytes)) . "\r\n";
     }
@@ -364,6 +426,7 @@ function send_turno_confirmation(int $appointmentId, bool $force = false): strin
         . '<ul style="margin:0 0 18px;padding-left:20px">'
         . '<li>' . ($online ? '<strong>Indicaciones para tu clase online</strong>' : '<strong>Comprobante y requisitos para tu sesión</strong>') . '. <a href="' . $e($reqUrl) . '" style="color:#0f3d36">Ver PDF</a></li>'
         . '<li><strong>Consentimiento informado</strong> para imprimir. <a href="' . $e($conUrl) . '" style="color:#0f3d36">Ver PDF</a></li>'
+        . '<li><strong>Agregá el turno a tu calendario</strong> (archivo adjunto Turno-' . $e($appt['code']) . '.ics).</li>'
         . '</ul>'
         . '<p style="margin:0 0 18px">' . $btn($wa, 'Consultas por WhatsApp', '#2f8f6b') . '</p>'
         . '<p style="margin:0;color:#4f635a">Si no podés venir, avisanos con al menos 24 horas de anticipación.<br><br>Con cariño,<br><strong>FluxusTerapia</strong></p>'
@@ -384,13 +447,15 @@ function send_turno_confirmation(int $appointmentId, bool $force = false): strin
     }
     $text .= "Te adjuntamos en PDF:\n"
         . ($online ? '- Indicaciones para tu clase online: ' : '- Comprobante y requisitos para tu sesión: ') . $reqUrl . "\n"
-        . '- Consentimiento informado para imprimir: ' . $conUrl . "\n\n"
+        . '- Consentimiento informado para imprimir: ' . $conUrl . "\n"
+        . '- Agregá el turno a tu calendario (archivo adjunto Turno-' . $appt['code'] . ".ics)\n\n"
         . 'Consultas por WhatsApp: ' . $wa . "\n"
         . "Si no podés venir, avisanos con al menos 24 horas de anticipación.\n\nFluxusTerapia\n";
 
     $ok = turno_send_mail($to, $subject, $html, $text, [
         'Turno-' . $appt['code'] . '-requisitos.pdf' => turno_requisitos_pdf($appt),
         'Consentimiento-informado-' . $appt['code'] . '.pdf' => turno_consentimiento_pdf($appt),
+        'Turno-' . $appt['code'] . '.ics' => turno_ics($appt),
     ], $inline);
     if (!$ok) {
         return 'failed';

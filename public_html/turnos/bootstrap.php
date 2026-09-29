@@ -317,8 +317,8 @@ function create_manual_appointment(array $data): array
     $notes = trim((string) ($data['notes'] ?? ''));
     $deposit = array_key_exists('deposit_amount', $data) ? (int) $data['deposit_amount'] : deposit_amount();
 
-    if ($therapyId < 1 || $date === '' || $time === '' || $name === '' || $phone === '' || $email === '') {
-        throw new RuntimeException('Completá nombre, email, teléfono, terapia, día y horario.');
+    if ($therapyId < 1 || $date === '' || $time === '' || $name === '' || $email === '') {
+        throw new RuntimeException('Completá nombre, email, terapia, día y horario.');
     }
     if (mb_strlen($name) > 120 || mb_strlen($phone) > 40 || strlen($email) > 190 || mb_strlen($notes) > 1000) {
         throw new RuntimeException('Algún dato es demasiado largo.');
@@ -326,8 +326,8 @@ function create_manual_appointment(array $data): array
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         throw new RuntimeException('El email no es válido.');
     }
-    if (preg_match_all('/\d/', $phone) < 6) {
-        throw new RuntimeException('Revisá el teléfono.');
+    if ($phone !== '' && preg_match_all('/\d/', $phone) < 6) {
+        throw new RuntimeException('Revisá el teléfono (o dejalo vacío).');
     }
     $day = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
     if (!$day || $day->format('Y-m-d') !== $date) {

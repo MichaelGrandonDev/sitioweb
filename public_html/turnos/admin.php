@@ -232,8 +232,8 @@ $logged = !empty($_SESSION['turnos_admin']);
           <label>Email
             <input type="email" name="email" required maxlength="190" autocomplete="off" value="<?= h((string) ($manual['email'] ?? '')) ?>">
           </label>
-          <label>Teléfono / WhatsApp
-            <input name="phone" required maxlength="40" autocomplete="off" value="<?= h((string) ($manual['phone'] ?? '')) ?>">
+          <label>Teléfono / WhatsApp (opcional)
+            <input name="phone" maxlength="40" autocomplete="off" value="<?= h((string) ($manual['phone'] ?? '')) ?>">
           </label>
           <label>Terapia
             <select name="therapy_id" required>
@@ -386,7 +386,7 @@ $logged = !empty($_SESSION['turnos_admin']);
                 <strong><?= h($a['patient_name']) ?></strong> · <?= h($a['therapy_name']) ?>
                 <?php if (($a['source'] ?? '') === 'manual'): ?><span class="tag">Cargado a mano</span><?php endif; ?><br>
                 <span class="muted"><?= h(format_date_es($a['date'])) ?> · <?= h(format_time_es($a['time'])) ?></span><br>
-                <span class="muted"><?= h($a['patient_phone']) ?> <?= $a['patient_email'] ? '· ' . h($a['patient_email']) : '' ?></span>
+                <span class="muted"><?= h(implode(' · ', array_filter([trim((string) $a['patient_phone']), trim((string) $a['patient_email'])]))) ?></span>
                 · código <?= h($a['code']) ?>
                 · <?= h($depText) ?>
                 · <strong><?= $a['status'] === 'confirmed' ? 'Confirmado' : 'Espera seña' ?></strong>
