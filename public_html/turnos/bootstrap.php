@@ -525,6 +525,20 @@ function migrate_turnos_schema(): void
         $pdo->prepare("INSERT OR REPLACE INTO deposit_settings (key, value) VALUES ('schedule_version', '2')")->execute();
         $pdo->commit();
     }
+
+    // Consentimiento 2026-09 (acupuntura, con datos del paciente): un texto viejo guardado desde el admin taparía el
+    // nuevo por defecto. Se guarda como copia en consentimiento_text_anterior y se vuelve al de por defecto.
+    $consentVer = $pdo->query("SELECT value FROM deposit_settings WHERE key = 'consent_version'")->fetchColumn();
+    if ($consentVer !== '2') {
+        $pdo->beginTransaction();
+        $old = $pdo->query("SELECT value FROM deposit_settings WHERE key = 'consentimiento_text'")->fetchColumn();
+        if (is_string($old) && trim($old) !== '' && !str_contains($old, '{nombre}')) {
+            $pdo->prepare("INSERT OR REPLACE INTO deposit_settings (key, value) VALUES ('consentimiento_text_anterior', ?)")->execute([$old]);
+            $pdo->prepare("UPDATE deposit_settings SET value = '' WHERE key = 'consentimiento_text'")->execute();
+        }
+        $pdo->prepare("INSERT OR REPLACE INTO deposit_settings (key, value) VALUES ('consent_version', '2')")->execute();
+        $pdo->commit();
+    }
 }
 
 if (db_ready()) {

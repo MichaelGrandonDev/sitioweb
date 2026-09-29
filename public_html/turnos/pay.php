@@ -75,7 +75,7 @@ $consentPending = empty($appt['consent_accepted_at']);
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Seña del turno · FluxusTerapia</title>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Outfit:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/turnos.css?v=20260929">
+  <link rel="stylesheet" href="assets/turnos.css?v=20260929c">
 </head>
 <body>
   <header class="top">

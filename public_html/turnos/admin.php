@@ -141,8 +141,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect('admin.php');
     }
     if ($action === 'save_docs') {
-        deposit_setting_set('requisitos_text', trim((string) ($_POST['requisitos_text'] ?? '')));
-        deposit_setting_set('consentimiento_text', trim((string) ($_POST['consentimiento_text'] ?? '')));
+        // Igual al texto por defecto = sin personalizar, así una actualización del texto por defecto se aplica sola.
+        $docText = static function (string $field, string $default): string {
+            $value = trim(str_replace(["\r\n", "\r"], "\n", (string) ($_POST[$field] ?? '')));
+            return $value === trim($default) ? '' : $value;
+        };
+        deposit_setting_set('requisitos_text', $docText('requisitos_text', TURNO_REQUISITOS_DEFAULT));
+        deposit_setting_set('consentimiento_text', $docText('consentimiento_text', TURNO_CONSENTIMIENTO_DEFAULT));
         flash('success', 'Requisitos y consentimiento guardados. Los próximos mails usan estos textos.');
         redirect('admin.php');
     }
@@ -158,7 +163,7 @@ $logged = !empty($_SESSION['turnos_admin']);
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin turnos · FluxusTerapia</title>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Outfit:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/turnos.css?v=20260929">
+  <link rel="stylesheet" href="assets/turnos.css?v=20260929c">
 </head>
 <body>
   <header class="top">
@@ -396,7 +401,7 @@ $logged = !empty($_SESSION['turnos_admin']);
                 <br>
                 <?php if (!empty($a['consent_accepted_at'])): ?>
                   <span class="tag ok">Consentimiento firmado</span>
-                  <span class="muted small"><?= h(date('d/m/Y H:i', strtotime((string) $a['consent_accepted_at']))) ?> · <?= h((string) $a['consent_name']) ?> · DNI <?= h((string) $a['consent_dni']) ?></span>
+                  <span class="muted small"><?= h(date('d/m/Y H:i', strtotime((string) $a['consent_accepted_at']))) ?> · <?= h((string) $a['consent_name']) ?> · RUT / DNI <?= h((string) $a['consent_dni']) ?></span>
                 <?php else: ?>
                   <span class="tag warn">Consentimiento pendiente</span>
                 <?php endif; ?>
@@ -446,16 +451,28 @@ $logged = !empty($_SESSION['turnos_admin']);
 
       <section class="panel">
         <h2>Requisitos y consentimiento informado</h2>
-        <p class="hint">Horario de turnos: lunes a sábado de 8 a 20 hs (último turno 19 hs), cada una hora. Cuando se confirma el turno (seña acreditada o turno cargado a mano), al paciente le llega un mail con estos dos PDF y el link para firmar el consentimiento online. Un renglón por punto.</p>
+        <p class="hint">Horario de turnos: lunes a sábado de 8 a 20 hs (último turno 19 hs), cada una hora. Cuando se confirma el turno (seña acreditada o turno cargado a mano), al paciente le llega un mail con estos dos PDF y el link para firmar el consentimiento online. Si dejás un texto vacío se usa el de por defecto.</p>
         <form method="post" class="stack">
           <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
           <input type="hidden" name="action" value="save_docs">
-          <label>Requisitos para la sesión
+          <label>Requisitos para la sesión (un renglón por punto)
             <textarea name="requisitos_text" rows="9"><?= h(turno_text_setting('requisitos_text', TURNO_REQUISITOS_DEFAULT)) ?></textarea>
           </label>
-          <label>Consentimiento informado (puntos que declara el paciente)
-            <textarea name="consentimiento_text" rows="12"><?= h(turno_text_setting('consentimiento_text', TURNO_CONSENTIMIENTO_DEFAULT)) ?></textarea>
+          <label>Consentimiento informado (un párrafo por renglón)
+            <textarea name="consentimiento_text" rows="24"><?= h(turno_consent_template()) ?></textarea>
           </label>
+          <p class="hint">
+            Datos del paciente que se completan solos:
+            <code>{nombre}</code> nombre y apellido,
+            <code>{NOMBRE}</code> el mismo en mayúsculas,
+            <code>{documento}</code> RUT / DNI,
+            <code>{email}</code> e-mail del turno,
+            <code>{fecha}</code> fecha de firma (dd-mm-aaaa).
+            Al firmar online se usan el nombre y el documento que escribe el paciente y la fecha de ese día; en el PDF del mail
+            van su nombre y e-mail, y el documento y la fecha quedan como líneas para completar a mano.
+            Los renglones que empiezan con <code>PRIMERO:</code>, <code>SEGUNDO:</code>… salen con la etiqueta en negrita;
+            los que empiezan con <code>a)</code> o <code>i.-</code> salen como subítems. Los consentimientos ya firmados no cambian.
+          </p>
           <button class="btn primary" type="submit">Guardar textos</button>
         </form>
       </section>

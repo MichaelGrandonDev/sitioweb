@@ -15,13 +15,62 @@ const TURNO_REQUISITOS_DEFAULT = "No comer nada 1 hora antes del turno (agua sí
     . "Leé el consentimiento informado adjunto: traelo firmado o lo firmás al llegar.\n"
     . "Si no podés venir, avisá con al menos 24 horas de anticipación por WhatsApp.";
 
-const TURNO_CONSENTIMIENTO_DEFAULT = "Fui informado/a de manera clara sobre la terapia que voy a recibir en FluxusTerapia (por ejemplo masoterapia, rehabilitación kinésica, técnicas de medicina tradicional china como acupuntura, ventosas o moxibustión, u otras prácticas complementarias): sus objetivos, cómo se realiza y su duración aproximada.\n"
-    . "Entiendo que estas prácticas son complementarias y no reemplazan el diagnóstico ni el tratamiento médico. Me comprometo a continuar con las indicaciones de mi médico.\n"
-    . "Conozco las posibles molestias o efectos transitorios: dolor o sensibilidad en la zona tratada, enrojecimiento, pequeños hematomas o marcas (sobre todo con ventosas), mareo leve, cansancio o somnolencia. En acupuntura puede haber un pequeño sangrado en el punto de punción; se usan agujas estériles y descartables.\n"
-    . "Informé con veracidad mi estado de salud: enfermedades, medicación (en especial anticoagulantes), alergias, embarazo o posibilidad de estarlo, marcapasos u otros dispositivos, cirugías recientes, problemas de piel, diabetes, epilepsia u otras condiciones. Me comprometo a avisar cualquier cambio.\n"
-    . "Puedo hacer todas las preguntas que necesite, pedir que se modifique o se detenga la sesión en cualquier momento y retirar este consentimiento cuando quiera.\n"
-    . "Mis datos personales y de salud se tratan de forma confidencial y solo se usan para mi atención (Ley 25.326 de Protección de Datos Personales y Ley 26.529 de Derechos del Paciente).\n"
-    . "Leí y acepto las indicaciones previas a la sesión.";
+/**
+ * Un párrafo por renglón. Marcadores: {nombre}, {NOMBRE} (en mayúsculas), {documento}, {email}, {fecha}.
+ * Renglones "PRIMERO: …" van con la etiqueta en negrita; "a) …" / "i.- …" como subítems con sangría.
+ */
+const TURNO_CONSENTIMIENTO_DEFAULT = <<<'TXT'
+- CONSENTIMIENTO INFORMADO -
+Yo, {nombre}, RUT N° {documento}, e-mail {email}; mediante la presente declaro que hoy {fecha} he sido informado(a) adecuadamente, en conformidad con lo dispuesto en el artículo 4° del decreto N° 123 del año 2006 del Ministerio de Salud; sobre las bases, aplicación, indicaciones, contraindicaciones, riesgos y resultados esperados en la terapia de Medicina Tradicional China (Acupuntura) y sus distintas técnicas asociadas. Así mismo declaro en este acto estar consciente y aceptar que:
+
+PRIMERO: La Medicina Tradicional China es el conjunto de teorías, especialidades, técnicas y procedimientos, de las que se vale la cultura china para equilibrar, mantener e incrementar el bienestar físico y mental del ser humano, considerado éste como un todo inseparable.
+
+SEGUNDO: La Acupuntura es una especialidad de la Medicina Tradicional China que consiste en la inserción de agujas sólidas, estériles, de preferencia desechables, en puntos específicos de la superficie corporal, lo que permite equilibrar, mantener e incrementar el bienestar físico y mental de las personas.
+
+TERCERO: El tratamiento a través de la Acupuntura se basa en la teoría dinámica del flujo de energía vital (Qi) que fluye en forma continua por todo el cuerpo. En toda dolencia existe una alteración de esta dinámica del flujo, la cual con la aplicación de agujas en puntos específicos del cuerpo -'Puntos de Acupuntura'- se puede influenciar positivamente, contribuyendo así a la restitución del equilibrio energético del organismo.
+
+CUARTO: Forman parte de la Acupuntura los siguientes Microsistemas:
+
+a) Cráneo Puntura: Sistema de inserción de agujas de acupuntura en la superficie craneal, utilizando puntos y líneas específicas.
+
+b) Aurículo Puntura: Sistema de inserción de agujas de acupuntura y estímulo en puntos específicos de la oreja.
+
+c) Mano Puntura: Sistema de inserción de agujas de acupuntura en puntos específicos de la superficie de las manos.
+
+d) Acupuntura Podal: Sistema de inserción de agujas de acupuntura en puntos específicos de la superficie de los pies.
+
+QUINTO: Junto con la Acupuntura, podrán ser empleadas las siguientes Técnicas Asociadas:
+
+i.- Moxibustión: Aplicación de calor en los puntos de acupuntura y sobre las agujas de acupuntura, a través de la utilización de yerbas chinas (Moxa).
+
+ii.- Ventosas: Utilización de vasos de succión de aire sobre zonas y puntos de Acupuntura, confeccionados de material de vidrio, bambú, cerámica, plástico, etc.
+
+iii.- Láser Puntura: Técnica de estímulo de los puntos de Acupuntura con equipos de Láser especialmente diseñados para Acupuntura.
+
+iv.- Electro acupuntura: Técnica de estímulo de los puntos de Acupuntura con equipos de Electro-Acupuntura diseñados para Acupuntura.
+
+v.- Magnetos: Técnica de estímulo de los puntos de Acupuntura con magnetos especialmente diseñados para Acupuntura.
+
+SEXTO: La Acupuntura se encuentra indicada principalmente como tratamiento complementario para el manejo del dolor crónico (como lumbalgia, cervicalgia o osteoartritis), cefaleas y migrañas, así como para aliviar náuseas (incluyendo las asociadas a quimioterapia o embarazo), trastornos funcionales como la infertilidad, el insomnio, la ansiedad y el síndrome del intestino irritable. Su uso se basa en la evidencia de organismos como la Organización Mundial de la Salud, y aunque la Acupuntura puede emplearse para tratar casi la gran mayoría de las enfermedades ésta no reemplaza los tratamientos médicos convencionales sino que sólo los complementa.
+
+SÉPTIMO: La Acupuntura está contraindicada en presencia de infecciones cutáneas en la zona de punción o cuando no se garantizan condiciones de higiene adecuadas. Además, requiere precaución en personas embarazadas (por riesgo de estimular contracciones), pacientes con trastornos de coagulación o que usan anticoagulantes, personas con marcapasos (especialmente en electroacupuntura), inmunosuprimidos o con fobia intensa a las agujas. No debe utilizarse como tratamiento único en enfermedades graves, urgencias médicas o condiciones que requieren intervenciones farmacológicas o quirúrgicas.
+
+OCTAVO: Aunque la Acupuntura suele ser una técnica bastante segura e inocua para la salud, es importante reconocer que, como cualquier procedimiento terapéutico, no está exenta de riesgos potenciales. Entre estos se incluyen molestias locales, dolor leve, sangrado o hematomas en los sitios de punción, así como, en raras ocasiones, infecciones si no se utilizan materiales estériles o no se siguen adecuadas normas de asepsia. Asimismo, técnicas asociadas como la moxibustión pueden generar quemaduras o irritación cutánea, la electroacupuntura podría provocar molestias eléctricas o interferencias en pacientes con dispositivos médicos implantados, y el uso de láser puede ocasionar efectos adversos si no se aplica correctamente. En casos excepcionales, pueden producirse reacciones vasovagales como mareos o desmayos.
+
+NOVENO: Declaro estar en conocimiento y aceptar que, en el contexto de formación académica y práctica clínica supervisada de la Medicina Tradicional China, los procedimientos de Acupuntura y de sus técnicas asociadas podrían ser realizados por alumnos de la Escuela Neidan en proceso de formación bajo la supervisión de un profesional calificado, por lo que autorizo expresamente la participación de alumnos de dicha Casa de Estudios en mi atención, comprendiendo la naturaleza docente de la instancia y consintiendo de manera libre e informada en dichas condiciones.
+
+DÉCIMO: Declaro estar en conocimiento y aceptar de que el diagnóstico en medicina tradicional china se expresa siempre mediante un lenguaje metafórico y simbólico, en el cual términos como “riñón” o “hígado”, entre otros, no corresponden necesariamente a órganos anatómicos ni a enfermedades en el sentido de la medicina occidental, sino a funciones y desequilibrios de carácter energético. En consecuencia, comprendo que expresiones como “deficiencia de riñón”, “insuficiencia del corazón” o “estancamiento de sangre” no implican necesariamente la existencia de una patología clínica, ni sustituyen el diagnóstico o tratamiento médico convencional.
+
+En conformidad con todo lo anterior, YO, {NOMBRE}, RUT N° {documento}, ACEPTO libre y voluntariamente someterme al tratamiento de Medicina Tradicional China – Acupuntura, asumiendo los riesgos inherentes a su aplicación. En este acto, libero de toda responsabilidad al profesional tratante y a la institución por los resultados obtenidos y por cualquier efecto secundario que pudiera derivarse del tratamiento. Asimismo, me comprometo a entregar información veraz sobre mi estado de salud y a seguir las indicaciones del profesional tratante.
+TXT;
+
+/** Líneas para completar a mano cuando todavía no hay dato (PDF antes de firmar). */
+const TURNO_CONSENT_BLANKS = [
+    'nombre' => '______________________________',
+    'documento' => '________________',
+    'email' => '______________________________',
+    'fecha' => '____-____-________',
+];
 
 /** Renglones de preparación que venían por defecto en cada terapia (ya cubiertos por los requisitos generales). */
 const TURNO_PREP_GENERIC = [
@@ -100,12 +149,157 @@ function turno_prep_lines(array $appt): array
     return array_merge(turno_lines(turno_text_setting('requisitos_text', TURNO_REQUISITOS_DEFAULT)), $extras);
 }
 
+/** Texto del consentimiento vigente (con marcadores sin completar). */
+function turno_consent_template(): string
+{
+    return turno_text_setting('consentimiento_text', TURNO_CONSENTIMIENTO_DEFAULT);
+}
+
 /**
- * Guarda el consentimiento aceptado online. Solo la primera vez: no pisa uno ya firmado.
- * Devuelve true si quedó guardado ahora.
+ * Valores de los marcadores. Lo que falta queda como línea para completar a mano
+ * (documento y fecha en el PDF que se manda antes de firmar).
+ */
+function turno_consent_values(array $appt, string $name = '', string $document = '', string $date = ''): array
+{
+    $name = trim($name !== '' ? $name : (string) ($appt['patient_name'] ?? ''));
+    $email = trim((string) ($appt['patient_email'] ?? ''));
+    return [
+        'nombre' => $name !== '' ? $name : TURNO_CONSENT_BLANKS['nombre'],
+        'NOMBRE' => $name !== '' ? mb_strtoupper($name, 'UTF-8') : TURNO_CONSENT_BLANKS['nombre'],
+        'documento' => trim($document) !== '' ? trim($document) : TURNO_CONSENT_BLANKS['documento'],
+        'email' => $email !== '' ? $email : TURNO_CONSENT_BLANKS['email'],
+        'fecha' => $date !== '' ? $date : TURNO_CONSENT_BLANKS['fecha'],
+    ];
+}
+
+function turno_consent_fill(string $text, array $values): string
+{
+    $map = [];
+    foreach ($values as $key => $value) {
+        $map['{' . $key . '}'] = (string) $value;
+    }
+    return strtr($text, $map);
+}
+
+/**
+ * Bloques del consentimiento, un párrafo por renglón:
+ * title ("- CONSENTIMIENTO INFORMADO -"), clause ("PRIMERO: …", con label), item ("a) …", "iv.- …", con label
+ * y term = lo que va antes de los dos puntos) o para.
+ *
+ * @return list<array{type: string, label: string, term: string, text: string}>
+ */
+function turno_consent_blocks(string $text): array
+{
+    $blocks = [];
+    foreach (preg_split('/\R/u', $text) ?: [] as $line) {
+        $line = trim($line);
+        if ($line === '') {
+            continue;
+        }
+        $block = ['type' => 'para', 'label' => '', 'term' => '', 'text' => $line];
+        if (!str_contains($line, ':') && mb_strlen($line) <= 80 && preg_match('/\p{L}/u', $line) && mb_strtoupper($line, 'UTF-8') === $line) {
+            $block['type'] = 'title';
+        } elseif (preg_match('/^(\p{Lu}{4,}:)\s*(.+)$/u', $line, $m)) {
+            $block = ['type' => 'clause', 'label' => $m[1], 'term' => '', 'text' => $m[2]];
+        } elseif (preg_match('/^([a-z]\)|[ivxl]+\.-|[ivxl]+\)|\d{1,2}[.)])\s+(.+)$/u', $line, $m)) {
+            $block = ['type' => 'item', 'label' => $m[1], 'term' => '', 'text' => $m[2]];
+            if (preg_match('/^([^:]{2,40}:)\s+(.+)$/u', $m[2], $t)) {
+                $block['term'] = $t[1];
+                $block['text'] = $t[2];
+            }
+        }
+        $blocks[] = $block;
+    }
+    return $blocks;
+}
+
+/** Consentimientos firmados antes de 2026-09: una declaración por renglón, sin título ni cláusulas. */
+function turno_consent_is_legacy(string $text): bool
+{
+    foreach (turno_consent_blocks($text) as $block) {
+        if ($block['type'] === 'title' || $block['type'] === 'clause') {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * HTML del consentimiento. $values = null para un texto ya completado (firmado); si no, los marcadores se
+ * reemplazan por <span data-fill="…"> para que la página los actualice mientras el paciente completa sus datos.
+ */
+function turno_consent_html(string $text, ?array $values = null): string
+{
+    $fill = static function (string $raw) use ($values): string {
+        if ($values === null) {
+            return h($raw);
+        }
+        $out = '';
+        foreach (preg_split('/\{(nombre|NOMBRE|documento|email|fecha)\}/u', $raw, -1, PREG_SPLIT_DELIM_CAPTURE) ?: [] as $i => $part) {
+            $out .= $i % 2 === 0
+                ? h($part)
+                : '<span class="consent-fill" data-fill="' . h($part) . '">' . h((string) ($values[$part] ?? '')) . '</span>';
+        }
+        return $out;
+    };
+
+    if ($values === null && turno_consent_is_legacy($text)) {
+        $html = '<h2>Declaro que</h2><ol class="consent-list">';
+        foreach (turno_lines($text) as $line) {
+            $html .= '<li>' . h($line) . '</li>';
+        }
+        return $html . '</ol><p>Por todo lo expuesto, doy mi consentimiento libre y voluntario para recibir la terapia indicada.</p>';
+    }
+
+    $html = '<div class="consent-doc">';
+    $inItems = false;
+    foreach (turno_consent_blocks($text) as $b) {
+        if ($b['type'] === 'item' && !$inItems) {
+            $html .= '<ul class="consent-items">';
+            $inItems = true;
+        } elseif ($b['type'] !== 'item' && $inItems) {
+            $html .= '</ul>';
+            $inItems = false;
+        }
+        $html .= match ($b['type']) {
+            'title' => '<h2 class="consent-title">' . $fill($b['text']) . '</h2>',
+            'clause' => '<p><strong>' . $fill($b['label']) . '</strong> ' . $fill($b['text']) . '</p>',
+            'item' => '<li><span class="consent-item-label">' . h($b['label']) . '</span> '
+                . ($b['term'] !== '' ? '<strong>' . $fill($b['term']) . '</strong> ' : '') . $fill($b['text']) . '</li>',
+            default => '<p>' . $fill($b['text']) . '</p>',
+        };
+    }
+    return $html . ($inItems ? '</ul>' : '') . '</div>';
+}
+
+/** Escribe el consentimiento (ya completado) en el PDF. */
+function turno_consent_pdf_body(FluxusPdf $pdf, string $text): void
+{
+    if (turno_consent_is_legacy($text)) {
+        $pdf->heading('Declaro que');
+        foreach (turno_lines($text) as $i => $line) {
+            $pdf->richParagraph([[$line, false]], ($i + 1) . '.', 0, 16);
+        }
+        $pdf->richParagraph([['Por todo lo expuesto, doy mi consentimiento libre y voluntario para recibir la terapia indicada.', false]]);
+        return;
+    }
+    foreach (turno_consent_blocks($text) as $b) {
+        match ($b['type']) {
+            'title' => $pdf->centered($b['text'], 13),
+            'clause' => $pdf->richParagraph([[$b['label'], true], [$b['text'], false]]),
+            'item' => $pdf->richParagraph(array_values(array_filter([[$b['term'], true], [$b['text'], false]], static fn ($r) => $r[0] !== '')), $b['label'], 18, 26),
+            default => $pdf->richParagraph([[$b['text'], false]]),
+        };
+    }
+}
+
+/**
+ * Guarda el consentimiento aceptado online, con nombre, documento, e-mail y fecha ya completados en el texto.
+ * Solo la primera vez: no pisa uno ya firmado. Devuelve true si quedó guardado ahora.
  */
 function turno_accept_consent(array $appt, string $name, string $dni, string $ip): bool
 {
+    $text = turno_consent_fill(turno_consent_template(), turno_consent_values($appt, $name, $dni, date('d-m-Y')));
     $stmt = db()->prepare("
       UPDATE appointments
       SET consent_accepted_at = ?, consent_name = ?, consent_dni = ?, consent_ip = ?, consent_text = ?
@@ -116,7 +310,7 @@ function turno_accept_consent(array $appt, string $name, string $dni, string $ip
         $name,
         $dni,
         substr($ip, 0, 45),
-        turno_text_setting('consentimiento_text', TURNO_CONSENTIMIENTO_DEFAULT),
+        $text,
         (int) $appt['id'],
     ]);
     return $stmt->rowCount() === 1;
@@ -180,21 +374,42 @@ function turno_requisitos_pdf(array $appt): string
     return $pdf->render();
 }
 
+/**
+ * Consentimiento en PDF. Sin firmar: con el nombre y el e-mail del paciente, y líneas para completar a mano
+ * el documento y la fecha (se firma en papel el día de la sesión). Firmado online: el texto exacto aceptado.
+ */
 function turno_consentimiento_pdf(array $appt): string
 {
+    $signed = !empty($appt['consent_accepted_at']) && trim((string) ($appt['consent_text'] ?? '')) !== '';
+    $text = $signed
+        ? (string) $appt['consent_text']
+        : turno_consent_fill(turno_consent_template(), turno_consent_values($appt));
+
     $pdf = new FluxusPdf();
-    turno_pdf_header($pdf, 'Consentimiento informado');
-    $pdf->heading('Datos');
-    $pdf->paragraph('Paciente: ' . $appt['patient_name'] . (trim((string) $appt['patient_phone']) !== '' ? ' · Teléfono: ' . $appt['patient_phone'] : ''));
-    $pdf->paragraph('Terapia: ' . $appt['therapy_name'] . ' · ' . format_date_es((string) $appt['date']) . ' · ' . format_time_es((string) $appt['time']) . ' · Código ' . $appt['code']);
-    $pdf->heading('Declaro que');
-    foreach (turno_lines(turno_text_setting('consentimiento_text', TURNO_CONSENTIMIENTO_DEFAULT)) as $i => $line) {
-        $pdf->paragraph(($i + 1) . '. ' . $line);
+    $pdf->setFooter('FluxusTerapia · Consentimiento informado · Turno ' . $appt['code']);
+    turno_pdf_header($pdf, 'Turno ' . $appt['code']);
+    $pdf->richParagraph([
+        ['Turno:', true],
+        [$appt['therapy_name'] . ' · ' . format_date_es((string) $appt['date']) . ' · ' . format_time_es((string) $appt['time'])
+            . (trim((string) ($appt['patient_phone'] ?? '')) !== '' ? ' · Teléfono: ' . $appt['patient_phone'] : ''), false],
+    ], '', 0, 0, 9.5);
+    turno_consent_pdf_body($pdf, $text);
+
+    if ($signed) {
+        $pdf->keepTogether(110);
+        $pdf->rule();
+        $pdf->richParagraph([
+            ['Aceptado online:', true],
+            [date('d/m/Y H:i', strtotime((string) $appt['consent_accepted_at'])) . ' hs por ' . $appt['consent_name']
+                . ' (RUT / DNI ' . $appt['consent_dni'] . ').', false],
+        ]);
+        $pdf->signatureRow('Firma y sello del profesional');
+    } else {
+        $pdf->keepTogether(150);
+        $pdf->signatureRow('Firma del paciente', 'Aclaración y RUT / DNI');
+        $pdf->signatureRow('Fecha', 'Firma y sello del profesional');
+        $pdf->small('Si el paciente es menor de edad o no puede firmar, firma su madre, padre, tutor o representante indicando el vínculo.');
     }
-    $pdf->paragraph('Por todo lo expuesto, doy mi consentimiento libre y voluntario para recibir la terapia indicada.');
-    $pdf->signatureRow('Firma del paciente', 'Aclaración y DNI');
-    $pdf->signatureRow('Fecha', 'Firma y sello del profesional');
-    $pdf->small('Si el paciente es menor de edad o no puede firmar, firma su madre, padre, tutor o representante indicando el vínculo.');
     return $pdf->render();
 }
 
@@ -396,7 +611,7 @@ function send_turno_confirmation(int $appointmentId, bool $force = false): strin
     if ($signed) {
         $html .= '<p style="margin:0 0 6px">Ya lo firmaste online el ' . $e(date('d/m/Y', strtotime((string) $appt['consent_accepted_at']))) . '. ¡Gracias!</p>';
     } else {
-        $html .= '<p style="margin:0 0 12px">Antes de la sesión, leelo y firmalo online: te lleva un minuto. Si preferís, traelo impreso y firmado o lo firmás al llegar.</p>'
+        $html .= '<p style="margin:0 0 12px">Antes de la sesión, leelo con calma y firmalo online con tu nombre y tu RUT o DNI. Si preferís, traelo impreso y firmado o lo firmás al llegar.</p>'
             . '<p style="margin:0 0 6px">' . $btn($signUrl, 'Firmar consentimiento online', '#0f3d36') . '</p>';
     }
 
