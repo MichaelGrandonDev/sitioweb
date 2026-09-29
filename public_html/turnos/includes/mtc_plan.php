@@ -220,6 +220,15 @@ function mtc_schema(): void
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     ');
+    db()->exec("
+      CREATE TABLE IF NOT EXISTS mtc_plan_versions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        plan_id INTEGER NOT NULL,
+        data TEXT NOT NULL,
+        reason TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    ");
 }
 
 /** Estructura vacía del plan. Las claves fijan qué se guarda. */
@@ -371,18 +380,139 @@ function mtc_visit_of(int $apptId): ?array
     return $stmt->fetch() ?: null;
 }
 
-function mtc_save(int $apptId, array $plan, ?array $existing): int
+/** Guarda el plan. Si cambia algo, la versión anterior queda en mtc_plan_versions (últimas 40). */
+function mtc_save(int $apptId, array $plan, ?array $existing, string $reason = 'Antes de guardar cambios'): int
 {
     $json = json_encode($plan, JSON_UNESCAPED_UNICODE);
     $now = date('Y-m-d H:i:s');
     if ($existing) {
+        $id = (int) $existing['id'];
         if ($json !== json_encode(mtc_normalize(json_decode((string) $existing['data'], true) ?: []), JSON_UNESCAPED_UNICODE)) {
-            db()->prepare('UPDATE mtc_plans SET data = ?, updated_at = ? WHERE id = ?')->execute([$json, $now, (int) $existing['id']]);
+            $pdo = db();
+            $pdo->beginTransaction();
+            $pdo->prepare('INSERT INTO mtc_plan_versions (plan_id, data, reason, created_at) VALUES (?, ?, ?, ?)')
+                ->execute([$id, (string) $existing['data'], $reason, $now]);
+            $pdo->prepare('UPDATE mtc_plans SET data = ?, updated_at = ? WHERE id = ?')->execute([$json, $now, $id]);
+            $pdo->prepare('DELETE FROM mtc_plan_versions WHERE plan_id = ? AND id NOT IN (SELECT id FROM mtc_plan_versions WHERE plan_id = ? ORDER BY id DESC LIMIT 40)')
+                ->execute([$id, $id]);
+            $pdo->commit();
         }
-        return (int) $existing['id'];
+        return $id;
     }
     db()->prepare('INSERT INTO mtc_plans (appointment_id, data, created_at, updated_at) VALUES (?, ?, ?, ?)')->execute([$apptId, $json, $now, $now]);
     return (int) db()->lastInsertId();
+}
+
+function mtc_versions(int $planId): array
+{
+    $stmt = db()->prepare('SELECT * FROM mtc_plan_versions WHERE plan_id = ? ORDER BY id DESC');
+    $stmt->execute([$planId]);
+    return $stmt->fetchAll();
+}
+
+function mtc_version(int $planId, int $versionId): ?array
+{
+    $stmt = db()->prepare('SELECT * FROM mtc_plan_versions WHERE plan_id = ? AND id = ? LIMIT 1');
+    $stmt->execute([$planId, $versionId]);
+    return $stmt->fetch() ?: null;
+}
+
+/** Plan como el POST del formulario, para volver a pasarlo por mtc_from_post() (que valida todo). */
+function mtc_to_post(array $plan): array
+{
+    $flat = static function (array $row): array {
+        $out = [];
+        foreach ($row as $k => $v) {
+            $out[$k] = match (true) {
+                is_bool($v) => $v ? '1' : '',
+                is_array($v) => array_values(array_filter($v, 'is_string')),
+                is_scalar($v) => (string) $v,
+                default => '',
+            };
+        }
+        return $out;
+    };
+    return [
+        'diag' => $flat($plan['diag']),
+        's' => array_map($flat, $plan['sessions']),
+        'c' => array_map($flat, $plan['controls']),
+        'p' => $flat($plan['patient']),
+    ];
+}
+
+/** Estado de la consulta 1 que viaja oculto en la vista previa (nada se guarda hasta «Guardar plan»). */
+function mtc_state_encode(array $plan): string
+{
+    return (string) json_encode($plan, JSON_UNESCAPED_UNICODE);
+}
+
+function mtc_state_decode(mixed $raw): ?array
+{
+    $data = is_string($raw) ? json_decode($raw, true) : null;
+    if (!is_array($data) || !is_array($data['diag'] ?? null)) {
+        return null;
+    }
+    $plan = mtc_normalize($data);
+    return mtc_from_post(mtc_to_post($plan), ['generated' => $plan['generated']]);
+}
+
+/** Propuesta sin guardar: el plan con los textos generados y qué protocolo se aplicó. */
+function mtc_propose(array $plan): array
+{
+    $proposal = mtc_apply_generated($plan);
+    return [$proposal, mtc_generate($proposal)['protocol']];
+}
+
+/** Textos de la vista previa (quizás editados) aplicados sobre el estado de la consulta 1. */
+function mtc_merge_proposal(array $state, array $post): array
+{
+    $plan = $state;
+    $d = is_array($post['diag'] ?? null) ? $post['diag'] : [];
+    $plan['diag']['tonificacion'] = mtc_clean_text($d['tonificacion'] ?? '');
+    $s = is_array($post['s'] ?? null) ? $post['s'] : [];
+    foreach ($plan['sessions'] as $n => $row) {
+        foreach (['objetivo', 'puntos', 'tecnica'] as $k) {
+            $plan['sessions'][$n][$k] = mtc_clean_text(is_array($s[$n] ?? null) ? ($s[$n][$k] ?? '') : '');
+        }
+    }
+    $p = is_array($post['p'] ?? null) ? $post['p'] : [];
+    $plan['patient']['resumen'] = mtc_clean_text($p['resumen'] ?? '');
+    $plan['patient']['recomendaciones'] = mtc_clean_text($p['recomendaciones'] ?? '');
+    $plan['generated'] = true;
+    return $plan;
+}
+
+const MTC_DIAG_LABELS = [
+    'motivo' => 'motivo de consulta', 'antecedentes' => 'antecedentes', 'interrog_notas' => 'notas del interrogatorio',
+    'lengua_notas' => 'notas de la lengua', 'pulso' => 'pulso', 'patron_otro' => 'otro patrón', 'sintoma' => 'síntoma',
+    'notas' => 'notas internas', 'sueno' => 'sueño', 'digestion' => 'digestión', 'sed' => 'sed', 'frio_calor' => 'frío / calor',
+    'animo' => 'ánimo', 'ciclo' => 'ciclo', 'lengua_color' => 'color de la lengua', 'saburra_color' => 'color de la saburra',
+    'saburra_espesor' => 'espesor de la saburra', 'saburra_humedad' => 'humedad de la saburra', 'contra' => 'contraindicaciones',
+    'lengua_forma' => 'forma de la lengua', 'zonas' => 'zonas de la lengua', 'patrones' => 'patrones', 'zona_dolor' => 'zona del dolor',
+    'escala' => 'escala',
+];
+
+/** Datos de la consulta 1 que cambian respecto de lo guardado (sin la tonificación, que se compara aparte). */
+function mtc_diag_changes(array $saved, array $new): array
+{
+    $out = [];
+    foreach (MTC_DIAG_LABELS as $k => $label) {
+        if (($saved['diag'][$k] ?? null) !== ($new['diag'][$k] ?? null)) {
+            $out[] = $label;
+        }
+    }
+    return $out;
+}
+
+/** Resumen corto de una versión para el historial. */
+function mtc_plan_brief(array $plan): string
+{
+    $labels = array_map(static fn ($k) => mtc_patterns()[$k]['label'] ?? $k, $plan['diag']['patrones']);
+    if ($plan['diag']['patron_otro'] !== '') {
+        $labels[] = $plan['diag']['patron_otro'];
+    }
+    return ($labels ? implode(', ', $labels) : 'sin patrón') . ' · ' . ($plan['generated'] ? 'plan generado' : 'solo diagnóstico')
+        . ' · ' . mtc_done($plan) . ' de ' . MTC_TOTAL . ' consultas hechas';
 }
 
 /** Turnos agendados del plan (sin cancelados), por número de consulta. */
@@ -517,6 +647,8 @@ function mtc_generate(array $plan): array
     if ($zone && $zone['meridian'] !== '') {
         $meridians[] = $zone['meridian'];
     }
+    $rawTechs = array_values(array_unique($techs));
+    $rawPoints = array_values(array_unique(array_merge($points, $root, $local, $distal, MTC_TONIFY)));
     if (in_array('marcapasos', $contra, true)) {
         $techs = array_diff($techs, ['electroacupuntura']);
     }
@@ -603,7 +735,38 @@ function mtc_generate(array $plan): array
     $recs[] = 'Tomá agua durante el día y evitá comidas pesadas justo antes y después de cada sesión.';
     $recs[] = 'Anotá cómo te sentís durante la semana para contarlo en el control.';
 
+    $protocol = [];
+    foreach ($chosen as $p) {
+        $protocol[] = ['Patrón', $p['label'] . ' (' . $p['signs'] . ')'
+            . ($p['points'] ? ': puntos de referencia ' . mtc_points_text($p['points']) : ': puntos locales, Ashi y distales') . '.'];
+    }
+    if ($otro !== '') {
+        $protocol[] = ['Otro patrón', $otro . ' (sin plantilla propia: completá los puntos a mano).'];
+    }
+    if (!$chosen && $otro === '') {
+        $protocol[] = ['Sin patrón', 'No elegiste ningún patrón: el plan queda genérico. Volvé a la consulta 1 para elegirlo.'];
+    }
+    if ($zone) {
+        $protocol[] = ['Zona', $zone['label'] . ($zone['local'] ? ': locales ' . mtc_points_text($zone['local']) . '; distales ' . mtc_points_text($zone['distal'])
+            . ' (meridianos ' . $zone['meridian'] . ')' : ': locales y distales del meridiano que recorre la zona') . '.'];
+    }
+    $protocol[] = ['Técnicas asociadas', ($techs ? implode(', ', $techs) : 'moxa') . '.'];
+    $removedPoints = $pregnant ? array_values(array_intersect($rawPoints, MTC_PREGNANCY_AVOID)) : [];
+    if ($removedPoints) {
+        $protocol[] = ['Filtro embarazo', 'se sacaron ' . mtc_points_text($removedPoints) . '.'];
+    }
+    $removedTechs = array_values(array_diff($rawTechs, $techs));
+    if ($removedTechs) {
+        $protocol[] = ['Filtro contraindicaciones', 'se sacó ' . implode(' y ', $removedTechs)
+            . ' (' . implode(', ', array_map(static fn ($c) => mb_strtolower(MTC_CONTRA[$c]), array_values(array_intersect(['marcapasos', 'anticoagulantes'], $contra)))) . ').'];
+    }
+    if (in_array('piel', $contra, true)) {
+        $protocol[] = ['Piel lesionada', 'no punturar ni aplicar ventosas o moxa sobre la zona.'];
+    }
+    $protocol[] = ['Estructura', 'consulta 1 = diagnóstico y tonificación (ya hecha); consultas 2 a 5 = primer bloque; 6 a 25 = controles semanales con re-evaluación en la 10, 15, 20 y 25.'];
+
     return [
+        'protocol' => $protocol,
         'sessions' => $sessions,
         'resumen' => implode("\n", $resumen),
         'recomendaciones' => implode("\n", array_map(static fn ($r) => '- ' . $r, array_values(array_unique($recs)))),

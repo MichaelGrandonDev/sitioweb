@@ -69,3 +69,23 @@
 @media (max-width: 560px) {
   .mtc-schedule-row { grid-template-columns: 1fr 1fr; }
 }
+
+.mtc-preview-banner { margin: 1rem 0; padding: 0.9rem 1.1rem; border-radius: 10px; border: 2px dashed var(--accent); background: #fbefd9; color: #7a4b0f; line-height: 1.5; }
+.mtc-preview-banner strong { display: block; font-size: 1.1rem; }
+.mtc-protocol { display: grid; grid-template-columns: minmax(8rem, 13rem) 1fr; gap: 0.45rem 1rem; margin: 0; }
+.mtc-protocol dt { font-weight: 600; }
+.mtc-protocol dd { margin: 0; line-height: 1.5; }
+@media (max-width: 560px) {
+  .mtc-protocol { grid-template-columns: 1fr; }
+  .mtc-protocol dd { margin-bottom: 0.4rem; }
+}
+.mtc-field { display: block; margin: 0.8rem 0; }
+.mtc-field textarea, .mtc-compare-grid textarea { width: 100%; margin-top: 0.35rem; }
+.mtc-compare-grid { display: grid; gap: 0.8rem; align-items: start; }
+@media (min-width: 720px) {
+  .mtc-compare-grid { grid-template-columns: 1fr 1fr; }
+}
+.mtc-before { margin-top: 0.35rem; padding: 0.6rem 0.75rem; border: 1px solid var(--line); border-radius: 8px; background: #f3f1ec; color: #555; font-size: 0.92rem; line-height: 1.5; max-height: 16rem; overflow: auto; }
+.mtc-proposal-session { padding-top: 0.6rem; border-top: 1px solid var(--line); margin-top: 0.8rem; }
+.mtc-proposal-session h3 { margin: 0.2rem 0 0; font-size: 1.05rem; }
+.mtc-restore { margin: 0; }

@@ -77,46 +77,87 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect($self . '#agendar');
     }
 
-    $plan = mtc_from_post($_POST, $row['plan'] ?? []);
-    if ($action === 'generate') {
-        $plan = mtc_apply_generated($plan);
-    }
-    $planId = mtc_save($apptId, $plan, $row);
-    $row = mtc_plan_for_appointment($apptId);
-    $visits = mtc_visits($planId);
-
-    if ($action === 'preview') {
-        header('Content-Type: application/pdf');
-        header('Content-Disposition: inline; filename="' . mtc_pdf_name($appt) . '"');
-        header('Cache-Control: private, no-store');
-        echo mtc_plan_pdf($row['plan'], $appt, $visits);
-        exit;
-    }
-    if ($action === 'send') {
-        if (!$row['plan']['generated'] || $row['plan']['patient']['resumen'] === '') {
-            flash('error', 'Primero generá el plan (botón «Generar plan»).');
-            redirect($self . '#paciente');
+    if ($action === 'restore') {
+        $version = $row ? mtc_version((int) $row['id'], (int) ($_POST['version'] ?? 0)) : null;
+        if (!$version) {
+            flash('error', 'No se encontró esa versión.');
+            redirect($self . '#versiones');
         }
-        $res = mtc_send_plan($row, $appt, $visits);
-        flash($res === 'sent' ? 'success' : 'error', match ($res) {
-            'sent' => 'Plan enviado a ' . $appt['patient_email'] . ' con el PDF adjunto.',
-            'no_email' => 'El turno no tiene un email válido: descargá la vista previa y mandala por WhatsApp.',
-            default => 'No se pudo mandar el mail. Probá de nuevo más tarde.',
-        });
+        $when = date('d/m/Y H:i', strtotime((string) $version['created_at']));
+        mtc_save($apptId, mtc_normalize(json_decode((string) $version['data'], true) ?: []), $row, 'Antes de restaurar la versión del ' . $when);
+        flash('success', 'Se restauró la versión del ' . $when . '. Lo que estaba guardado quedó en el historial.');
         redirect($self);
     }
-    flash('success', $action === 'generate'
-        ? 'Plan generado: revisá y ajustá los textos de las consultas 2 a 5 y lo que va al paciente.'
-        : 'Plan guardado.');
-    redirect($self . ($action === 'generate' ? '#bloque' : ''));
+
+    if ($action === 'generate') {
+        $formState = mtc_from_post($_POST, $row['plan'] ?? []);
+        [$proposal, $protocol] = mtc_propose($formState);
+        $mode = 'proposal';
+    } elseif (in_array($action, ['apply', 'proposal_pdf', 'back'], true)) {
+        $formState = mtc_state_decode($_POST['state'] ?? null);
+        if ($formState === null) {
+            flash('error', 'No se pudo leer la vista previa. Generá el plan de nuevo.');
+            redirect($self);
+        }
+        if ($action === 'back') {
+            $mode = 'back';
+        } else {
+            $final = mtc_merge_proposal($formState, $_POST);
+            if ($action === 'proposal_pdf') {
+                header('Content-Type: application/pdf');
+                header('Content-Disposition: inline; filename="Vista-previa-' . mtc_pdf_name($appt) . '"');
+                header('Cache-Control: private, no-store');
+                echo mtc_plan_pdf($final, $appt, $row ? mtc_visits((int) $row['id']) : []);
+                exit;
+            }
+            mtc_save($apptId, $final, $row, 'Antes de aplicar un plan generado');
+            flash('success', $row && $row['plan']['generated']
+                ? 'Plan guardado. El anterior quedó en el historial de versiones.'
+                : 'Plan guardado.');
+            redirect($self . '#bloque');
+        }
+    } else {
+        $plan = mtc_from_post($_POST, $row['plan'] ?? []);
+        if ($action === 'preview') {
+            header('Content-Type: application/pdf');
+            header('Content-Disposition: inline; filename="Vista-previa-' . mtc_pdf_name($appt) . '"');
+            header('Cache-Control: private, no-store');
+            echo mtc_plan_pdf($plan, $appt, $row ? mtc_visits((int) $row['id']) : []);
+            exit;
+        }
+        $planId = mtc_save($apptId, $plan, $row);
+        $row = mtc_plan_for_appointment($apptId);
+        $visits = mtc_visits($planId);
+        if ($action === 'send') {
+            if (!$row['plan']['generated'] || $row['plan']['patient']['resumen'] === '') {
+                flash('error', 'Primero generá y guardá el plan (botón «Generar plan»).');
+                redirect($self . '#paciente');
+            }
+            $res = mtc_send_plan($row, $appt, $visits);
+            flash($res === 'sent' ? 'success' : 'error', match ($res) {
+                'sent' => 'Plan enviado a ' . $appt['patient_email'] . ' con el PDF adjunto.',
+                'no_email' => 'El turno no tiene un email válido: descargá la vista previa y mandala por WhatsApp.',
+                default => 'No se pudo mandar el mail. Probá de nuevo más tarde.',
+            });
+            redirect($self);
+        }
+        flash('success', 'Guardado.');
+        redirect($self);
+    }
 }
 
+$mode ??= 'editor';
 $row = $appt ? mtc_plan_for_appointment($apptId) : null;
 if ($appt && $row && ($_GET['pdf'] ?? '') === '1') {
+    $version = isset($_GET['version']) ? mtc_version((int) $row['id'], (int) $_GET['version']) : null;
+    if (isset($_GET['version']) && !$version) {
+        http_response_code(404);
+        exit('Versión no encontrada.');
+    }
     header('Content-Type: application/pdf');
-    header('Content-Disposition: inline; filename="' . mtc_pdf_name($appt) . '"');
+    header('Content-Disposition: inline; filename="' . ($version ? 'Version-' . (int) $version['id'] . '-' : '') . mtc_pdf_name($appt) . '"');
     header('Cache-Control: private, no-store');
-    echo mtc_plan_pdf($row['plan'], $appt, mtc_visits((int) $row['id']));
+    echo mtc_plan_pdf($version ? mtc_normalize(json_decode((string) $version['data'], true) ?: []) : $row['plan'], $appt, mtc_visits((int) $row['id']));
     exit;
 }
 
@@ -148,7 +189,27 @@ function mtc_scale(string $name, ?int $value): string
     return '<input type="number" name="' . h($name) . '" min="0" max="10" step="1" inputmode="numeric" value="' . ($value === null ? '' : $value) . '">';
 }
 
-$plan = $row['plan'] ?? mtc_blank();
+/** Campo de la vista previa: a la izquierda lo guardado (si cambia), a la derecha la propuesta editable. */
+function mtc_proposal_field(string $label, string $name, string $value, ?string $before, int $rows = 4): string
+{
+    $area = '<textarea name="' . h($name) . '" rows="' . $rows . '">' . h($value) . '</textarea>';
+    if ($before === null) {
+        return '<label class="mtc-field">' . h($label) . $area . '</label>';
+    }
+    if ($before === $value) {
+        return '<label class="mtc-field">' . h($label) . ' <span class="tag">sin cambios</span>' . $area . '</label>';
+    }
+    return '<div class="mtc-field mtc-compare"><span class="mtc-label">' . h($label) . ' <span class="tag warn">cambia</span></span>'
+        . '<div class="mtc-compare-grid"><div><span class="muted small">Guardado ahora</span><div class="mtc-before">'
+        . ($before !== '' ? nl2br(h($before)) : '<em class="muted">(vacío)</em>') . '</div></div>'
+        . '<label><span class="muted small">Propuesta (podés editarla)</span>' . $area . '</label></div></div>';
+}
+
+$plan = match ($mode) {
+    'proposal' => $proposal,
+    'back' => $formState,
+    default => $row['plan'] ?? mtc_blank(),
+};
 $visits = $row ? mtc_visits((int) $row['id']) : [];
 $done = mtc_done($plan);
 ?>
@@ -161,7 +222,7 @@ $done = mtc_done($plan);
   <title>Plan MTC · Admin turnos · FluxusTerapia</title>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Outfit:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/turnos.css?v=20260929d">
-  <link rel="stylesheet" href="assets/plan_mtc.css?v=20260929b">
+  <link rel="stylesheet" href="assets/plan_mtc.css?v=20260929c">
 </head>
 <body class="mtc-page">
   <header class="top">
@@ -285,6 +346,97 @@ $done = mtc_done($plan);
       <div class="alert ok">Primera etapa completa (25 consultas). Si continúa, empezá un plan nuevo desde un turno nuevo: lleva un nuevo diagnóstico.</div>
     <?php endif; ?>
 
+<?php if ($mode === 'proposal'): ?>
+    <?php
+      $saved = $row && $row['plan']['generated'] ? $row['plan'] : null;
+      $diagChanges = $row ? mtc_diag_changes($row['plan'], $proposal) : [];
+    ?>
+    <div class="mtc-preview-banner" role="status">
+      <strong>Vista previa — todavía no se guardó.</strong>
+      Revisá el protocolo y los textos, y editá lo que quieras. No cambia nada hasta que toques «Guardar plan».
+    </div>
+
+    <section class="panel">
+      <h2>Protocolo que se va a aplicar</h2>
+      <dl class="mtc-protocol">
+        <?php foreach ($protocol as [$term, $text]): ?>
+          <dt><?= h($term) ?></dt><dd><?= h($text) ?></dd>
+        <?php endforeach; ?>
+        <dt>Frecuencia</dt><dd><?= h(mtc_frequency_text()) ?></dd>
+      </dl>
+    </section>
+
+    <?php if ($row): ?>
+      <section class="panel mtc-changes">
+        <h2>Qué cambia respecto de lo guardado</h2>
+        <?php if ($diagChanges): ?>
+          <p>Consulta 1: también se guardan los cambios en <?= h(implode(', ', $diagChanges)) ?>.</p>
+        <?php endif; ?>
+        <?php if ($saved): ?>
+          <p>Ya hay un plan guardado. En cada texto que cambia ves lo guardado al lado de la propuesta. Si guardás, el plan actual queda en el historial de versiones y lo podés restaurar.</p>
+        <?php else: ?>
+          <p>Todavía no había un plan generado: se crea nuevo<?= $diagChanges ? '' : ' con el diagnóstico guardado' ?>.</p>
+        <?php endif; ?>
+      </section>
+    <?php endif; ?>
+
+    <form method="post" id="proposal-form" action="plan_mtc.php?id=<?= (int) $apptId ?>">
+      <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
+      <input type="hidden" name="id" value="<?= (int) $apptId ?>">
+      <input type="hidden" name="state" value="<?= h(mtc_state_encode($formState)) ?>">
+
+      <section class="panel">
+        <h2>Consulta 1 · Tonificación general</h2>
+        <?= mtc_proposal_field('Tonificación general aplicada', 'diag[tonificacion]', $proposal['diag']['tonificacion'], $saved['diag']['tonificacion'] ?? null) ?>
+      </section>
+
+      <section class="panel">
+        <h2>Primer bloque · consultas 2 a 5</h2>
+        <p class="hint">En cada consulta: control breve al comenzar (escala 0–10, cambios y reacciones), sin nuevo diagnóstico.</p>
+        <?php foreach ($proposal['sessions'] as $n => $s): ?>
+          <div class="mtc-proposal-session">
+            <h3>Consulta <?= $n ?> de <?= MTC_TOTAL ?> · <?= h(MTC_SESSION_TITLES[$n]) ?></h3>
+            <?= mtc_proposal_field('Para el paciente (objetivo y qué hacemos)', 's[' . $n . '][objetivo]', $s['objetivo'], $saved['sessions'][$n]['objetivo'] ?? null, 3) ?>
+            <?= mtc_proposal_field('Puntos', 's[' . $n . '][puntos]', $s['puntos'], $saved['sessions'][$n]['puntos'] ?? null) ?>
+            <?= mtc_proposal_field('Técnica y notas (solo para vos)', 's[' . $n . '][tecnica]', $s['tecnica'], $saved['sessions'][$n]['tecnica'] ?? null, 3) ?>
+          </div>
+        <?php endforeach; ?>
+      </section>
+
+      <section class="panel">
+        <h2>Lo que recibe el paciente</h2>
+        <?= mtc_proposal_field('Resumen del diagnóstico en palabras simples', 'p[resumen]', $proposal['patient']['resumen'], $saved['patient']['resumen'] ?? null, 6) ?>
+        <?= mtc_proposal_field('Recomendaciones para casa (un renglón por punto, empezando con «-»)', 'p[recomendaciones]', $proposal['patient']['recomendaciones'], $saved['patient']['recomendaciones'] ?? null, 7) ?>
+        <p class="hint">El PDF y el mail suman la frecuencia semanal (primera etapa de hasta 25 consultas) y el aviso de que no reemplaza el tratamiento médico. No van el pulso, las notas internas, la técnica ni los controles.</p>
+      </section>
+
+      <div class="mtc-bar">
+        <button class="btn primary" type="submit" name="action" value="apply" id="btn-apply" data-replace="<?= $saved ? '1' : '0' ?>">Guardar plan</button>
+        <button class="btn ghost" type="submit" name="action" value="proposal_pdf" formtarget="_blank">Ver PDF de la propuesta</button>
+        <button class="btn ghost" type="submit" name="action" value="back">Volver a la consulta 1</button>
+        <a class="btn ghost" href="plan_mtc.php?id=<?= (int) $apptId ?>" id="btn-discard">Descartar</a>
+        <span class="hint">Nada se guarda hasta «Guardar plan».</span>
+      </div>
+    </form>
+    <script>
+      (function () {
+        var apply = document.getElementById('btn-apply');
+        apply.addEventListener('click', function (ev) {
+          if (apply.dataset.replace === '1' && !confirm('Esto reemplaza el plan guardado. La versión actual queda en el historial y la podés restaurar. ¿Guardar el plan nuevo?')) {
+            ev.preventDefault();
+          }
+        });
+        document.getElementById('btn-discard').addEventListener('click', function (ev) {
+          if (!confirm('¿Descartar la propuesta? No se guarda nada de lo que cambiaste en esta pantalla ni en la consulta 1.')) {
+            ev.preventDefault();
+          }
+        });
+      })();
+    </script>
+<?php else: ?>
+    <?php if ($mode === 'back'): ?>
+      <div class="alert warn">Volviste a la consulta 1: estos datos todavía no se guardaron. Cambiá lo que necesites y tocá «Generar plan» de nuevo (o «Guardar» para guardar solo el diagnóstico).</div>
+    <?php endif; ?>
     <form method="post" id="plan-form" action="plan_mtc.php?id=<?= (int) $apptId ?>">
       <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
       <input type="hidden" name="id" value="<?= (int) $apptId ?>">
@@ -359,8 +511,8 @@ $done = mtc_done($plan);
           </label>
           <div class="span-2 mtc-actions-inline">
             <button class="btn ghost" type="submit" name="action" value="save">Guardar</button>
-            <button class="btn primary" type="submit" name="action" value="generate" data-generated="<?= $plan['generated'] ? '1' : '0' ?>" id="btn-generate">Generar plan</button>
-            <span class="hint">Arma las consultas 2 a 5 según el patrón. Después podés editar todo.</span>
+            <button class="btn primary" type="submit" name="action" value="generate">Generar plan (vista previa)</button>
+            <span class="hint">Te muestra el protocolo y el plan propuesto antes de guardar nada.</span>
           </div>
         </div>
       </details>
@@ -454,11 +606,11 @@ $done = mtc_done($plan);
         <button class="btn ghost" type="submit" name="action" value="preview" formtarget="_blank" <?= $plan['generated'] ? '' : 'disabled' ?>>Vista previa PDF</button>
         <button class="btn primary" type="submit" name="action" value="send" id="btn-send" <?= $plan['generated'] && $hasEmail ? '' : 'disabled' ?>
           data-email="<?= h((string) $appt['patient_email']) ?>"><?= $row && $row['status'] === 'enviado' ? 'Reenviar al paciente' : 'Enviar al paciente' ?></button>
-        <span class="hint"><?= !$hasEmail ? 'Sin email válido en el turno: usá la vista previa y mandalo por WhatsApp.' : (!$plan['generated'] ? 'Generá el plan para poder enviarlo.' : 'Guarda y manda el PDF a ' . h((string) $appt['patient_email']) . '.') ?></span>
+        <span class="hint"><?= !$hasEmail ? 'Sin email válido en el turno: usá la vista previa y mandalo por WhatsApp.' : (!$plan['generated'] ? 'Generá el plan para poder enviarlo.' : 'La vista previa no guarda. «Enviar» guarda y manda el PDF a ' . h((string) $appt['patient_email']) . '.') ?></span>
       </div>
     </form>
 
-    <?php if ($row): ?>
+    <?php if ($row && $mode === 'editor'): ?>
       <?php
         [$nextNo, $nextDate] = mtc_schedule_start($plan, $appt, $visits);
         $remaining = MTC_TOTAL - $nextNo + 1;
@@ -517,18 +669,43 @@ $done = mtc_done($plan);
           </form>
         <?php endif; ?>
       </section>
+
+      <?php $versions = mtc_versions((int) $row['id']); ?>
+      <details class="panel mtc-panel" id="versiones">
+        <summary><h2>Versiones anteriores</h2>
+          <span class="muted small"><?= $versions ? count($versions) . ' guardada' . (count($versions) === 1 ? '' : 's') : 'Todavía no hay' ?></span></summary>
+        <p class="hint">Cada vez que guardás un cambio, el plan anterior queda acá. Restaurar también guarda el actual antes de reemplazarlo.</p>
+        <?php foreach ($versions as $v): ?>
+          <?php $vp = mtc_normalize(json_decode((string) $v['data'], true) ?: []); ?>
+          <article class="mtc-row">
+            <div>
+              <strong><?= h(date('d/m/Y H:i', strtotime((string) $v['created_at']))) ?></strong> · <span class="muted"><?= h($v['reason']) ?></span><br>
+              <span class="muted small"><?= h(mtc_plan_brief($vp)) ?></span>
+            </div>
+            <div class="mtc-actions-inline">
+              <a class="btn ghost" href="plan_mtc.php?id=<?= (int) $apptId ?>&amp;version=<?= (int) $v['id'] ?>&amp;pdf=1" target="_blank" rel="noopener">Ver PDF</a>
+              <form method="post" action="plan_mtc.php?id=<?= (int) $apptId ?>" class="mtc-restore">
+                <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
+                <input type="hidden" name="id" value="<?= (int) $apptId ?>">
+                <input type="hidden" name="action" value="restore">
+                <input type="hidden" name="version" value="<?= (int) $v['id'] ?>">
+                <button class="btn ghost" type="submit">Restaurar</button>
+              </form>
+            </div>
+          </article>
+        <?php endforeach; ?>
+      </details>
     <?php endif; ?>
 
     <script>
       (function () {
-        var gen = document.getElementById('btn-generate');
-        if (gen) {
-          gen.addEventListener('click', function (ev) {
-            if (gen.dataset.generated === '1' && !confirm('Se vuelven a escribir los textos de las consultas 2 a 5, el resumen y las recomendaciones. Las fechas, escalas y controles se mantienen. ¿Seguir?')) {
+        document.querySelectorAll('.mtc-restore').forEach(function (f) {
+          f.addEventListener('submit', function (ev) {
+            if (!confirm('¿Restaurar esta versión? El plan actual queda guardado en el historial.')) {
               ev.preventDefault();
             }
           });
-        }
+        });
         var send = document.getElementById('btn-send');
         if (send) {
           send.addEventListener('click', function (ev) {
@@ -548,6 +725,7 @@ $done = mtc_done($plan);
         }
       })();
     </script>
+<?php endif; ?>
 <?php endif; ?>
   </main>
 </body>
