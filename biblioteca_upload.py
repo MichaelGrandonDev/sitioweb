@@ -197,9 +197,9 @@ def guess_kind(filename: str, ext: str) -> str:
     return "libro"
 
 
-def count_pages(path: Path) -> int:
-    if path.suffix.lower() != ".pdf":
-        return 1 if path.suffix.lower() in {".jpg", ".jpeg", ".png"} else 0
+def count_pages(path: Path, ext: str) -> int:
+    if ext != ".pdf":
+        return 1 if ext in {".jpg", ".jpeg", ".png"} else 0
     try:
         from pypdf import PdfReader
         return len(PdfReader(str(path)).pages)
@@ -246,7 +246,17 @@ def cmd_books(src: Path, dry: bool) -> None:
     skipped: list[str] = []
     for f in sorted(src.iterdir()):
         ext = f.suffix.lower()
-        if not f.is_file() or f.name.startswith(".") or ext not in BOOK_EXTS:
+        name = f.name
+        digest = ""
+        if f.is_file() and ext == ".crdownload" and f.stat().st_size > 0:
+            # Descarga de Chrome sin confirmar: solo si es idéntica (sha256) a un documento del manifest.
+            digest = sha256(f)
+            known = str(manifest.get(digest, {}).get("source_file") or "")
+            if Path(known).suffix.lower() not in BOOK_EXTS:
+                skipped.append(f"{f.name} (descarga sin confirmar en Chrome)")
+                continue
+            name, ext = known, Path(known).suffix.lower()
+        elif not f.is_file() or f.name.startswith(".") or ext not in BOOK_EXTS:
             if f.is_file() and not f.name.startswith("."):
                 skipped.append(f"{f.name} (formato)")
             continue
@@ -258,16 +268,16 @@ def cmd_books(src: Path, dry: bool) -> None:
             pdf = convert_to_pdf(f, tmpdir)
             if pdf:
                 f, ext = pdf, ".pdf"
-        digest = sha256(original)
+        digest = digest or sha256(original)
         meta = manifest.get(digest, {})
         file_digest = digest if f == original else sha256(f)
         if file_digest in items:
-            skipped.append(f"{original.name} (duplicado)")
+            skipped.append(f"{name} (duplicado)")
             continue
         title = str(meta.get("title") or "").strip()
-        if not title or title == original.stem or re.search(r"[{}]|libgen|^[0-9a-f-]{30,}$", title):
-            title = clean_title(original.name)
-        tags = [str(t) for t in meta.get("tags", [])] if meta.get("tags") else FILE_TAGS.get(original.stem) or guess_tags(original.name)
+        if not title or title == Path(name).stem or re.search(r"[{}]|libgen|^[0-9a-f-]{30,}$", title):
+            title = clean_title(name)
+        tags = [str(t) for t in meta.get("tags", [])] if meta.get("tags") else FILE_TAGS.get(Path(name).stem) or guess_tags(name)
         if ext in {".jpg", ".jpeg", ".png"}:
             meta = {**meta, "kind": "imagen"}
         items[file_digest] = {
@@ -276,10 +286,10 @@ def cmd_books(src: Path, dry: bool) -> None:
             "size": f.stat().st_size,
             "meta": {
                 "title": title[:200],
-                "kind": str(meta.get("kind") or guess_kind(original.name, ext)),
+                "kind": str(meta.get("kind") or guess_kind(name, ext)),
                 "tags": tags[:12],
-                "pages": int(meta.get("pages") or 0) or count_pages(f),
-                "original_name": original.name,
+                "pages": int(meta.get("pages") or 0) or count_pages(f, ext),
+                "original_name": name,
                 "source_sha256": digest,
             },
         }
