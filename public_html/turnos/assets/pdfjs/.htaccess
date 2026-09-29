@@ -1,0 +1,17 @@
+# Visor PDF.js (sin libros: los PDF los sirve biblioteca_file.php con sesión de admin).
+Options -Indexes
+
+<IfModule mod_mime.c>
+  AddType text/javascript .mjs
+  AddType text/plain .ftl
+  AddType application/octet-stream .bcmap .pfb
+  AddType application/wasm .wasm
+  AddType application/vnd.iccprofile .icc
+</IfModule>
+
+<IfModule mod_headers.c>
+  Header set X-Robots-Tag "noindex, nofollow"
+  <FilesMatch "\.(mjs|css|ftl|bcmap|pfb|ttf|wasm|svg|png)$">
+    Header set Cache-Control "public, max-age=2592000"
+  </FilesMatch>
+</IfModule>

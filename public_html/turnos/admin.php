@@ -382,6 +382,7 @@ $logged = !empty($_SESSION['turnos_admin']);
         <h1>Admin turnos</h1>
         <form method="post" style="display:flex;gap:.4rem">
           <a class="btn ghost" href="plan_mtc.php">Planes MTC</a>
+          <a class="btn ghost" href="biblioteca_lector.php">Biblioteca</a>
           <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
           <input type="hidden" name="action" value="logout">
           <button class="btn ghost" type="submit">Salir</button>

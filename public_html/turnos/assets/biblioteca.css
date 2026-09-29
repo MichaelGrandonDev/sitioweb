@@ -1,0 +1,115 @@
+/* Biblioteca (lector PDF) del admin de turnos. Usa las variables de turnos.css. */
+.bib-page { --card: var(--paper); --field: #fff; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.small { font-size: 0.85rem; }
+.bib-page .top nav a { opacity: 0.9; }
+.bib-page .top nav a:hover { opacity: 1; text-decoration: underline; }
+.bib-page .alert.ok { background: #d9f0e4; color: #164b36; padding: 0.8rem 1rem; border-radius: 8px; }
+.bib-page input, .bib-page select, .bib-page textarea { background: var(--field); color: var(--ink); }
+
+.bib-wrap { width: min(1120px, calc(100% - 2rem)); }
+.bib-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap; }
+.bib-head h1 { margin-bottom: 0.2rem; }
+.bib-head p { margin: 0; }
+.bib-actions, .bib-card-actions, .bib-bar-actions { display: flex; gap: 0.45rem; flex-wrap: wrap; align-items: flex-start; }
+
+.bib-recent { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.6rem; margin: 1.1rem 0 0; }
+.bib-recent-item {
+  display: grid; gap: 0.15rem; padding: 0.75rem 0.9rem; border-radius: 10px;
+  background: var(--brand); color: #fff; line-height: 1.3;
+}
+.bib-recent-item .muted { color: rgba(255, 255, 255, 0.75); }
+.bib-recent-item:hover { filter: brightness(1.1); }
+
+.bib-search { display: flex; gap: 0.5rem; margin: 1.2rem 0 0.7rem; }
+.bib-search input { flex: 1; }
+.bib-tags { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 1rem; }
+.bib-chip {
+  font-size: 0.8rem; font-weight: 600; padding: 0.25rem 0.65rem; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--card); color: var(--brand);
+}
+.bib-chip span { opacity: 0.6; font-weight: 400; }
+.bib-chip.is-kind { border-style: dashed; }
+.bib-chip.is-on { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.bib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 0.9rem; }
+.bib-card {
+  display: grid; grid-template-rows: auto 1fr; background: var(--card); border: 1px solid var(--line);
+  border-radius: 12px; overflow: hidden; scroll-margin-top: 1rem;
+}
+.bib-card:target { outline: 2px solid var(--accent); }
+.bib-cover {
+  position: relative; display: grid; place-items: center; height: 96px;
+  background: linear-gradient(135deg, var(--brand), #1f6b55); color: #fff;
+}
+.bib-cover span { font-family: var(--font-display); font-size: 2.6rem; line-height: 1; opacity: 0.9; }
+.bib-cover small { position: absolute; right: 0.6rem; bottom: 0.45rem; font-size: 0.68rem; letter-spacing: 0.08em; opacity: 0.75; }
+.bib-cover--pptx, .bib-cover--ppt { background: linear-gradient(135deg, #7a4b0f, #b3702a); }
+.bib-cover--jpg, .bib-cover--jpeg, .bib-cover--png { background: linear-gradient(135deg, #3c4f63, #5d7690); }
+.bib-info { display: grid; gap: 0.45rem; align-content: start; padding: 0.85rem 0.95rem 0.95rem; }
+.bib-info h2 { font-size: 1.25rem; line-height: 1.2; margin: 0; overflow-wrap: anywhere; }
+.bib-info h2 a:hover { color: var(--accent); }
+.bib-meta, .bib-taglist { margin: 0; }
+.bib-taglist { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.tag.tag--soft { background: transparent; border: 1px solid var(--line); font-weight: 500; }
+.bib-card-actions { margin-top: 0.2rem; align-items: center; }
+.bib-card-actions .btn { padding: 0.55rem 0.95rem; }
+.bib-edit { flex-basis: 100%; }
+.bib-edit form + form { margin-top: 0.6rem; }
+.bib-danger { color: #9b2c2c; border-color: rgba(155, 44, 44, 0.35); }
+
+.bib-grid.is-list { grid-template-columns: 1fr; gap: 0.5rem; }
+.bib-grid.is-list .bib-card { grid-template-rows: none; grid-template-columns: 64px 1fr; }
+.bib-grid.is-list .bib-cover { height: auto; min-height: 64px; }
+.bib-grid.is-list .bib-cover span { font-size: 1.8rem; }
+.bib-grid.is-list .bib-info { padding: 0.6rem 0.85rem; grid-template-columns: 1fr auto; column-gap: 1rem; }
+.bib-grid.is-list .bib-info h2 { font-size: 1.1rem; grid-column: 1; }
+.bib-grid.is-list .bib-meta, .bib-grid.is-list .bib-taglist { grid-column: 1; }
+.bib-grid.is-list .bib-card-actions { grid-column: 2; grid-row: 1 / span 3; margin: 0; justify-content: flex-end; }
+.bib-grid.is-list .bib-edit[open] { min-width: min(320px, 70vw); }
+
+.bib-upload { display: grid; gap: 0.8rem; }
+@media (min-width: 760px) { .bib-upload { grid-template-columns: 2fr 1fr 1.5fr auto; align-items: end; } }
+.bib-jobs { list-style: none; margin: 0.8rem 0 0; padding: 0; display: grid; gap: 0.45rem; }
+.bib-jobs li { display: grid; gap: 0.3rem; font-size: 0.88rem; }
+.bib-jobs progress { width: 100%; height: 0.5rem; accent-color: var(--accent); }
+.bib-jobs .is-error { color: #9b2c2c; }
+.bib-jobs .is-ok { color: var(--accent); font-weight: 600; }
+
+/* Visor */
+.bib-reader { height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+.bib-reader .top { padding-top: 0.45rem; padding-bottom: 0.45rem; }
+.bib-reader .top .brand-logo { width: 32px; height: 32px; }
+.bib-reader .top .brand { font-size: 1.15rem; }
+.bib-bar {
+  display: flex; align-items: center; gap: 0.6rem; padding: 0.4rem clamp(0.5rem, 2vw, 1rem);
+  background: var(--card); border-bottom: 1px solid var(--line);
+}
+.bib-bar .btn { padding: 0.45rem 0.8rem; font-size: 0.88rem; }
+.bib-bar-title { flex: 1; min-width: 0; display: grid; line-height: 1.25; }
+.bib-bar-title strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bib-frame { flex: 1; width: 100%; border: 0; display: block; background: #525659; }
+.bib-image { flex: 1; overflow: auto; background: #3a3d3f; display: grid; place-items: center; padding: 0.5rem; }
+.bib-image img { max-width: 100%; max-height: 100%; cursor: zoom-in; }
+.bib-image.is-zoomed { place-items: start; }
+.bib-image.is-zoomed img { max-width: none; max-height: none; cursor: zoom-out; }
+@media (max-width: 640px) {
+  .bib-reader .top { display: none; }
+  .bib-back span { display: none; }
+  .bib-search .btn { padding: 0.7rem 0.9rem; }
+}
+
+@media (prefers-color-scheme: dark) {
+  .bib-page {
+    --ink: #e4ece8; --muted: #9fb3aa; --foam: #121a18; --paper: #1a2421; --line: rgba(228, 236, 232, 0.14);
+    --brand: #0f3d36; --accent: #3aa57d; --card: #1a2421; --field: #121a18;
+    background: #0f1614; color-scheme: dark;
+  }
+  .bib-page .btn.ghost { color: var(--ink); }
+  .bib-page .tag { background: #24332e; color: #cfe3da; }
+  .bib-page .tag.warn { background: #4a3413; color: #f3d7a6; }
+  .bib-page .alert.ok { background: #1d3b2f; color: #cdeedd; }
+  .bib-page .alert.error { background: #4a2020; color: #f5d0d0; }
+  .bib-chip { color: #cfe3da; }
+  .bib-danger { color: #f0a3a3; border-color: rgba(240, 163, 163, 0.35); }
+}

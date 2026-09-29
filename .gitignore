@@ -33,3 +33,5 @@ public_html/**/data/*.sqlite-wal
 public_html/**/data/*.sqlite-shm
 public_html/**/error_log
 public_html/error_log
+public_html/turnos/data/biblioteca/*
+!public_html/turnos/data/biblioteca/.htaccess
