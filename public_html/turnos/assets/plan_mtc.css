@@ -89,3 +89,65 @@
 .mtc-proposal-session { padding-top: 0.6rem; border-top: 1px solid var(--line); margin-top: 0.8rem; }
 .mtc-proposal-session h3 { margin: 0.2rem 0 0; font-size: 1.05rem; }
 .mtc-restore { margin: 0; }
+
+/* Glosodiagnosis, pulso opcional y sugerencias */
+.mtc-tongue { padding: 0.9rem 1rem; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.mtc-tongue-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: 0.6rem 1rem; }
+.mtc-span-all { grid-column: 1 / -1; }
+.mtc-tongue-grid > .mtc-label { margin: 0.4rem 0 0; color: var(--brand); font-weight: 600; }
+.mtc-optional { border: 1px dashed var(--line); border-radius: 8px; padding: 0.5rem 0.8rem; }
+.mtc-optional > summary { cursor: pointer; font-size: 0.92rem; color: var(--muted); }
+.mtc-suggest { padding: 0.6rem 0.8rem; border-radius: 8px; background: #eef6f1; }
+.mtc-suggested { border-color: var(--accent) !important; box-shadow: 0 0 0 1px var(--accent); }
+.mtc-ev { color: var(--accent); }
+.mtc-caution { color: #8a4b0f; }
+
+/* Patrones agrupados por órgano */
+.mtc-pattern-groups { display: grid; gap: 0.5rem; }
+.mtc-organ { border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
+.mtc-organ > summary { cursor: pointer; padding: 0.6rem 0.9rem; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.mtc-organ > .mtc-checks { padding: 0 0.9rem 0.8rem; }
+
+/* Foto de la lengua */
+.mtc-photo { display: grid; gap: 0.4rem; margin-top: 0.8rem; }
+.mtc-photo img { width: 9rem; height: 9rem; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); }
+.mtc-gallery { margin: 0.6rem 0 1rem; }
+.mtc-gallery-row { display: flex; gap: 0.7rem; overflow-x: auto; padding-bottom: 0.3rem; }
+.mtc-gallery-row a { display: grid; gap: 0.2rem; text-align: center; font-size: 0.85rem; color: var(--muted); text-decoration: none; }
+.mtc-gallery-row img { width: 8rem; height: 8rem; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); }
+.mtc-guide { padding: 0.7rem 0.9rem; border-radius: 8px; background: #eef6f1; line-height: 1.5; }
+
+/* Recuadro «Diagnóstico desde la MTC» (igual al PDF) */
+.mtc-dx { position: relative; margin: 0.6rem 0 1rem; padding: 1.2rem 1.4rem 1.3rem; min-height: 9.5rem; background: #fdf6e8; border: 1px solid #d6ba91; outline: 1px solid #e6d3b4; outline-offset: -6px; }
+.mtc-dx-title { margin: 0 0 0.8rem; text-align: center; font-family: Georgia, "Times New Roman", serif; font-weight: 700; font-size: 1.08rem; letter-spacing: 0.02em; color: #2a1c17; }
+.mtc-dx-text { position: relative; z-index: 1; margin: 0; max-width: calc(100% - 9rem); font-family: Georgia, "Times New Roman", serif; font-style: italic; font-size: 1.12rem; line-height: 1.5; color: #2a1c17; }
+.mtc-dx-branch { position: absolute; right: 0.6rem; bottom: 0.4rem; width: 9.5rem; height: auto; }
+@media (max-width: 560px) {
+  .mtc-dx-text { max-width: 100%; padding-bottom: 5rem; }
+  .mtc-dx-branch { width: 7rem; }
+}
+
+/* Vista previa: técnicas e indicaciones */
+.mtc-techs { display: grid; gap: 0.7rem; }
+@media (min-width: 820px) {
+  .mtc-techs { grid-template-columns: 1fr 1fr; }
+}
+.mtc-tech { padding: 0.8rem 1rem; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.mtc-tech.is-off { background: #f6f4ef; }
+.mtc-tech h3 { margin: 0 0 0.3rem; font-size: 1.1rem; }
+.mtc-tech p { margin: 0 0 0.4rem; line-height: 1.5; }
+.mtc-moxa-list, .mtc-cautions { margin: 0.3rem 0 0; padding-left: 1.1rem; line-height: 1.45; font-size: 0.93rem; }
+.mtc-cautions { color: #8a4b0f; }
+.mtc-offer { display: grid; gap: 0.7rem; }
+.mtc-offer label.check { align-items: flex-start; margin: 0.3rem 0; }
+
+/* Catálogo */
+.mtc-tabs { display: flex; gap: 0.4rem; flex-wrap: wrap; margin: 0 0 1rem; }
+.mtc-tabs a { padding: 0.5rem 0.9rem; border-radius: 999px; border: 1px solid var(--line); color: var(--brand); text-decoration: none; font-weight: 600; }
+.mtc-tabs a.is-on { background: var(--brand); color: #fff; }
+.mtc-row.is-off { opacity: 0.6; }
+.mtc-row form { margin: 0; }
+.mtc-cat-plain { line-height: 1.5; }
+.mtc-ind-preview { font-size: 1.05rem; line-height: 1.5; }
+.mtc-ind-preview span { color: #9a1c1f; }
+.mtc-ev-field { margin: 0.6rem 0; }

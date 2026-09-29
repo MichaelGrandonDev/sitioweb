@@ -28,6 +28,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$appt) {
         redirect('plan_mtc.php');
     }
+    if (!$_POST && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
+        flash('error', 'Lo que subiste pesa demasiado para el servidor (probá con una foto más liviana). No se guardó nada.');
+        redirect($self);
+    }
     if (!verify_csrf($_POST['csrf'] ?? null)) {
         flash('error', 'Sesión inválida. Volvé a intentar.');
         redirect($self);
@@ -93,6 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $formState = mtc_from_post($_POST, $row['plan'] ?? []);
         [$proposal, $protocol] = mtc_propose($formState);
         $mode = 'proposal';
+        $photoPending = in_array(UPLOAD_ERR_OK, array_map('intval', (array) ($_FILES['foto']['error'] ?? [])), true);
     } elseif (in_array($action, ['apply', 'proposal_pdf', 'back'], true)) {
         $formState = mtc_state_decode($_POST['state'] ?? null);
         if ($formState === null) {
@@ -126,6 +131,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
         $planId = mtc_save($apptId, $plan, $row);
+        [$photosSaved, $photoErrors] = mtc_photo_uploads($planId, $_FILES, is_array($_POST['foto_borrar'] ?? null) ? $_POST['foto_borrar'] : []);
+        $photoNote = ($photosSaved ? ' Foto de la lengua guardada.' : '') . ($photoErrors ? ' ' . implode(' ', $photoErrors) : '');
         $row = mtc_plan_for_appointment($apptId);
         $visits = mtc_visits($planId);
         if ($action === 'send') {
@@ -138,10 +145,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'sent' => 'Plan enviado a ' . $appt['patient_email'] . ' con el PDF adjunto.',
                 'no_email' => 'El turno no tiene un email válido: descargá la vista previa y mandala por WhatsApp.',
                 default => 'No se pudo mandar el mail. Probá de nuevo más tarde.',
-            });
+            } . $photoNote);
             redirect($self);
         }
-        flash('success', 'Guardado.');
+        flash($photoErrors ? 'error' : 'success', 'Guardado.' . $photoNote);
         redirect($self);
     }
 }
@@ -205,6 +212,23 @@ function mtc_proposal_field(string $label, string $name, string $value, ?string 
         . '<label><span class="muted small">Propuesta (podés editarla)</span>' . $area . '</label></div></div>';
 }
 
+/** Foto de la lengua de una consulta: miniatura (si hay), subir o reemplazar, y borrar. */
+function mtc_photo_field(int $apptId, ?array $row, int $n): string
+{
+    $has = $row && mtc_photo_path((int) $row['id'], $n) !== null;
+    $html = '<div class="mtc-photo">';
+    if ($has) {
+        $src = 'plan_mtc_foto.php?id=' . $apptId . '&n=' . $n . '&v=' . filemtime((string) mtc_photo_path((int) $row['id'], $n));
+        $html .= '<a href="' . h($src) . '" target="_blank" rel="noopener"><img src="' . h($src) . '" alt="Lengua, consulta ' . $n . '" loading="lazy"></a>';
+    }
+    $html .= '<label>' . ($has ? 'Reemplazar foto de la lengua' : 'Foto de la lengua (opcional)')
+        . '<input type="file" name="foto[' . $n . ']" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" data-mtc-photo></label>';
+    if ($has) {
+        $html .= '<label class="check"><input type="checkbox" name="foto_borrar[' . $n . ']" value="1"><span>Borrar esta foto</span></label>';
+    }
+    return $html . '<span class="hint">JPG, PNG o HEIC, hasta 10 MB. Se guarda privada, sin datos de ubicación, y nunca va al PDF del paciente.</span></div>';
+}
+
 $plan = match ($mode) {
     'proposal' => $proposal,
     'back' => $formState,
@@ -222,7 +246,7 @@ $done = mtc_done($plan);
   <title>Plan MTC · Admin turnos · FluxusTerapia</title>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Outfit:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/turnos.css?v=20260929d">
-  <link rel="stylesheet" href="assets/plan_mtc.css?v=20260929c">
+  <link rel="stylesheet" href="assets/plan_mtc.css?v=20260929e">
 </head>
 <body class="mtc-page">
   <header class="top">
@@ -230,7 +254,7 @@ $done = mtc_done($plan);
       <img class="brand-logo" src="../img/logo-circle.png" alt="FluxusTerapia" width="44" height="44">
       <span>Turnos · Plan MTC</span>
     </a>
-    <nav><a href="admin.php">Admin turnos</a><a href="plan_mtc.php">Planes MTC</a></nav>
+    <nav><a href="admin.php">Admin turnos</a><a href="plan_mtc.php">Planes MTC</a><a href="mtc_catalogo.php">Diagnósticos e indicaciones</a></nav>
   </header>
   <main class="wrap">
     <?php if ($flash): ?>
@@ -239,6 +263,7 @@ $done = mtc_done($plan);
 
 <?php if (!$appt): ?>
     <?php
+      mtc_photo_cleanup();
       $plans = db()->query("
         SELECT p.*, a.patient_name, a.date, a.time, t.name AS therapy_name
         FROM mtc_plans p JOIN appointments a ON a.id = p.appointment_id JOIN therapies t ON t.id = a.therapy_id
@@ -303,7 +328,11 @@ $done = mtc_done($plan);
       $hasEmail = filter_var(trim((string) $appt['patient_email']), FILTER_VALIDATE_EMAIL) !== false;
       $warnings = mtc_warnings($plan, $appt);
       $patterns = mtc_patterns();
-      $tonify = $d['tonificacion'] !== '' ? $d['tonificacion'] : mtc_default_tonify(mtc_pregnant($plan));
+      $allPatterns = mtc_catalog_patterns(true);
+      $tonify = $d['tonificacion'] !== '' ? $d['tonificacion'] : mtc_default_tonify(mtc_pregnant($plan), mtc_context($plan));
+      $evidence = mtc_pattern_evidence($plan);
+      $suggested = mtc_suggested_patterns($plan);
+      $photos = $row ? mtc_photos((int) $row['id']) : [];
       $lastScale = $d['escala'];
       foreach ($plan['sessions'] + $plan['controls'] as $r) {
           if (!empty($r['realizada']) && $r['escala'] !== null) {
@@ -350,11 +379,15 @@ $done = mtc_done($plan);
     <?php
       $saved = $row && $row['plan']['generated'] ? $row['plan'] : null;
       $diagChanges = $row ? mtc_diag_changes($row['plan'], $proposal) : [];
+      $gen = mtc_generate($proposal);
     ?>
     <div class="mtc-preview-banner" role="status">
       <strong>Vista previa — todavía no se guardó.</strong>
       Revisá el protocolo y los textos, y editá lo que quieras. No cambia nada hasta que toques «Guardar plan».
     </div>
+    <?php if (!empty($photoPending)): ?>
+      <div class="alert warn">La foto de la lengua que elegiste no se sube desde la vista previa. Después de guardar el plan, subila desde la consulta 1 y tocá «Guardar».</div>
+    <?php endif; ?>
 
     <section class="panel">
       <h2>Protocolo que se va a aplicar</h2>
@@ -364,6 +397,27 @@ $done = mtc_done($plan);
         <?php endforeach; ?>
         <dt>Frecuencia</dt><dd><?= h(mtc_frequency_text()) ?></dd>
       </dl>
+    </section>
+
+    <section class="panel">
+      <h2>Técnicas del plan</h2>
+      <p class="hint">Sin acupuntura: los puntos se moxan o se presionan en el tuina. Ya están filtradas por las contraindicaciones y el diagnóstico.</p>
+      <div class="mtc-techs">
+        <?php foreach ($gen['techniques'] as $key => $t): ?>
+          <article class="mtc-tech<?= $t['use'] ? '' : ' is-off' ?>">
+            <h3><?= h($t['label']) ?> <?= $t['use'] ? '<span class="tag ok">se usa</span>' : '<span class="tag warn">no se usa</span>' ?></h3>
+            <p><?= h($t['summary']) ?></p>
+            <?php if ($key === 'moxa' && $t['use']): ?>
+              <ul class="mtc-moxa-list">
+                <?php foreach ($t['plan']['moxa'] as $code => $method): ?><li><strong><?= h(mtc_point_label($code)) ?></strong>: <?= h($method) ?></li><?php endforeach; ?>
+              </ul>
+            <?php endif; ?>
+            <?php if ($t['cautions']): ?>
+              <ul class="mtc-cautions"><?php foreach ($t['cautions'] as $c): ?><li><?= h($c) ?></li><?php endforeach; ?></ul>
+            <?php endif; ?>
+          </article>
+        <?php endforeach; ?>
+      </div>
     </section>
 
     <?php if ($row): ?>
@@ -386,6 +440,12 @@ $done = mtc_done($plan);
       <input type="hidden" name="state" value="<?= h(mtc_state_encode($formState)) ?>">
 
       <section class="panel">
+        <h2>Diagnóstico desde la MTC</h2>
+        <?= mtc_diagnosis_html($proposal['diag']['diagnostico']) ?>
+        <?= mtc_proposal_field('Texto del diagnóstico (así lo lee el paciente)', 'diag[diagnostico]', $proposal['diag']['diagnostico'], $saved['diag']['diagnostico'] ?? null, 2) ?>
+      </section>
+
+      <section class="panel">
         <h2>Consulta 1 · Tonificación general</h2>
         <?= mtc_proposal_field('Tonificación general aplicada', 'diag[tonificacion]', $proposal['diag']['tonificacion'], $saved['diag']['tonificacion'] ?? null) ?>
       </section>
@@ -397,8 +457,8 @@ $done = mtc_done($plan);
           <div class="mtc-proposal-session">
             <h3>Consulta <?= $n ?> de <?= MTC_TOTAL ?> · <?= h(MTC_SESSION_TITLES[$n]) ?></h3>
             <?= mtc_proposal_field('Para el paciente (objetivo y qué hacemos)', 's[' . $n . '][objetivo]', $s['objetivo'], $saved['sessions'][$n]['objetivo'] ?? null, 3) ?>
-            <?= mtc_proposal_field('Puntos', 's[' . $n . '][puntos]', $s['puntos'], $saved['sessions'][$n]['puntos'] ?? null) ?>
-            <?= mtc_proposal_field('Técnica y notas (solo para vos)', 's[' . $n . '][tecnica]', $s['tecnica'], $saved['sessions'][$n]['tecnica'] ?? null, 3) ?>
+            <?= mtc_proposal_field('Puntos para moxar (y acupresión)', 's[' . $n . '][puntos]', $s['puntos'], $saved['sessions'][$n]['puntos'] ?? null) ?>
+            <?= mtc_proposal_field('Técnicas (solo para vos)', 's[' . $n . '][tecnica]', $s['tecnica'], $saved['sessions'][$n]['tecnica'] ?? null, 5) ?>
           </div>
         <?php endforeach; ?>
       </section>
@@ -406,8 +466,37 @@ $done = mtc_done($plan);
       <section class="panel">
         <h2>Lo que recibe el paciente</h2>
         <?= mtc_proposal_field('Resumen del diagnóstico en palabras simples', 'p[resumen]', $proposal['patient']['resumen'], $saved['patient']['resumen'] ?? null, 6) ?>
-        <?= mtc_proposal_field('Recomendaciones para casa (un renglón por punto, empezando con «-»)', 'p[recomendaciones]', $proposal['patient']['recomendaciones'], $saved['patient']['recomendaciones'] ?? null, 7) ?>
-        <p class="hint">El PDF y el mail suman la frecuencia semanal (primera etapa de hasta 25 consultas) y el aviso de que no reemplaza el tratamiento médico. No van el pulso, las notas internas, la técnica ni los controles.</p>
+        <?= mtc_proposal_field('Práctica en casa (chi kung y semillas en la oreja)', 'p[casa]', $proposal['patient']['casa'], $saved['patient']['casa'] ?? null, 5) ?>
+        <?= mtc_proposal_field('Para los días de sesión', 'p[recomendaciones]', $proposal['patient']['recomendaciones'], $saved['patient']['recomendaciones'] ?? null, 3) ?>
+        <p class="hint">El PDF y el mail suman la frecuencia semanal (primera etapa de hasta 25 consultas) y el aviso de que no reemplaza el tratamiento médico. No van el pulso, las notas internas, la técnica, los controles ni las fotos.</p>
+      </section>
+
+      <section class="panel" id="indicaciones">
+        <h2>Indicaciones (hoja «INDICACIONES»)</h2>
+        <p class="hint">Propuestas según los patrones elegidos. Editá, borrá renglones o escribí las tuyas (un renglón por indicación, empezando con «-»).</p>
+        <?= mtc_proposal_field('Indicaciones propuestas', 'p[indicaciones]', $proposal['patient']['indicaciones'], $saved['patient']['indicaciones'] ?? null, 12) ?>
+        <?php if ($gen['ind_offer']): ?>
+          <p class="mtc-label">Sumar del catálogo <span class="muted small">(no se tildan solas)</span></p>
+          <?php
+            $offerBy = [];
+            foreach ($gen['ind_offer'] as $k => $i) {
+                $offerBy[$i['category']][$k] = $i;
+            }
+          ?>
+          <div class="mtc-offer">
+            <?php foreach (MTC_IND_CATEGORIES as $cat => $catLabel): ?>
+              <?php if (empty($offerBy[$cat])) continue; ?>
+              <div><span class="muted small"><?= h($catLabel) ?></span>
+                <?php foreach ($offerBy[$cat] as $k => $i): ?>
+                  <label class="check"><input type="checkbox" name="ind_add[]" value="<?= h($k) ?>">
+                    <span><?= h($i['text']) ?>
+                      <?php if ($i['therapist']): ?><br><span class="tag warn">Requiere indicación del terapeuta</span> <span class="small">completá dosis y días en el texto después de sumarla.</span><?php endif; ?>
+                      <?php if ($i['caution'] !== ''): ?><br><span class="small mtc-caution">Cuidado: <?= h($i['caution']) ?></span><?php endif; ?></span></label>
+                <?php endforeach; ?>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        <?php endif; ?>
       </section>
 
       <div class="mtc-bar">
@@ -431,13 +520,24 @@ $done = mtc_done($plan);
             ev.preventDefault();
           }
         });
+        var ind = document.querySelector('#proposal-form textarea[name="p[indicaciones]"]');
+        document.querySelectorAll('input[name="ind_add[]"]').forEach(function (box) {
+          var line = '- ' + box.closest('label').querySelector('span').firstChild.textContent.trim();
+          box.removeAttribute('name');
+          box.addEventListener('change', function () {
+            var lines = ind.value.split('\n').filter(function (l) { return l.trim() !== '' && l.trim() !== line; });
+            if (box.checked) { lines.push(line); }
+            ind.value = lines.join('\n');
+            if (box.checked) { ind.focus(); }
+          });
+        });
       })();
     </script>
 <?php else: ?>
     <?php if ($mode === 'back'): ?>
       <div class="alert warn">Volviste a la consulta 1: estos datos todavía no se guardaron. Cambiá lo que necesites y tocá «Generar plan» de nuevo (o «Guardar» para guardar solo el diagnóstico).</div>
     <?php endif; ?>
-    <form method="post" id="plan-form" action="plan_mtc.php?id=<?= (int) $apptId ?>">
+    <form method="post" id="plan-form" action="plan_mtc.php?id=<?= (int) $apptId ?>" enctype="multipart/form-data">
       <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
       <input type="hidden" name="id" value="<?= (int) $apptId ?>">
 
@@ -452,44 +552,95 @@ $done = mtc_done($plan);
                 ? '<span class="tag ok">Consentimiento firmado online</span> ' . h(date('d/m/Y', strtotime((string) $appt['consent_accepted_at'])))
                 : '<span class="tag warn">Consentimiento sin firmar online</span> confirmá que lo firmó en papel.' ?></p>
           </div>
+          <h3 class="span-2 mtc-sub">1 · Glosodiagnosis <span class="muted small">(la base del diagnóstico)</span></h3>
+          <div class="span-2 mtc-tongue">
+            <div class="mtc-tongue-grid">
+              <span class="mtc-label mtc-span-all">Cuerpo de la lengua</span>
+              <label>Color <?= mtc_select('diag[lengua_color]', MTC_OPTIONS['lengua_color'], $d['lengua_color']) ?></label>
+              <label>Tamaño <?= mtc_select('diag[lengua_tamano]', MTC_OPTIONS['lengua_tamano'], $d['lengua_tamano']) ?></label>
+              <label>Humedad <?= mtc_select('diag[lengua_humedad]', MTC_OPTIONS['lengua_humedad'], $d['lengua_humedad']) ?></label>
+              <label>Movilidad (temblor, desviación) <?= mtc_select('diag[lengua_movilidad]', MTC_OPTIONS['lengua_movilidad'], $d['lengua_movilidad']) ?></label>
+              <label>Venas sublinguales <?= mtc_select('diag[lengua_venas]', MTC_OPTIONS['lengua_venas'], $d['lengua_venas']) ?></label>
+              <div class="mtc-span-all"><span class="mtc-label">Forma y marcas</span><?= mtc_checks('diag[lengua_forma]', MTC_MULTI['lengua_forma'], $d['lengua_forma']) ?></div>
+              <span class="mtc-label mtc-span-all">Saburra</span>
+              <label>Color <?= mtc_select('diag[saburra_color]', MTC_OPTIONS['saburra_color'], $d['saburra_color']) ?></label>
+              <label>Espesor <?= mtc_select('diag[saburra_espesor]', MTC_OPTIONS['saburra_espesor'], $d['saburra_espesor']) ?></label>
+              <label>Humedad <?= mtc_select('diag[saburra_humedad]', MTC_OPTIONS['saburra_humedad'], $d['saburra_humedad']) ?></label>
+              <label>Distribución <?= mtc_select('diag[saburra_distribucion]', MTC_OPTIONS['saburra_distribucion'], $d['saburra_distribucion']) ?></label>
+              <label>Raíz <?= mtc_select('diag[saburra_raiz]', MTC_OPTIONS['saburra_raiz'], $d['saburra_raiz']) ?></label>
+              <div class="mtc-span-all"><span class="mtc-label">Zonas alteradas (por órgano)</span><?= mtc_checks('diag[zonas]', MTC_MULTI['zonas'], $d['zonas']) ?></div>
+            </div>
+            <?= mtc_photo_field($apptId, $row, 1) ?>
+          </div>
+          <label class="span-2">Notas de la lengua
+            <textarea name="diag[lengua_notas]" rows="2"><?= h($d['lengua_notas']) ?></textarea>
+          </label>
+
+          <h3 class="span-2 mtc-sub">2 · Información del paciente</h3>
           <label class="span-2">Motivo de consulta
             <textarea name="diag[motivo]" rows="2"><?= h($d['motivo']) ?></textarea>
           </label>
-          <label class="span-2">Antecedentes y medicación
+          <label>Antecedentes
             <textarea name="diag[antecedentes]" rows="2"><?= h($d['antecedentes']) ?></textarea>
           </label>
-
-          <h3 class="span-2 mtc-sub">Interrogatorio</h3>
-          <label>Sueño <?= mtc_select('diag[sueno]', MTC_OPTIONS['sueno'], $d['sueno']) ?></label>
-          <label>Digestión <?= mtc_select('diag[digestion]', MTC_OPTIONS['digestion'], $d['digestion']) ?></label>
-          <label>Sed <?= mtc_select('diag[sed]', MTC_OPTIONS['sed'], $d['sed']) ?></label>
-          <label>Frío / calor <?= mtc_select('diag[frio_calor]', MTC_OPTIONS['frio_calor'], $d['frio_calor']) ?></label>
-          <label>Ánimo <?= mtc_select('diag[animo]', MTC_OPTIONS['animo'], $d['animo']) ?></label>
-          <label>Ciclo menstrual <?= mtc_select('diag[ciclo]', MTC_OPTIONS['ciclo'], $d['ciclo']) ?></label>
+          <label>Medicación
+            <textarea name="diag[medicacion]" rows="2"><?= h($d['medicacion']) ?></textarea>
+          </label>
+          <p class="span-2 mtc-label">Interrogatorio de los 10 puntos</p>
+          <?php foreach (MTC_INTERVIEW as $field => $label): ?>
+            <label><?= h($label) ?> <?= mtc_select('diag[' . $field . ']', MTC_OPTIONS[$field], $d[$field]) ?></label>
+          <?php endforeach; ?>
           <label class="span-2">Notas del interrogatorio
             <textarea name="diag[interrog_notas]" rows="2"><?= h($d['interrog_notas']) ?></textarea>
           </label>
 
-          <h3 class="span-2 mtc-sub">Glosodiagnosis (lengua)</h3>
-          <label>Cuerpo · color <?= mtc_select('diag[lengua_color]', MTC_OPTIONS['lengua_color'], $d['lengua_color']) ?></label>
-          <div><span class="mtc-label">Cuerpo · forma y marcas</span><?= mtc_checks('diag[lengua_forma]', MTC_MULTI['lengua_forma'], $d['lengua_forma']) ?></div>
-          <label>Saburra · color <?= mtc_select('diag[saburra_color]', MTC_OPTIONS['saburra_color'], $d['saburra_color']) ?></label>
-          <label>Saburra · espesor <?= mtc_select('diag[saburra_espesor]', MTC_OPTIONS['saburra_espesor'], $d['saburra_espesor']) ?></label>
-          <label>Saburra · humedad <?= mtc_select('diag[saburra_humedad]', MTC_OPTIONS['saburra_humedad'], $d['saburra_humedad']) ?></label>
-          <div><span class="mtc-label">Zonas alteradas</span><?= mtc_checks('diag[zonas]', MTC_MULTI['zonas'], $d['zonas']) ?></div>
-          <label class="span-2">Notas de la lengua
-            <textarea name="diag[lengua_notas]" rows="2"><?= h($d['lengua_notas']) ?></textarea>
+          <h3 class="span-2 mtc-sub">3 · Teoría de la biblioteca</h3>
+          <label class="span-2">Fuentes y teoría consultada <span class="muted small">(libro, página o cita; no va al paciente)</span>
+            <textarea name="diag[fuentes]" rows="2" placeholder="Ej: El Gran Libro de la Medicina China, p. 300: lengua pálida con marcas dentales → vacío de Qi de Bazo"><?= h($d['fuentes']) ?></textarea>
           </label>
-          <label class="span-2">Pulso y palpación <span class="muted small">(solo para vos, no va al paciente)</span>
-            <textarea name="diag[pulso]" rows="2"><?= h($d['pulso']) ?></textarea>
-          </label>
+          <?php if (is_file(__DIR__ . '/biblioteca.php')): ?>
+            <p class="span-2 hint"><a href="biblioteca.php" target="_blank" rel="noopener">Abrir la biblioteca</a> para consultar los textos subidos.</p>
+          <?php endif; ?>
+          <?php if ($d['pulso'] !== ''): ?>
+            <details class="span-2 mtc-optional">
+              <summary>Pulso y palpación (opcional, registrado antes)</summary>
+              <textarea name="diag[pulso]" rows="2"><?= h($d['pulso']) ?></textarea>
+              <p class="hint">No se usa para proponer patrones. Si lo borrás, desaparece este campo.</p>
+            </details>
+          <?php endif; ?>
 
-          <h3 class="span-2 mtc-sub">Patrón diagnosticado</h3>
-          <div class="span-2 mtc-checks mtc-patterns">
-            <?php foreach ($patterns as $key => $p): ?>
-              <label class="check"><input type="checkbox" name="diag[patrones][]" value="<?= h($key) ?>" <?= in_array($key, $d['patrones'], true) ? 'checked' : '' ?>>
-                <span><strong><?= h($p['label']) ?></strong><br><span class="muted small"><?= h($p['signs']) ?> · <?= h(mtc_points_text($p['points']) ?: 'locales, Ashi y distales') ?></span></span></label>
+          <h3 class="span-2 mtc-sub">Diagnóstico · patrones <span class="muted small">(podés elegir varios)</span></h3>
+          <?php if ($suggested): ?>
+            <p class="span-2 hint mtc-suggest"><strong>Según la lengua y el interrogatorio:</strong>
+              <?= h(implode(' · ', array_map(static fn ($k) => $patterns[$k]['label'], array_keys($suggested)))) ?>. Revisalo y marcá los que correspondan.</p>
+          <?php endif; ?>
+          <div class="span-2 mtc-pattern-groups">
+            <?php
+              $byOrgan = [];
+              foreach ($allPatterns as $key => $p) {
+                  if ($p['_active'] || in_array($key, $d['patrones'], true)) {
+                      $byOrgan[$p['organ']][$key] = $p;
+                  }
+              }
+            ?>
+            <?php foreach (MTC_ORGANS as $organ): ?>
+              <?php if (empty($byOrgan[$organ])) continue; ?>
+              <?php $picked = count(array_intersect(array_keys($byOrgan[$organ]), $d['patrones'])); $hint = count(array_intersect_key($suggested, $byOrgan[$organ])); ?>
+              <details class="mtc-organ" <?= $picked || $hint ? 'open' : '' ?>>
+                <summary><strong><?= h($organ) ?></strong>
+                  <?php if ($picked): ?><span class="tag ok"><?= $picked ?> elegido<?= $picked > 1 ? 's' : '' ?></span><?php endif; ?>
+                  <?php if ($hint): ?><span class="tag warn">sugerido</span><?php endif; ?></summary>
+                <div class="mtc-checks mtc-patterns">
+                  <?php foreach ($byOrgan[$organ] as $key => $p): ?>
+                    <?php $ev = mtc_evidence_text($evidence[$key] ?? ['lengua' => [], 'interrogatorio' => []]); ?>
+                    <label class="check<?= isset($suggested[$key]) ? ' mtc-suggested' : '' ?>"><input type="checkbox" name="diag[patrones][]" value="<?= h($key) ?>" data-label="<?= h($p['label']) ?>" <?= in_array($key, $d['patrones'], true) ? 'checked' : '' ?>>
+                      <span><strong><?= h($p['label']) ?></strong><?= $p['moxa_mode'] === 'no' ? ' <span class="tag warn">sin moxa</span>' : '' ?><?= !$p['_active'] ? ' <span class="tag">desactivado</span>' : '' ?><br><span class="muted small"><?= h($p['signs']) ?></span>
+                        <?php if ($ev !== ''): ?><br><span class="small mtc-ev">Coincide: <?= h($ev) ?></span><?php endif; ?></span></label>
+                  <?php endforeach; ?>
+                </div>
+              </details>
             <?php endforeach; ?>
+            <p class="hint">Los patrones, sus tratamientos y las indicaciones se editan en <a href="mtc_catalogo.php" target="_blank" rel="noopener">Diagnósticos e indicaciones</a>.</p>
           </div>
           <label>Zona del dolor (si es musculoesquelético)
             <?php $zoneOpts = array_map(static fn ($z) => $z['label'], mtc_pain_zones()); ?>
@@ -502,6 +653,14 @@ $done = mtc_done($plan);
             <input name="diag[sintoma]" maxlength="200" placeholder="Ej: dolor lumbar, cansancio" value="<?= h($d['sintoma']) ?>">
           </label>
           <label>Escala del síntoma hoy (0 a 10) <?= mtc_scale('diag[escala]', $d['escala']) ?></label>
+
+          <div class="span-2 mtc-dx-edit">
+            <label>Diagnóstico desde la MTC <span class="muted small">(así lo lee el paciente; se arma solo con los patrones elegidos y lo podés editar)</span>
+              <textarea name="diag[diagnostico]" rows="2" id="dx-text" placeholder="<?= h(mtc_compose_diagnosis($plan) ?: 'Ej: Exacerbación del Yang de Hígado, deficiencia de Yin de Bazo.') ?>"><?= h($d['diagnostico']) ?></textarea>
+            </label>
+            <input type="hidden" name="diag[diagnostico_auto]" value="<?= h($d['diagnostico_auto']) ?>">
+            <div id="dx-box"><?= mtc_diagnosis_html(mtc_diagnosis_line($plan)) ?></div>
+          </div>
 
           <label class="span-2">Tonificación general aplicada
             <textarea name="diag[tonificacion]" rows="4"><?= h($tonify) ?></textarea>
@@ -535,11 +694,11 @@ $done = mtc_done($plan);
                 <label class="span-2">Para el paciente (objetivo y qué hacemos)
                   <textarea name="s[<?= $n ?>][objetivo]" rows="3"><?= h($s['objetivo']) ?></textarea>
                 </label>
-                <label>Puntos
-                  <textarea name="s[<?= $n ?>][puntos]" rows="4"><?= h($s['puntos']) ?></textarea>
+                <label><?= $plan['template'] >= 2 ? 'Puntos para moxar (y acupresión)' : 'Puntos' ?>
+                  <textarea name="s[<?= $n ?>][puntos]" rows="5"><?= h($s['puntos']) ?></textarea>
                 </label>
-                <label>Técnica y notas <span class="muted small">(solo para vos)</span>
-                  <textarea name="s[<?= $n ?>][tecnica]" rows="4"><?= h($s['tecnica']) ?></textarea>
+                <label><?= $plan['template'] >= 2 ? 'Técnicas' : 'Técnica y notas' ?> <span class="muted small">(solo para vos)</span>
+                  <textarea name="s[<?= $n ?>][tecnica]" rows="5"><?= h($s['tecnica']) ?></textarea>
                 </label>
                 <label>Fecha <input type="date" name="s[<?= $n ?>][fecha]" value="<?= h($s['fecha'] !== '' ? $s['fecha'] : (string) ($visits[$n]['date'] ?? '')) ?>"></label>
                 <label>Escala 0 a 10 <?= mtc_scale('s[' . $n . '][escala]', $s['escala']) ?></label>
@@ -551,6 +710,7 @@ $done = mtc_done($plan);
                     <?= mtc_select('p[decision]', array_slice(MTC_DECISIONS, 1, null, true), $plan['patient']['decision'], MTC_DECISIONS['']) ?>
                   </label>
                 <?php endif; ?>
+                <div class="span-2"><?= mtc_photo_field($apptId, $row, $n) ?></div>
                 <label class="check span-2"><input type="checkbox" name="s[<?= $n ?>][realizada]" value="1" <?= $s['realizada'] ? 'checked' : '' ?>><span>Consulta hecha</span></label>
               </div>
             </details>
@@ -561,6 +721,21 @@ $done = mtc_done($plan);
       <section class="panel" id="controles">
         <h2>Controles semanales · consultas 6 a 25</h2>
         <p class="hint">Primera etapa: hasta 25 consultas, una por semana. Re-evaluación en las consultas 10, 15, 20 y 25 (escala comparada con la consulta 1, sin nuevo diagnóstico). Si hay alta antes, dejá de marcar controles.</p>
+        <?php if ($plan['generated'] && $plan['template'] >= 2): ?>
+          <p class="mtc-guide"><strong>Sugerencia para cada control:</strong> <?= h(mtc_control_guide($plan)) ?></p>
+        <?php endif; ?>
+        <?php if (count($photos) > 1): ?>
+          <div class="mtc-gallery">
+            <span class="mtc-label">Fotos de la lengua para comparar</span>
+            <div class="mtc-gallery-row">
+              <?php foreach ($photos as $pn => $pf): ?>
+                <a href="plan_mtc_foto.php?id=<?= (int) $apptId ?>&amp;n=<?= (int) $pn ?>&amp;v=<?= (int) filemtime($pf) ?>" target="_blank" rel="noopener">
+                  <img src="plan_mtc_foto.php?id=<?= (int) $apptId ?>&amp;n=<?= (int) $pn ?>&amp;v=<?= (int) filemtime($pf) ?>" alt="Lengua, consulta <?= (int) $pn ?>" loading="lazy">
+                  <span>Consulta <?= (int) $pn ?></span></a>
+              <?php endforeach; ?>
+            </div>
+          </div>
+        <?php endif; ?>
         <?php foreach ($plan['controls'] as $n => $c): ?>
           <?php
             $date = mtc_consult_date($n, $plan, $appt, $visits);
@@ -581,6 +756,7 @@ $done = mtc_done($plan);
               <label>Puntos usados
                 <textarea name="c[<?= $n ?>][puntos]" rows="2"><?= h($c['puntos']) ?></textarea>
               </label>
+              <?php if ($n % 5 === 0): ?><div class="span-2"><?= mtc_photo_field($apptId, $row, $n) ?></div><?php endif; ?>
               <label class="check span-2"><input type="checkbox" name="c[<?= $n ?>][realizada]" value="1" <?= $c['realizada'] ? 'checked' : '' ?>><span>Consulta hecha</span></label>
             </div>
           </details>
@@ -594,8 +770,14 @@ $done = mtc_done($plan);
           <label>Resumen del diagnóstico en palabras simples
             <textarea name="p[resumen]" rows="6"><?= h($plan['patient']['resumen']) ?></textarea>
           </label>
-          <label>Recomendaciones para casa (un renglón por punto, empezando con «-»)
-            <textarea name="p[recomendaciones]" rows="7"><?= h($plan['patient']['recomendaciones']) ?></textarea>
+          <label>Indicaciones <span class="muted small">(hoja «INDICACIONES» del PDF, debajo del diagnóstico; un renglón por indicación, empezando con «-»)</span>
+            <textarea name="p[indicaciones]" rows="9"><?= h($plan['patient']['indicaciones']) ?></textarea>
+          </label>
+          <label>Práctica en casa (chi kung y semillas en la oreja)
+            <textarea name="p[casa]" rows="5"><?= h($plan['patient']['casa']) ?></textarea>
+          </label>
+          <label><?= $plan['template'] >= 2 ? 'Para los días de sesión' : 'Recomendaciones para casa' ?> (un renglón por punto, empezando con «-»)
+            <textarea name="p[recomendaciones]" rows="4"><?= h($plan['patient']['recomendaciones']) ?></textarea>
           </label>
           <label class="check"><input type="checkbox" name="p[include_points]" value="1" <?= $plan['patient']['include_points'] ? 'checked' : '' ?>><span>Incluir los puntos de cada consulta en el PDF del paciente</span></label>
         </div>
@@ -714,6 +896,51 @@ $done = mtc_done($plan);
             }
           });
         }
+        var dx = document.getElementById('dx-text');
+        var dxBox = document.querySelector('#dx-box .mtc-dx-text');
+        if (dx && dxBox) {
+          var other = document.querySelector('input[name="diag[patron_otro]"]');
+          var compose = function () {
+            var parts = [];
+            document.querySelectorAll('input[name="diag[patrones][]"]:checked').forEach(function (c) { parts.push(c.dataset.label); });
+            (other ? other.value : '').split(/[,;\n]/).forEach(function (o) { o = o.trim().replace(/[.\s]+$/, ''); if (o) { parts.push(o); } });
+            parts = parts.map(function (t, i) { return i > 0 && !/^(Qi|Yin|Yang|Jing)\b/.test(t) ? t.charAt(0).toLowerCase() + t.slice(1) : t; });
+            return parts.length ? parts.join(', ') + '.' : '';
+          };
+          var refresh = function () {
+            var auto = compose();
+            dx.placeholder = auto || 'Ej: Exacerbación del Yang de Hígado, deficiencia de Yin de Bazo.';
+            dxBox.textContent = dx.value.trim() || auto || '(se completa al elegir los patrones)';
+          };
+          document.querySelectorAll('input[name="diag[patrones][]"]').forEach(function (c) { c.addEventListener('change', refresh); });
+          if (other) { other.addEventListener('input', refresh); }
+          dx.addEventListener('input', refresh);
+        }
+        document.querySelectorAll('input[data-mtc-photo]').forEach(function (input) {
+          input.addEventListener('change', function () {
+            var file = input.files && input.files[0];
+            if (!file || !/^image\/(jpeg|png|webp)$/.test(file.type) || file.size < 1500000 || !window.DataTransfer) { return; }
+            var img = new Image();
+            img.onload = function () {
+              var scale = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+              var canvas = document.createElement('canvas');
+              canvas.width = Math.round(img.naturalWidth * scale);
+              canvas.height = Math.round(img.naturalHeight * scale);
+              var ctx = canvas.getContext('2d');
+              ctx.fillStyle = '#fff';
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              canvas.toBlob(function (blob) {
+                URL.revokeObjectURL(img.src);
+                if (!blob || blob.size >= file.size) { return; }
+                var dt = new DataTransfer();
+                dt.items.add(new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' }));
+                input.files = dt.files;
+              }, 'image/jpeg', 0.85);
+            };
+            img.src = URL.createObjectURL(file);
+          });
+        });
         var sched = document.getElementById('schedule-form');
         if (sched) {
           sched.addEventListener('submit', function (ev) {
