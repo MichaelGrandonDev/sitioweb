@@ -35,3 +35,4 @@ public_html/**/error_log
 public_html/error_log
 public_html/turnos/data/biblioteca/*
 !public_html/turnos/data/biblioteca/.htaccess
+public_html/turnos/data/pacientes/
