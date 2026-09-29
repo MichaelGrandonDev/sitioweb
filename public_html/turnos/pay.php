@@ -10,7 +10,7 @@ if (!db_ready()) {
 
 $token = trim((string) ($_GET['token'] ?? $_POST['token'] ?? ''));
 $appt = $token !== '' ? appointment_by_token($token, false) : null;
-if (!$appt) {
+if (!$appt || $appt['status'] === 'cancelled') {
     http_response_code(404);
     echo 'Turno no encontrado.';
     exit;
@@ -18,7 +18,9 @@ if (!$appt) {
 
 $cfg = deposit_cfg();
 $amount = (int) ($appt['deposit_amount'] ?: deposit_amount());
-$paid = ($appt['deposit_status'] === 'paid' || $appt['status'] === 'confirmed');
+// Turno cargado a mano: ya confirmado, la seña se puede pagar si el paciente quiere.
+$optional = turno_deposit_open($appt);
+$paid = !$optional && ($appt['deposit_status'] === 'paid' || $appt['status'] === 'confirmed');
 $flash = take_flash();
 $error = '';
 
@@ -49,7 +51,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$paid) {
                   INSERT INTO deposit_payments (appointment_id, amount, method, status, transfer_ref, note)
                   VALUES (?, ?, 'transfer', 'pending', ?, ?)
                 ")->execute([(int) $appt['id'], $amount, $ref, $note]);
-                flash('success', 'Transferencia informada. Cuando la confirmemos, tu turno queda asegurado.');
+                flash('success', $optional
+                    ? 'Transferencia informada. ¡Gracias! La verificamos y queda registrada.'
+                    : 'Transferencia informada. Cuando la confirmemos, tu turno queda asegurado.');
                 redirect('pay.php?token=' . urlencode($token));
             }
         }
@@ -57,8 +61,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$paid) {
 }
 
 $alias = (string) ($cfg['transfer_alias'] ?? 'michael.grandon.mp');
-$qrData = rawurlencode($alias);
-$qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' . $qrData;
+try {
+    $qrSvg = $alias !== '' ? FluxusQr::svg($alias, 220) : '';
+} catch (Throwable $e) {
+    $qrSvg = '';
+}
+$consentPending = empty($appt['consent_accepted_at']);
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -67,7 +75,7 @@ $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' . $qrD
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Seña del turno · FluxusTerapia</title>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Outfit:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/turnos.css">
+  <link rel="stylesheet" href="assets/turnos.css?v=20260929">
 </head>
 <body>
   <header class="top">
@@ -79,7 +87,7 @@ $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' . $qrD
   </header>
   <main class="wrap">
     <p class="eyebrow">Reserva · Seña</p>
-    <h1><?= $paid ? 'Seña acreditada' : 'Pagá la seña para confirmar' ?></h1>
+    <h1><?= $optional ? 'Seña del turno (opcional)' : ($paid ? ($appt['deposit_status'] === 'paid' ? 'Seña acreditada' : 'Turno confirmado') : 'Pagá la seña para confirmar') ?></h1>
     <p class="lede">
       <?= h($appt['therapy_name']) ?> ·
       <?= h(format_date_es($appt['date'])) ?> ·
@@ -96,21 +104,41 @@ $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' . $qrD
       <div class="alert error"><?= h($error) ?></div>
     <?php endif; ?>
 
+    <?php if (!$paid): ?>
     <section class="panel">
-      <p style="margin:0 0 .35rem;font-size:.9rem;color:var(--muted)">Seña requerida</p>
+      <p style="margin:0 0 .35rem;font-size:.9rem;color:var(--muted)"><?= $optional ? 'Seña opcional' : 'Seña requerida' ?></p>
       <p style="margin:0;font-size:2rem;font-weight:700;color:var(--brand)"><?= h(money_ars($amount)) ?></p>
-      <p class="hint">El horario queda reservado. Al acreditar la seña te llega un mail con el comprobante, los requisitos y el consentimiento informado en PDF.</p>
+      <?php if ($optional): ?>
+        <p class="hint">Tu turno ya está confirmado. Si querés, podés dejar paga la seña desde acá.</p>
+      <?php else: ?>
+        <p class="hint">El horario queda reservado. Al acreditar la seña te llega un mail con el comprobante, los requisitos y el consentimiento informado en PDF.</p>
+      <?php endif; ?>
     </section>
+    <?php endif; ?>
 
-    <?php if ($paid): ?>
+    <?php if ($optional || $paid): ?>
       <section class="panel success">
-        <h2>¡Listo!</h2>
-        <p>Tu seña está paga y el turno confirmado. Te mandamos un mail a <strong><?= h((string) $appt['patient_email']) ?></strong> con estos dos PDF:</p>
-        <a class="btn primary" href="pdf.php?token=<?= h(urlencode($token)) ?>">Comprobante y requisitos (PDF)</a>
-        <a class="btn primary" href="pdf.php?token=<?= h(urlencode($token)) ?>&amp;doc=consentimiento">Consentimiento informado (PDF)</a>
-        <a class="btn ghost" href="../">Volver al inicio</a>
+        <?php if ($paid): ?>
+          <h2>¡Listo!</h2>
+          <p>
+            <?= $appt['deposit_status'] === 'paid' ? 'Tu seña está paga y el turno confirmado.' : 'Tu turno está confirmado.' ?>
+            Te mandamos un mail a <strong><?= h((string) $appt['patient_email']) ?></strong> con estos dos PDF:
+          </p>
+        <?php else: ?>
+          <h2>Tu turno</h2>
+        <?php endif; ?>
+        <?php if ($consentPending): ?>
+          <a class="btn primary" href="consentimiento.php?token=<?= h(urlencode($token)) ?>">Firmar consentimiento online</a>
+        <?php endif; ?>
+        <a class="btn <?= $paid ? 'primary' : 'ghost' ?>" href="pdf.php?token=<?= h(urlencode($token)) ?>">Comprobante y requisitos (PDF)</a>
+        <a class="btn <?= $paid ? 'primary' : 'ghost' ?>" href="pdf.php?token=<?= h(urlencode($token)) ?>&amp;doc=consentimiento">Consentimiento informado (PDF)</a>
+        <?php if ($paid): ?>
+          <a class="btn ghost" href="../">Volver al inicio</a>
+        <?php endif; ?>
       </section>
-    <?php else: ?>
+    <?php endif; ?>
+
+    <?php if (!$paid): ?>
       <div class="pay-grid">
         <section class="panel">
           <h2>1. Transferencia</h2>
@@ -138,9 +166,9 @@ $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' . $qrD
         <section class="panel">
           <h2>2. QR del alias</h2>
           <p class="muted small">Escaneá e ingresá <?= h(money_ars($amount)) ?> a <strong><?= h($alias) ?></strong>.</p>
-          <p style="text-align:center;margin:1rem 0">
-            <img src="<?= h($qrUrl) ?>" width="220" height="220" alt="QR alias <?= h($alias) ?>" style="border-radius:12px;border:1px solid var(--line)">
-          </p>
+          <?php if ($qrSvg !== ''): ?>
+            <p class="qr-box" aria-label="QR alias <?= h($alias) ?>"><?= $qrSvg ?></p>
+          <?php endif; ?>
           <p class="hint">Después de pagar, informá el nº de operación en el formulario de transferencia.</p>
         </section>
 

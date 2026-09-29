@@ -301,6 +301,106 @@ function create_appointment(array $data): array
     ];
 }
 
+/**
+ * Turno cargado a mano por el admin (reservado por WhatsApp, teléfono, en persona).
+ * Queda confirmado; la seña es opcional y se ofrece en el mail con un QR.
+ * Puede usar un horario fuera de la grilla, pero nunca uno ya tomado.
+ */
+function create_manual_appointment(array $data): array
+{
+    $therapyId = (int) ($data['therapy_id'] ?? 0);
+    $date = trim((string) ($data['date'] ?? ''));
+    $time = substr(trim((string) ($data['time'] ?? '')), 0, 5);
+    $name = trim((string) ($data['name'] ?? ''));
+    $phone = trim((string) ($data['phone'] ?? ''));
+    $email = trim((string) ($data['email'] ?? ''));
+    $notes = trim((string) ($data['notes'] ?? ''));
+    $deposit = array_key_exists('deposit_amount', $data) ? (int) $data['deposit_amount'] : deposit_amount();
+
+    if ($therapyId < 1 || $date === '' || $time === '' || $name === '' || $phone === '' || $email === '') {
+        throw new RuntimeException('Completá nombre, email, teléfono, terapia, día y horario.');
+    }
+    if (mb_strlen($name) > 120 || mb_strlen($phone) > 40 || strlen($email) > 190 || mb_strlen($notes) > 1000) {
+        throw new RuntimeException('Algún dato es demasiado largo.');
+    }
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        throw new RuntimeException('El email no es válido.');
+    }
+    if (preg_match_all('/\d/', $phone) < 6) {
+        throw new RuntimeException('Revisá el teléfono.');
+    }
+    $day = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+    if (!$day || $day->format('Y-m-d') !== $date) {
+        throw new RuntimeException('Fecha inválida.');
+    }
+    if (!preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $time) || $time < '06:00' || $time > '22:00') {
+        throw new RuntimeException('Elegí un horario entre las 06:00 y las 22:00.');
+    }
+    $when = DateTimeImmutable::createFromFormat('Y-m-d H:i', $date . ' ' . $time);
+    if (!$when || $when < new DateTimeImmutable('now')) {
+        throw new RuntimeException('Ese día y horario ya pasaron.');
+    }
+    if ($day > new DateTimeImmutable('today +1 year')) {
+        throw new RuntimeException('La fecha está a más de un año.');
+    }
+    if ($deposit < 0 || $deposit > 10000000) {
+        throw new RuntimeException('Monto de seña inválido.');
+    }
+
+    $stmt = db()->prepare('SELECT id, name FROM therapies WHERE id = ? AND active = 1');
+    $stmt->execute([$therapyId]);
+    $therapy = $stmt->fetch();
+    if (!$therapy) {
+        throw new RuntimeException('Terapia no encontrada.');
+    }
+
+    $holder = static function () use ($date, $time): string|false {
+        $stmt = db()->prepare("
+          SELECT patient_name FROM appointments
+          WHERE date = ? AND substr(time, 1, 5) = ? AND status IN ('confirmed', 'pending_deposit')
+          LIMIT 1
+        ");
+        $stmt->execute([$date, $time]);
+        return $stmt->fetchColumn();
+    };
+    $taken = static fn (string|false $who): RuntimeException => new RuntimeException(
+        'Ya hay un turno el ' . format_date_es($date) . ' a las ' . format_time_es($time)
+        . ($who !== false ? ' (' . $who . ')' : '') . '. Elegí otro horario o cancelá ese turno primero.'
+    );
+    $who = $holder();
+    if ($who !== false) {
+        throw $taken($who);
+    }
+
+    $code = strtoupper(bin2hex(random_bytes(4)));
+    $token = bin2hex(random_bytes(16));
+    $depositStatus = $deposit > 0 ? 'optional' : 'none';
+    try {
+        db()->prepare("
+          INSERT INTO appointments
+            (code, token, therapy_id, date, time, patient_name, patient_phone, patient_email, notes,
+             status, deposit_amount, deposit_status, source)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, 'manual')
+        ")->execute([$code, $token, $therapyId, $date, $time, $name, $phone, $email, $notes, $deposit, $depositStatus]);
+    } catch (PDOException $e) {
+        if ((string) $e->getCode() === '23000') {
+            throw $taken($holder());
+        }
+        throw new RuntimeException('No se pudo guardar el turno.');
+    }
+
+    return [
+        'id' => (int) db()->lastInsertId(),
+        'code' => $code,
+        'token' => $token,
+        'therapy' => $therapy['name'],
+        'date' => $date,
+        'time' => $time,
+        'deposit_amount' => $deposit,
+        'deposit_status' => $depositStatus,
+    ];
+}
+
 function appointment_by_token(string $token, bool $confirmedOnly = true): ?array
 {
     $sql = "
@@ -351,6 +451,16 @@ function migrate_turnos_schema(): void
     }
     if (!in_array('mail_sent_at', $apptCols, true)) {
         $pdo->exec('ALTER TABLE appointments ADD COLUMN mail_sent_at TEXT DEFAULT NULL');
+    }
+    // web = reservado online (seña obligatoria) · manual = cargado por el admin (seña opcional)
+    if (!in_array('source', $apptCols, true)) {
+        $pdo->exec("ALTER TABLE appointments ADD COLUMN source TEXT NOT NULL DEFAULT 'web'");
+    }
+    // Consentimiento informado aceptado online (consentimiento.php). consent_text guarda el texto exacto aceptado.
+    foreach (['consent_accepted_at', 'consent_name', 'consent_dni', 'consent_ip', 'consent_text'] as $col) {
+        if (!in_array($col, $apptCols, true)) {
+            $pdo->exec('ALTER TABLE appointments ADD COLUMN ' . $col . ' TEXT DEFAULT NULL');
+        }
     }
 
     // Un solo turno activo por día y horario: dos reservas simultáneas no pueden tomar el mismo.

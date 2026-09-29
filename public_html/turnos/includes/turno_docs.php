@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../pdf_lib.php';
+require_once __DIR__ . '/qr.php';
 
 const TURNO_REQUISITOS_DEFAULT = "No comer nada 1 hora antes del turno (agua sí podés tomar).\n"
     . "Venir aseado/a (bañado/a) y sin cremas ni aceites en la piel.\n"
@@ -71,6 +72,54 @@ function turno_doc_url(array $appt, string $doc): string
     global $config;
     $base = rtrim((string) ($config['site_url'] ?? 'https://fluxusterapia.com'), '/') . '/turnos/pdf.php';
     return $base . '?token=' . urlencode((string) $appt['token']) . ($doc !== '' ? '&doc=' . $doc : '') . '&ver=1';
+}
+
+/** Link absoluto a una página del turno (pay.php, consentimiento.php). */
+function turno_page_url(array $appt, string $page): string
+{
+    global $config;
+    return rtrim((string) ($config['site_url'] ?? 'https://fluxusterapia.com'), '/') . '/turnos/' . $page
+        . '?token=' . urlencode((string) $appt['token']);
+}
+
+/** Turno confirmado con seña sin pagar que se puede ofrecer (turnos cargados a mano). */
+function turno_deposit_open(array $appt): bool
+{
+    return ($appt['status'] ?? '') === 'confirmed'
+        && in_array((string) ($appt['deposit_status'] ?? ''), ['optional', 'pending'], true)
+        && (int) ($appt['deposit_amount'] ?? 0) > 0;
+}
+
+/** Líneas de "antes de venir": requisitos generales + las propias de la terapia (o las de la clase online). */
+function turno_prep_lines(array $appt): array
+{
+    $extras = turno_therapy_extras($appt);
+    if (turno_is_online($appt)) {
+        return $extras;
+    }
+    return array_merge(turno_lines(turno_text_setting('requisitos_text', TURNO_REQUISITOS_DEFAULT)), $extras);
+}
+
+/**
+ * Guarda el consentimiento aceptado online. Solo la primera vez: no pisa uno ya firmado.
+ * Devuelve true si quedó guardado ahora.
+ */
+function turno_accept_consent(array $appt, string $name, string $dni, string $ip): bool
+{
+    $stmt = db()->prepare("
+      UPDATE appointments
+      SET consent_accepted_at = ?, consent_name = ?, consent_dni = ?, consent_ip = ?, consent_text = ?
+      WHERE id = ? AND consent_accepted_at IS NULL AND status IN ('confirmed', 'pending_deposit')
+    ");
+    $stmt->execute([
+        date('Y-m-d H:i:s'),
+        $name,
+        $dni,
+        substr($ip, 0, 45),
+        turno_text_setting('consentimiento_text', TURNO_CONSENTIMIENTO_DEFAULT),
+        (int) $appt['id'],
+    ]);
+    return $stmt->rowCount() === 1;
 }
 
 function turno_pdf_header(FluxusPdf $pdf, string $subtitle): void
@@ -149,8 +198,11 @@ function turno_consentimiento_pdf(array $appt): string
     return $pdf->render();
 }
 
-/** Correo con los dos PDF adjuntos. Devuelve true si mail() lo aceptó. */
-function turno_send_mail(string $to, string $subject, string $html, string $text, array $attachments): bool
+/**
+ * Correo HTML + texto con PDF adjuntos. $inline son imágenes PNG que el HTML usa como
+ * src="cid:<clave>" (muchos clientes bloquean data: URIs). Devuelve true si mail() lo aceptó.
+ */
+function turno_send_mail(string $to, string $subject, string $html, string $text, array $attachments, array $inline = []): bool
 {
     global $config;
     $fromEmail = (string) ($config['mail_from'] ?? 'hola@fluxusterapia.com');
@@ -159,6 +211,7 @@ function turno_send_mail(string $to, string $subject, string $html, string $text
 
     $mixed = 'fx_mix_' . bin2hex(random_bytes(8));
     $alt = 'fx_alt_' . bin2hex(random_bytes(8));
+    $rel = 'fx_rel_' . bin2hex(random_bytes(8));
     $headers = [
         'MIME-Version: 1.0',
         'From: ' . $enc($fromName) . ' <' . $fromEmail . '>',
@@ -166,11 +219,22 @@ function turno_send_mail(string $to, string $subject, string $html, string $text
         'Content-Type: multipart/mixed; boundary="' . $mixed . '"',
         'X-Mailer: FluxusTerapia Turnos',
     ];
+    $htmlPart = "Content-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n"
+        . chunk_split(base64_encode($html)) . "\r\n";
+    if ($inline) {
+        $related = "Content-Type: multipart/related; boundary=\"{$rel}\"\r\n\r\n--{$rel}\r\n" . $htmlPart;
+        foreach ($inline as $cid => $png) {
+            $related .= "--{$rel}\r\nContent-Type: image/png; name=\"{$cid}.png\"\r\n"
+                . "Content-Transfer-Encoding: base64\r\nContent-ID: <{$cid}>\r\n"
+                . "Content-Disposition: inline; filename=\"{$cid}.png\"\r\n\r\n"
+                . chunk_split(base64_encode($png)) . "\r\n";
+        }
+        $htmlPart = $related . "--{$rel}--\r\n";
+    }
     $body = "--{$mixed}\r\nContent-Type: multipart/alternative; boundary=\"{$alt}\"\r\n\r\n"
         . "--{$alt}\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n"
         . chunk_split(base64_encode($text)) . "\r\n"
-        . "--{$alt}\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n"
-        . chunk_split(base64_encode($html)) . "\r\n"
+        . "--{$alt}\r\n" . $htmlPart
         . "--{$alt}--\r\n";
     foreach ($attachments as $name => $bytes) {
         $body .= "--{$mixed}\r\nContent-Type: application/pdf; name=\"{$name}\"\r\n"
@@ -180,7 +244,8 @@ function turno_send_mail(string $to, string $subject, string $html, string $text
     $body .= "--{$mixed}--\r\n";
 
     if (!empty($config['mail_dump_dir'])) {
-        file_put_contents(rtrim((string) $config['mail_dump_dir'], '/') . '/turno-' . time() . '.eml', 'To: ' . $to . "\r\nSubject: " . $enc($subject) . "\r\n" . implode("\r\n", $headers) . "\r\n\r\n" . $body);
+        $file = rtrim((string) $config['mail_dump_dir'], '/') . '/turno-' . date('Ymd-His') . '-' . bin2hex(random_bytes(3)) . '.eml';
+        file_put_contents($file, 'To: ' . $to . "\r\nSubject: " . $enc($subject) . "\r\n" . implode("\r\n", $headers) . "\r\n\r\n" . $body);
         return true;
     }
     return @mail($to, $enc($subject), $body, implode("\r\n", $headers), '-f' . $fromEmail);
@@ -218,13 +283,36 @@ function send_turno_confirmation(int $appointmentId, bool $force = false): strin
     }
 
     $e = static fn ($v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
-    $when = format_date_es((string) $appt['date']) . ' · ' . format_time_es((string) $appt['time']);
+    $date = format_date_es((string) $appt['date']);
+    $time = format_time_es((string) $appt['time']);
     $place = $config['place_name'] . ' · ' . $config['place_city'];
     $reqUrl = turno_doc_url($appt, 'requisitos');
     $conUrl = turno_doc_url($appt, 'consentimiento');
+    $signUrl = turno_page_url($appt, 'consentimiento.php');
+    $payUrl = turno_page_url($appt, 'pay.php');
     $wa = 'https://wa.me/' . preg_replace('/\D+/', '', (string) $config['whatsapp']);
-    $subject = 'Turno confirmado · ' . $appt['therapy_name'] . ' · ' . format_date_es((string) $appt['date']);
+    $subject = 'Turno confirmado · ' . $appt['therapy_name'] . ' · ' . $date;
     $online = turno_is_online($appt);
+    $signed = !empty($appt['consent_accepted_at']);
+    $prep = turno_prep_lines($appt);
+    $payOpen = turno_deposit_open($appt);
+    $amount = money_ars((int) $appt['deposit_amount']);
+
+    $inline = [];
+    if ($payOpen) {
+        try {
+            $png = FluxusQr::png($payUrl, 6, 3);
+        } catch (Throwable $ex) {
+            $png = null;
+        }
+        if ($png !== null) {
+            $inline['qr-pago'] = $png;
+        }
+    }
+
+    $h2 = static fn (string $t): string => '<h2 style="margin:22px 0 8px;font-family:Georgia,serif;font-size:19px;color:#0f3d36">' . $t . '</h2>';
+    $btn = static fn (string $url, string $label, string $bg): string => '<a href="' . $e($url) . '" style="display:inline-block;background:' . $bg
+        . ';color:#fff;text-decoration:none;padding:11px 18px;border-radius:6px;font-weight:700">' . $label . '</a>';
 
     $html = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"></head>'
         . '<body style="margin:0;padding:24px 12px;background:#eef3ef;font-family:Arial,sans-serif;color:#12201c">'
@@ -235,30 +323,75 @@ function send_turno_confirmation(int $appointmentId, bool $force = false): strin
         . '<p style="margin:0 0 6px;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:#2f8f6b;font-weight:700">Turno confirmado</p>'
         . '<h1 style="margin:0 0 14px;font-family:Georgia,serif;font-size:26px">Hola, ' . $e($appt['patient_name']) . '</h1>'
         . '<p style="margin:0 0 16px;color:#4f635a">Tu turno quedó confirmado. Te esperamos:</p>'
-        . '<table role="presentation" width="100%" style="background:#eef3ef;border-radius:8px;margin:0 0 18px"><tr><td style="padding:14px 18px">'
-        . '<strong>' . $e($appt['therapy_name']) . '</strong><br>' . $e($when) . '<br>' . $e($place) . '<br>Código: <strong>' . $e($appt['code']) . '</strong>'
-        . '</td></tr></table>'
-        . '<p style="margin:0 0 10px">Te adjuntamos dos PDF para que los leas antes de venir:</p>'
+        . '<table role="presentation" width="100%" style="background:#eef3ef;border-radius:8px;margin:0 0 6px"><tr><td style="padding:14px 18px">'
+        . '<strong style="font-size:17px">' . $e($appt['therapy_name']) . '</strong><br>'
+        . 'Día: <strong>' . $e($date) . '</strong><br>'
+        . 'Hora: <strong>' . $e($time) . '</strong> · duración aproximada ' . (int) $appt['duration_min'] . ' min<br>'
+        . $e($place) . '<br>Código: <strong>' . $e($appt['code']) . '</strong>'
+        . '</td></tr></table>';
+
+    $html .= $h2('Consentimiento informado');
+    if ($signed) {
+        $html .= '<p style="margin:0 0 6px">Ya lo firmaste online el ' . $e(date('d/m/Y', strtotime((string) $appt['consent_accepted_at']))) . '. ¡Gracias!</p>';
+    } else {
+        $html .= '<p style="margin:0 0 12px">Antes de la sesión, leelo y firmalo online: te lleva un minuto. Si preferís, traelo impreso y firmado o lo firmás al llegar.</p>'
+            . '<p style="margin:0 0 6px">' . $btn($signUrl, 'Firmar consentimiento online', '#0f3d36') . '</p>';
+    }
+
+    if ($prep) {
+        $html .= $h2($online ? 'Para tu clase online' : 'Antes de venir') . '<ul style="margin:0;padding-left:20px">';
+        foreach ($prep as $line) {
+            $html .= '<li style="margin:0 0 4px">' . $e($line) . '</li>';
+        }
+        $html .= '</ul>';
+    }
+
+    if ($payOpen) {
+        $html .= $h2('Seña (opcional)')
+            . '<table role="presentation" width="100%" style="border:1px solid rgba(15,61,54,.18);border-radius:8px"><tr>'
+            . (isset($inline['qr-pago'])
+                ? '<td width="170" style="padding:12px;vertical-align:top"><img src="cid:qr-pago" width="160" height="160" alt="QR para pagar la seña" style="display:block;border:0"></td>'
+                : '')
+            . '<td style="padding:12px 14px;vertical-align:top">'
+            . '<p style="margin:0 0 8px">Tu turno ya está confirmado. Si querés, podés dejar paga la seña de <strong>' . $e($amount) . '</strong> desde ahora'
+            . (isset($inline['qr-pago']) ? ' escaneando el QR con el celular' : '') . ' (transferencia o Mercado Pago).</p>'
+            . '<p style="margin:0 0 10px">' . $btn($payUrl, 'Pagar seña', '#2f8f6b') . '</p>'
+            . '<p style="margin:0;font-size:12px;color:#4f635a;word-break:break-all">' . $e($payUrl) . '</p>'
+            . '</td></tr></table>';
+    }
+
+    $html .= $h2('Te adjuntamos')
         . '<ul style="margin:0 0 18px;padding-left:20px">'
-        . '<li>' . ($online ? '<strong>Indicaciones para tu clase online</strong>' : '<strong>Requisitos para tu sesión</strong> (no comer 1 hora antes, venir aseado/a, con short, etc.)') . '. <a href="' . $e($reqUrl) . '" style="color:#0f3d36">Ver PDF</a></li>'
-        . '<li><strong>Consentimiento informado</strong>: leelo y traelo firmado, o lo firmás al llegar. <a href="' . $e($conUrl) . '" style="color:#0f3d36">Ver PDF</a></li>'
+        . '<li>' . ($online ? '<strong>Indicaciones para tu clase online</strong>' : '<strong>Comprobante y requisitos para tu sesión</strong>') . '. <a href="' . $e($reqUrl) . '" style="color:#0f3d36">Ver PDF</a></li>'
+        . '<li><strong>Consentimiento informado</strong> para imprimir. <a href="' . $e($conUrl) . '" style="color:#0f3d36">Ver PDF</a></li>'
         . '</ul>'
-        . '<p style="margin:0 0 18px"><a href="' . $e($wa) . '" style="display:inline-block;background:#2f8f6b;color:#fff;text-decoration:none;padding:11px 18px;border-radius:6px;font-weight:700">Consultas por WhatsApp</a></p>'
+        . '<p style="margin:0 0 18px">' . $btn($wa, 'Consultas por WhatsApp', '#2f8f6b') . '</p>'
         . '<p style="margin:0;color:#4f635a">Si no podés venir, avisanos con al menos 24 horas de anticipación.<br><br>Con cariño,<br><strong>FluxusTerapia</strong></p>'
         . '</td></tr></table></td></tr></table></body></html>';
+
     $text = 'Hola, ' . $appt['patient_name'] . "\n\n"
         . "Tu turno quedó confirmado:\n"
-        . $appt['therapy_name'] . "\n" . $when . "\n" . $place . "\nCódigo: " . $appt['code'] . "\n\n"
-        . "Te adjuntamos dos PDF para que los leas antes de venir:\n"
-        . ($online ? '- Indicaciones para tu clase online: ' : '- Requisitos para tu sesión: ') . $reqUrl . "\n"
-        . '- Consentimiento informado (traelo firmado o lo firmás al llegar): ' . $conUrl . "\n\n"
+        . $appt['therapy_name'] . "\nDía: " . $date . "\nHora: " . $time . "\n" . $place . "\nCódigo: " . $appt['code'] . "\n\n"
+        . "CONSENTIMIENTO INFORMADO\n"
+        . ($signed
+            ? 'Ya lo firmaste online el ' . date('d/m/Y', strtotime((string) $appt['consent_accepted_at'])) . ".\n\n"
+            : "Firmalo online antes de la sesión (o traelo firmado / lo firmás al llegar):\n" . $signUrl . "\n\n");
+    if ($prep) {
+        $text .= ($online ? "PARA TU CLASE ONLINE\n" : "ANTES DE VENIR\n") . '- ' . implode("\n- ", $prep) . "\n\n";
+    }
+    if ($payOpen) {
+        $text .= "SEÑA (OPCIONAL)\nTu turno ya está confirmado. Si querés, podés dejar paga la seña de " . $amount . " desde ahora:\n" . $payUrl . "\n\n";
+    }
+    $text .= "Te adjuntamos en PDF:\n"
+        . ($online ? '- Indicaciones para tu clase online: ' : '- Comprobante y requisitos para tu sesión: ') . $reqUrl . "\n"
+        . '- Consentimiento informado para imprimir: ' . $conUrl . "\n\n"
         . 'Consultas por WhatsApp: ' . $wa . "\n"
         . "Si no podés venir, avisanos con al menos 24 horas de anticipación.\n\nFluxusTerapia\n";
 
     $ok = turno_send_mail($to, $subject, $html, $text, [
         'Turno-' . $appt['code'] . '-requisitos.pdf' => turno_requisitos_pdf($appt),
         'Consentimiento-informado-' . $appt['code'] . '.pdf' => turno_consentimiento_pdf($appt),
-    ]);
+    ], $inline);
     if (!$ok) {
         return 'failed';
     }

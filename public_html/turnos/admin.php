@@ -11,7 +11,7 @@ if (!db_ready()) {
 function mail_result_text(string $result): string
 {
     return match ($result) {
-        'sent' => ' Se le mandó el mail con los requisitos y el consentimiento.',
+        'sent' => ' Se le mandó el mail con el turno, los requisitos y el consentimiento.',
         'already' => ' El mail ya se había mandado antes.',
         'no_email' => ' No tiene email cargado: mandale los PDF por WhatsApp.',
         default => ' Ojo: no se pudo mandar el mail.',
@@ -99,6 +99,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         redirect('admin.php');
     }
+    if ($action === 'create_manual') {
+        $post = static fn (string $key): string => is_string($_POST[$key] ?? null) ? trim($_POST[$key]) : '';
+        $sendMail = $post('send_mail') === '1';
+        $input = [
+            'name' => $post('name'),
+            'email' => $post('email'),
+            'phone' => $post('phone'),
+            'therapy_id' => (int) $post('therapy_id'),
+            'date' => $post('date'),
+            'time' => $post('time') === 'custom' ? $post('time_custom') : $post('time'),
+            'notes' => $post('notes'),
+            'deposit_amount' => (int) $post('deposit_amount'),
+        ];
+        try {
+            $appt = create_manual_appointment($input);
+        } catch (RuntimeException $e) {
+            $_SESSION['manual_form'] = $input + ['send_mail' => $sendMail, 'time_select' => $post('time'), 'time_custom' => $post('time_custom')];
+            flash('error', $e->getMessage());
+            redirect('admin.php#manual');
+        }
+        $msg = 'Turno cargado y confirmado: ' . $input['name'] . ' · ' . format_date_es($appt['date']) . ' · ' . format_time_es($appt['time']) . ' (código ' . $appt['code'] . ').';
+        $result = 'skipped';
+        if ($sendMail) {
+            try {
+                $result = send_turno_confirmation($appt['id']);
+            } catch (Throwable $e) {
+                error_log('Turnos: no se pudo mandar el mail del turno ' . $appt['id'] . ': ' . $e->getMessage());
+                $result = 'failed';
+            }
+            $msg .= mail_result_text($result);
+        } else {
+            $msg .= ' No se mandó mail: podés mandarlo desde la lista.';
+        }
+        flash($result === 'failed' ? 'error' : 'success', $msg);
+        redirect('admin.php');
+    }
     if ($action === 'send_mail') {
         $result = send_turno_confirmation((int) ($_POST['id'] ?? 0), true);
         flash($result === 'sent' ? 'success' : 'error', trim(mail_result_text($result)));
@@ -122,7 +158,7 @@ $logged = !empty($_SESSION['turnos_admin']);
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin turnos · FluxusTerapia</title>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Outfit:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/turnos.css">
+  <link rel="stylesheet" href="assets/turnos.css?v=20260929">
 </head>
 <body>
   <header class="top">
@@ -169,6 +205,11 @@ $logged = !empty($_SESSION['turnos_admin']);
           LIMIT 80
         ")->fetchAll();
         $blocked = db()->query('SELECT * FROM blocked_dates ORDER BY date')->fetchAll();
+        $manual = $_SESSION['manual_form'] ?? [];
+        unset($_SESSION['manual_form']);
+        $manualDate = (string) ($manual['date'] ?? '');
+        $manualSlots = preg_match('/^\d{4}-\d{2}-\d{2}$/', $manualDate) ? available_slots_for($manualDate) : [];
+        $manualTime = (string) ($manual['time_select'] ?? '');
       ?>
       <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap">
         <h1>Admin turnos</h1>
@@ -178,6 +219,107 @@ $logged = !empty($_SESSION['turnos_admin']);
           <button class="btn ghost" type="submit">Salir</button>
         </form>
       </div>
+
+      <section class="panel" id="manual">
+        <h2>Cargar turno manual</h2>
+        <p class="hint">Para turnos reservados por WhatsApp, teléfono o en persona. Queda confirmado al instante. El mail le llega con el día y la hora, el link para firmar el consentimiento online, las indicaciones previas, los dos PDF y, si ponés seña, un QR para pagarla si quiere.</p>
+        <form method="post" class="form-grid" id="manual-form">
+          <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="action" value="create_manual">
+          <label>Nombre y apellido
+            <input name="name" required maxlength="120" autocomplete="off" value="<?= h((string) ($manual['name'] ?? '')) ?>">
+          </label>
+          <label>Email
+            <input type="email" name="email" required maxlength="190" autocomplete="off" value="<?= h((string) ($manual['email'] ?? '')) ?>">
+          </label>
+          <label>Teléfono / WhatsApp
+            <input name="phone" required maxlength="40" autocomplete="off" value="<?= h((string) ($manual['phone'] ?? '')) ?>">
+          </label>
+          <label>Terapia
+            <select name="therapy_id" required>
+              <option value="">Elegí…</option>
+              <?php foreach (therapies() as $t): ?>
+                <option value="<?= (int) $t['id'] ?>" <?= (int) ($manual['therapy_id'] ?? 0) === (int) $t['id'] ? 'selected' : '' ?>><?= h($t['name']) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </label>
+          <label>Día
+            <input type="date" name="date" id="manual-date" required min="<?= h(date('Y-m-d')) ?>" value="<?= h($manualDate) ?>">
+          </label>
+          <label>Horario
+            <select name="time" id="manual-time" required>
+              <option value=""><?= $manualDate === '' ? 'Primero elegí el día' : ($manualSlots ? 'Elegí…' : 'Sin horarios libres en la grilla') ?></option>
+              <?php foreach ($manualSlots as $slot): ?>
+                <option value="<?= h($slot) ?>" <?= $manualTime === $slot ? 'selected' : '' ?>><?= h($slot) ?> hs</option>
+              <?php endforeach; ?>
+              <option value="custom" <?= $manualTime === 'custom' ? 'selected' : '' ?>>Otro horario…</option>
+            </select>
+          </label>
+          <label id="manual-custom" class="<?= $manualTime === 'custom' ? '' : 'is-hidden' ?>">Otro horario (fuera de la grilla)
+            <input type="time" name="time_custom" min="06:00" max="22:00" step="300" value="<?= h((string) ($manual['time_custom'] ?? '')) ?>">
+          </label>
+          <label>Seña opcional (ARS, 0 = sin link de pago)
+            <input type="number" name="deposit_amount" min="0" step="100" value="<?= (int) ($manual['deposit_amount'] ?? deposit_amount()) ?>">
+          </label>
+          <label class="span-2">Notas (opcional, no se muestran al paciente)
+            <textarea name="notes" rows="2" maxlength="1000"><?= h((string) ($manual['notes'] ?? '')) ?></textarea>
+          </label>
+          <label class="check span-2">
+            <input type="checkbox" name="send_mail" value="1" <?= ($manual['send_mail'] ?? true) ? 'checked' : '' ?>>
+            <span>Enviar mail al paciente</span>
+          </label>
+          <div class="span-2">
+            <button class="btn primary" type="submit">Cargar turno</button>
+          </div>
+        </form>
+      </section>
+      <script>
+        (function () {
+          var date = document.getElementById('manual-date');
+          var time = document.getElementById('manual-time');
+          var custom = document.getElementById('manual-custom');
+          var customInput = custom.querySelector('input');
+          function toggleCustom() {
+            var on = time.value === 'custom';
+            custom.classList.toggle('is-hidden', !on);
+            customInput.required = on;
+          }
+          function option(value, label) {
+            var o = document.createElement('option');
+            o.value = value;
+            o.textContent = label;
+            return o;
+          }
+          date.addEventListener('change', function () {
+            var keepCustom = time.value === 'custom';
+            time.innerHTML = '';
+            time.appendChild(option('', 'Buscando horarios…'));
+            if (!date.value) {
+              time.firstChild.textContent = 'Primero elegí el día';
+              time.appendChild(option('custom', 'Otro horario…'));
+              return;
+            }
+            fetch('api.php?action=slots&date=' + encodeURIComponent(date.value), { credentials: 'same-origin' })
+              .then(function (r) { return r.json(); })
+              .then(function (data) {
+                var slots = (data && data.slots) || [];
+                time.firstChild.textContent = slots.length ? 'Elegí…' : 'Sin horarios libres en la grilla';
+                slots.forEach(function (s) { time.appendChild(option(s, s + ' hs')); });
+                time.appendChild(option('custom', 'Otro horario…'));
+                if (keepCustom || !slots.length) { time.value = 'custom'; }
+                toggleCustom();
+              })
+              .catch(function () {
+                time.firstChild.textContent = 'No se pudieron cargar los horarios';
+                time.appendChild(option('custom', 'Otro horario…'));
+                time.value = 'custom';
+                toggleCustom();
+              });
+          });
+          time.addEventListener('change', toggleCustom);
+          toggleCustom();
+        })();
+      </script>
 
       <section class="panel">
         <h2>Seña · monto y transferencia</h2>
@@ -232,26 +374,53 @@ $logged = !empty($_SESSION['turnos_admin']);
           <?php foreach ($upcoming as $a): ?>
             <article style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;padding:.75rem 0;border-bottom:1px solid var(--line)">
               <div>
-                <strong><?= h($a['patient_name']) ?></strong> · <?= h($a['therapy_name']) ?><br>
+                <?php
+                  $depAmount = money_ars((int) ($a['deposit_amount'] ?? 0));
+                  $depText = match ((string) $a['deposit_status']) {
+                      'paid' => 'seña ' . $depAmount . ' pagada',
+                      'optional' => 'seña ' . $depAmount . ' opcional, sin pagar',
+                      'none' => 'sin seña',
+                      default => 'seña ' . $depAmount,
+                  };
+                ?>
+                <strong><?= h($a['patient_name']) ?></strong> · <?= h($a['therapy_name']) ?>
+                <?php if (($a['source'] ?? '') === 'manual'): ?><span class="tag">Cargado a mano</span><?php endif; ?><br>
                 <span class="muted"><?= h(format_date_es($a['date'])) ?> · <?= h(format_time_es($a['time'])) ?></span><br>
                 <span class="muted"><?= h($a['patient_phone']) ?> <?= $a['patient_email'] ? '· ' . h($a['patient_email']) : '' ?></span>
                 · código <?= h($a['code']) ?>
-                · seña <?= h(money_ars((int) ($a['deposit_amount'] ?? 15000))) ?>
+                · <?= h($depText) ?>
                 · <strong><?= $a['status'] === 'confirmed' ? 'Confirmado' : 'Espera seña' ?></strong>
                 <?php if ($a['status'] === 'confirmed'): ?>
                   <br><span class="muted"><?= !empty($a['mail_sent_at']) ? 'Mail con requisitos enviado el ' . h(date('d/m H:i', strtotime((string) $a['mail_sent_at']))) : 'Mail con requisitos sin enviar' ?></span>
+                <?php endif; ?>
+                <br>
+                <?php if (!empty($a['consent_accepted_at'])): ?>
+                  <span class="tag ok">Consentimiento firmado</span>
+                  <span class="muted small"><?= h(date('d/m/Y H:i', strtotime((string) $a['consent_accepted_at']))) ?> · <?= h((string) $a['consent_name']) ?> · DNI <?= h((string) $a['consent_dni']) ?></span>
+                <?php else: ?>
+                  <span class="tag warn">Consentimiento pendiente</span>
                 <?php endif; ?>
               </div>
               <div class="actions" style="display:flex;gap:.4rem;align-items:start;flex-wrap:wrap">
                 <?php if ($a['status'] === 'confirmed'): ?>
                   <a class="btn ghost" href="pdf.php?token=<?= h(urlencode($a['token'])) ?>">Requisitos PDF</a>
                   <a class="btn ghost" href="pdf.php?token=<?= h(urlencode($a['token'])) ?>&amp;doc=consentimiento">Consentimiento PDF</a>
+                  <a class="btn ghost" href="consentimiento.php?token=<?= h(urlencode($a['token'])) ?>" target="_blank" rel="noopener">Consentimiento online</a>
                   <?php if ($a['patient_email']): ?>
                     <form method="post">
                       <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
                       <input type="hidden" name="action" value="send_mail">
                       <input type="hidden" name="id" value="<?= (int) $a['id'] ?>">
                       <button class="btn ghost" type="submit"><?= !empty($a['mail_sent_at']) ? 'Reenviar mail' : 'Enviar mail' ?></button>
+                    </form>
+                  <?php endif; ?>
+                  <?php if (turno_deposit_open($a)): ?>
+                    <a class="btn ghost" href="pay.php?token=<?= h(urlencode($a['token'])) ?>" target="_blank" rel="noopener">Link seña</a>
+                    <form method="post">
+                      <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
+                      <input type="hidden" name="action" value="mark_deposit_paid">
+                      <input type="hidden" name="id" value="<?= (int) $a['id'] ?>">
+                      <button class="btn ghost" type="submit">Marcar seña paga</button>
                     </form>
                   <?php endif; ?>
                 <?php else: ?>
@@ -277,7 +446,7 @@ $logged = !empty($_SESSION['turnos_admin']);
 
       <section class="panel">
         <h2>Requisitos y consentimiento informado</h2>
-        <p class="hint">Horario de turnos: lunes a sábado de 8 a 20 hs (último turno 19 hs), cada una hora. Cuando se confirma la seña, al paciente le llega un mail con estos dos PDF. Un renglón por punto.</p>
+        <p class="hint">Horario de turnos: lunes a sábado de 8 a 20 hs (último turno 19 hs), cada una hora. Cuando se confirma el turno (seña acreditada o turno cargado a mano), al paciente le llega un mail con estos dos PDF y el link para firmar el consentimiento online. Un renglón por punto.</p>
         <form method="post" class="stack">
           <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
           <input type="hidden" name="action" value="save_docs">
