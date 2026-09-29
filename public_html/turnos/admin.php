@@ -7,6 +7,7 @@ require __DIR__ . '/bootstrap.php';
 if (!db_ready()) {
     redirect('install.php');
 }
+require_once __DIR__ . '/includes/mtc_plan.php';
 
 function mail_result_text(string $result): string
 {
@@ -312,7 +313,8 @@ $logged = !empty($_SESSION['turnos_admin']);
       ?>
       <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap">
         <h1>Admin turnos</h1>
-        <form method="post">
+        <form method="post" style="display:flex;gap:.4rem">
+          <a class="btn ghost" href="plan_mtc.php">Planes MTC</a>
           <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
           <input type="hidden" name="action" value="logout">
           <button class="btn ghost" type="submit">Salir</button>
@@ -597,6 +599,7 @@ $logged = !empty($_SESSION['turnos_admin']);
                 </details>
               </div>
               <div class="actions" style="display:flex;gap:.4rem;align-items:start;flex-wrap:wrap">
+                <?= mtc_admin_link($a) ?>
                 <?php if ($a['status'] === 'confirmed'): ?>
                   <a class="btn ghost" href="pdf.php?token=<?= h(urlencode($a['token'])) ?>">Requisitos PDF</a>
                   <a class="btn ghost" href="pdf.php?token=<?= h(urlencode($a['token'])) ?>&amp;doc=consentimiento">Consentimiento PDF</a>
