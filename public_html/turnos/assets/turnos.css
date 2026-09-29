@@ -334,3 +334,7 @@ label.check input { width: auto; margin-top: 0.2rem; flex-shrink: 0; }
 .admin-details { margin-top: 0.4rem; }
 .admin-details summary { cursor: pointer; color: var(--brand); font-weight: 600; font-size: 0.88rem; }
 .admin-details[open] summary { margin-bottom: 0.75rem; }
+.consent-item { padding: 0.75rem 0; margin: 0; border-bottom: 1px solid var(--line); }
+.consent-item summary { font-size: 1rem; color: var(--ink); }
+.consent-item summary .tag { margin-left: 0.35rem; }
+.consent-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; }

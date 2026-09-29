@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../pdf_lib.php';
 require_once __DIR__ . '/qr.php';
+require_once __DIR__ . '/turno_consents.php';
 
 const TURNO_REQUISITOS_DEFAULT = "No comer nada 1 hora antes del turno (agua sí podés tomar).\n"
     . "Venir aseado/a (bañado/a) y sin cremas ni aceites en la piel.\n"
@@ -16,6 +17,7 @@ const TURNO_REQUISITOS_DEFAULT = "No comer nada 1 hora antes del turno (agua sí
     . "Si no podés venir, avisá con al menos 24 horas de anticipación por WhatsApp.";
 
 /**
+ * Consentimiento de Medicina Tradicional China / Acupuntura (el sugerido para las terapias de medicina china).
  * Un párrafo por renglón. Marcadores: {nombre}, {NOMBRE} (en mayúsculas), {documento}, {email}, {fecha}.
  * Renglones "PRIMERO: …" van con la etiqueta en negrita; "a) …" / "i.- …" como subítems con sangría.
  */
@@ -149,10 +151,10 @@ function turno_prep_lines(array $appt): array
     return array_merge(turno_lines(turno_text_setting('requisitos_text', TURNO_REQUISITOS_DEFAULT)), $extras);
 }
 
-/** Texto del consentimiento vigente (con marcadores sin completar). */
-function turno_consent_template(): string
+/** Consentimiento vigente para el turno según su terapia (con marcadores sin completar); sin turno, el general. */
+function turno_consent_template(?array $appt = null): string
 {
-    return turno_text_setting('consentimiento_text', TURNO_CONSENTIMIENTO_DEFAULT);
+    return $appt !== null ? turno_consent_for_therapy((int) ($appt['therapy_id'] ?? 0)) : turno_consent_general();
 }
 
 /**
@@ -299,7 +301,7 @@ function turno_consent_pdf_body(FluxusPdf $pdf, string $text): void
  */
 function turno_accept_consent(array $appt, string $name, string $dni, string $ip): bool
 {
-    $text = turno_consent_fill(turno_consent_template(), turno_consent_values($appt, $name, $dni, date('d-m-Y')));
+    $text = turno_consent_fill(turno_consent_template($appt), turno_consent_values($appt, $name, $dni, date('d-m-Y')));
     $stmt = db()->prepare("
       UPDATE appointments
       SET consent_accepted_at = ?, consent_name = ?, consent_dni = ?, consent_ip = ?, consent_text = ?
@@ -385,12 +387,12 @@ function turno_requisitos_pdf(array $appt): string
  * Consentimiento en PDF. Sin firmar: con el nombre y el e-mail del paciente, y líneas para completar a mano
  * el documento y la fecha (se firma en papel el día de la sesión). Firmado online: el texto exacto aceptado.
  */
-function turno_consentimiento_pdf(array $appt): string
+function turno_consentimiento_pdf(array $appt, ?string $template = null): string
 {
     $signed = !empty($appt['consent_accepted_at']) && trim((string) ($appt['consent_text'] ?? '')) !== '';
     $text = $signed
         ? (string) $appt['consent_text']
-        : turno_consent_fill(turno_consent_template(), turno_consent_values($appt));
+        : turno_consent_fill($template ?? turno_consent_template($appt), turno_consent_values($appt));
 
     $pdf = new FluxusPdf();
     $pdf->setFooter('FluxusTerapia · Consentimiento informado · Turno ' . $appt['code']);

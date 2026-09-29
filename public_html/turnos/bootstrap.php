@@ -741,6 +741,8 @@ function migrate_turnos_schema(): void
         $pdo->prepare("INSERT OR REPLACE INTO deposit_settings (key, value) VALUES ('consent_version', '2')")->execute();
         $pdo->commit();
     }
+
+    turno_consents_migrate($pdo);
 }
 
 if (db_ready()) {

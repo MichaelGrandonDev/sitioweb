@@ -232,9 +232,76 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             return $value === trim($default) ? '' : $value;
         };
         deposit_setting_set('requisitos_text', $docText('requisitos_text', TURNO_REQUISITOS_DEFAULT));
-        deposit_setting_set('consentimiento_text', $docText('consentimiento_text', TURNO_CONSENTIMIENTO_DEFAULT));
-        flash('success', 'Requisitos y consentimiento guardados. Los próximos mails usan estos textos.');
+        flash('success', 'Requisitos guardados. Los próximos mails usan este texto.');
         redirect('admin.php');
+    }
+    if (in_array($action, ['consent_save', 'consent_approve', 'consent_draft', 'consent_reset', 'consent_preview_pdf', 'consent_preview_html'], true)) {
+        $therapyId = max(0, (int) ($_POST['therapy_id'] ?? 0));
+        $text = is_string($_POST['text'] ?? null) ? $_POST['text'] : '';
+        $anchor = 'admin.php#consent-' . $therapyId;
+        if ($action === 'consent_preview_pdf' || $action === 'consent_preview_html') {
+            $template = trim(str_replace(["\r\n", "\r"], "\n", $text));
+            $sample = turno_consent_sample($therapyId);
+            if ($action === 'consent_preview_pdf') {
+                header('Content-Type: application/pdf');
+                header('Content-Disposition: inline; filename="Vista-previa-consentimiento.pdf"');
+                header('Cache-Control: no-store');
+                echo turno_consentimiento_pdf($sample, $template !== '' ? $template : turno_consent_general());
+                exit;
+            }
+            $previewHtml = turno_consent_html($template !== '' ? $template : turno_consent_general(), turno_consent_values($sample));
+            header('Cache-Control: no-store');
+            ?>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Vista previa del consentimiento · FluxusTerapia</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Outfit:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/turnos.css?v=20260929e">
+</head>
+<body>
+  <main class="wrap">
+    <div class="alert" style="background:#fbefd9;color:#7a4b0f;padding:.8rem 1rem;border-radius:8px;margin:1rem 0">
+      Vista previa con datos de ejemplo, como la ve el paciente al firmar online. No se guardó nada.
+    </div>
+    <p class="eyebrow">Tu turno · Consentimiento informado</p>
+    <h1>Consentimiento informado</h1>
+    <p class="lede"><?= h($sample['therapy_name']) ?> · <?= h(format_date_es($sample['date'])) ?> · <?= h(format_time_es($sample['time'])) ?></p>
+    <section class="panel"><?= $previewHtml ?></section>
+  </main>
+</body>
+</html>
+            <?php
+            exit;
+        }
+        try {
+            if ($action === 'consent_reset') {
+                $name = (string) (turno_consent_sample($therapyId)['therapy_name']);
+                turno_consent_save($therapyId, $therapyId === 0 ? TURNO_CONSENT_GENERAL : turno_consent_suggestion($name), 'draft');
+                flash('success', $therapyId === 0
+                    ? 'Consentimiento general restaurado al texto original.'
+                    : 'Se volvió al texto sugerido para ' . $name . '. Quedó como borrador: revisalo y aprobalo.');
+            } else {
+                $status = match ($action) {
+                    'consent_approve' => 'approved',
+                    'consent_draft' => 'draft',
+                    default => null,
+                };
+                turno_consent_save($therapyId, $text, $status);
+                flash('success', match (true) {
+                    $therapyId === 0 => 'Consentimiento general guardado.',
+                    $status === 'approved' => 'Consentimiento aprobado: desde ahora se usa en los turnos de esta terapia.',
+                    $status === 'draft' => 'Consentimiento guardado como borrador: mientras no lo apruebes se usa el general.',
+                    default => 'Consentimiento guardado.',
+                });
+            }
+        } catch (RuntimeException $e) {
+            flash('error', $e->getMessage());
+        }
+        redirect($anchor);
     }
 }
 
@@ -248,7 +315,7 @@ $logged = !empty($_SESSION['turnos_admin']);
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin turnos · FluxusTerapia</title>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Outfit:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/turnos.css?v=20260929d">
+  <link rel="stylesheet" href="assets/turnos.css?v=20260929e">
 </head>
 <body>
   <header class="top">
@@ -643,31 +710,93 @@ $logged = !empty($_SESSION['turnos_admin']);
       </section>
 
       <section class="panel">
-        <h2>Requisitos y consentimiento informado</h2>
-        <p class="hint">Horario de turnos: lunes a sábado de 8 a 20 hs (último turno 19 hs), cada una hora. Cuando se confirma el turno (seña acreditada o turno cargado a mano), al paciente le llega un mail con estos dos PDF y el link para firmar el consentimiento online. Si dejás un texto vacío se usa el de por defecto.</p>
+        <h2>Requisitos para la sesión</h2>
+        <p class="hint">Horario de turnos: lunes a sábado de 8 a 20 hs (último turno 19 hs), cada una hora. Cuando se confirma el turno (seña acreditada o turno cargado a mano), al paciente le llega un mail con los requisitos y el consentimiento de su terapia en PDF, y el link para firmar el consentimiento online. Si dejás el texto vacío se usa el de por defecto.</p>
         <form method="post" class="stack">
           <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
           <input type="hidden" name="action" value="save_docs">
           <label>Requisitos para la sesión (un renglón por punto)
             <textarea name="requisitos_text" rows="9"><?= h(turno_text_setting('requisitos_text', TURNO_REQUISITOS_DEFAULT)) ?></textarea>
           </label>
-          <label>Consentimiento informado (un párrafo por renglón)
-            <textarea name="consentimiento_text" rows="24"><?= h(turno_consent_template()) ?></textarea>
-          </label>
-          <p class="hint">
-            Datos del paciente que se completan solos:
-            <code>{nombre}</code> nombre y apellido,
-            <code>{NOMBRE}</code> el mismo en mayúsculas,
-            <code>{documento}</code> RUT / DNI,
-            <code>{email}</code> e-mail del turno,
-            <code>{fecha}</code> fecha de firma (dd-mm-aaaa).
-            Al firmar online se usan el nombre y el documento que escribe el paciente y la fecha de ese día; en el PDF del mail
-            van su nombre y e-mail, y el documento y la fecha quedan como líneas para completar a mano.
-            Los renglones que empiezan con <code>PRIMERO:</code>, <code>SEGUNDO:</code>… salen con la etiqueta en negrita;
-            los que empiezan con <code>a)</code> o <code>i.-</code> salen como subítems. Los consentimientos ya firmados no cambian.
-          </p>
-          <button class="btn primary" type="submit">Guardar textos</button>
+          <button class="btn primary" type="submit">Guardar requisitos</button>
         </form>
+      </section>
+
+      <?php $consentRows = turno_consent_rows(); ?>
+      <section class="panel" id="consentimientos">
+        <h2>Consentimientos informados</h2>
+        <p class="hint">
+          Cada terapia tiene su consentimiento. Un turno usa el de su terapia <strong>solo si está aprobado</strong>;
+          mientras esté como borrador “a revisar”, se usa el <strong>consentimiento general</strong>.
+          Los borradores se generaron automáticamente: revisalos antes de aprobarlos. Los consentimientos ya firmados no cambian.
+        </p>
+        <p class="hint">
+          Datos del paciente que se completan solos:
+          <code>{nombre}</code> nombre y apellido,
+          <code>{NOMBRE}</code> el mismo en mayúsculas,
+          <code>{documento}</code> RUT / DNI,
+          <code>{email}</code> e-mail del turno,
+          <code>{fecha}</code> fecha de firma (dd-mm-aaaa).
+          Al firmar online se usan el nombre y el documento que escribe el paciente y la fecha de ese día; en el PDF del mail
+          van su nombre y e-mail, y el documento y la fecha quedan como líneas para completar a mano.
+          Un párrafo por renglón. Un renglón corto en mayúsculas es el título; los que empiezan con <code>PRIMERO:</code>, <code>SEGUNDO:</code>…
+          salen con la etiqueta en negrita y los que empiezan con <code>a)</code> o <code>i.-</code> salen como subítems.
+          “Vista previa” muestra lo que está escrito en el cuadro, aunque todavía no lo hayas guardado.
+        </p>
+        <?php
+          $consentItems = [['id' => 0, 'name' => 'Consentimiento general']];
+          foreach (therapies() as $t) {
+              $consentItems[] = ['id' => (int) $t['id'], 'name' => (string) $t['name']];
+          }
+        ?>
+        <?php foreach ($consentItems as $item): ?>
+          <?php
+            $cid = $item['id'];
+            $row = $consentRows[$cid] ?? null;
+            $approved = $cid === 0 || ($row['status'] ?? '') === 'approved';
+            $consentText = $row ? (string) $row['text'] : ($cid === 0 ? TURNO_CONSENT_GENERAL : turno_consent_suggestion($item['name']));
+          ?>
+          <details class="admin-details consent-item" id="consent-<?= $cid ?>">
+            <summary>
+              <?= h($item['name']) ?>
+              <?php if ($cid === 0): ?>
+                <span class="tag">Se usa en las terapias sin consentimiento aprobado</span>
+              <?php elseif ($approved): ?>
+                <span class="tag ok">Aprobado · se usa en sus turnos</span>
+              <?php else: ?>
+                <span class="tag warn">Borrador a revisar · hoy se usa el general</span>
+              <?php endif; ?>
+            </summary>
+            <form method="post" class="stack">
+              <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
+              <input type="hidden" name="therapy_id" value="<?= $cid ?>">
+              <label>Texto del consentimiento
+                <textarea name="text" rows="18" required maxlength="40000"><?= h($consentText) ?></textarea>
+              </label>
+              <?php if ($row): ?>
+                <p class="hint">
+                  Última modificación: <?= h(date('d/m/Y H:i', strtotime((string) $row['updated_at']))) ?>
+                  <?php if ($cid > 0 && $approved && !empty($row['approved_at'])): ?> · aprobado el <?= h(date('d/m/Y H:i', strtotime((string) $row['approved_at']))) ?><?php endif; ?>
+                </p>
+              <?php endif; ?>
+              <div class="consent-actions">
+                <?php if ($cid === 0): ?>
+                  <button class="btn primary" type="submit" name="action" value="consent_save">Guardar</button>
+                <?php elseif ($approved): ?>
+                  <button class="btn primary" type="submit" name="action" value="consent_save">Guardar cambios</button>
+                  <button class="btn ghost" type="submit" name="action" value="consent_draft">Pasar a borrador</button>
+                <?php else: ?>
+                  <button class="btn primary" type="submit" name="action" value="consent_approve">Guardar y aprobar</button>
+                  <button class="btn ghost" type="submit" name="action" value="consent_save">Guardar borrador</button>
+                <?php endif; ?>
+                <button class="btn ghost" type="submit" name="action" value="consent_preview_pdf" formtarget="_blank" formnovalidate>Vista previa PDF</button>
+                <button class="btn ghost" type="submit" name="action" value="consent_preview_html" formtarget="_blank" formnovalidate>Vista previa online</button>
+                <button class="btn ghost" type="submit" name="action" value="consent_reset" formnovalidate
+                  onclick="return confirm('<?= $cid === 0 ? '¿Volver al texto original del consentimiento general?' : '¿Reemplazar el texto por el sugerido? Queda como borrador y, hasta que lo apruebes, se usa el general.' ?>')"><?= $cid === 0 ? 'Restaurar texto original' : 'Volver al texto sugerido' ?></button>
+              </div>
+            </form>
+          </details>
+        <?php endforeach; ?>
       </section>
 
       <section class="panel">
@@ -705,6 +834,13 @@ $logged = !empty($_SESSION['turnos_admin']);
           select.addEventListener('change', toggle);
           toggle();
         });
+        (function () {
+          var target = location.hash.length > 1 && document.getElementById(location.hash.slice(1));
+          if (target && target.tagName === 'DETAILS') {
+            target.open = true;
+            target.scrollIntoView();
+          }
+        })();
       </script>
     <?php endif; ?>
   </main>

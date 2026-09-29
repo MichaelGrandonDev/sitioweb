@@ -52,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$signed) {
 $flash = take_flash();
 $consentHtml = $signed && !empty($appt['consent_text'])
     ? turno_consent_html((string) $appt['consent_text'])
-    : turno_consent_html(turno_consent_template(), turno_consent_values($appt, $form['name'], $form['dni'], date('d-m-Y')));
+    : turno_consent_html(turno_consent_template($appt), turno_consent_values($appt, $form['name'], $form['dni'], date('d-m-Y')));
 $prep = turno_prep_lines($appt);
 ?>
 <!DOCTYPE html>
