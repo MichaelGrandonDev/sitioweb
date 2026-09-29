@@ -1,6 +1,13 @@
 DirectoryIndex index.php
 Options -Indexes
 
+<IfModule mod_mime.c>
+  AddType application/manifest+json .webmanifest
+</IfModule>
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE application/manifest+json
+</IfModule>
+
 <FilesMatch "^(config|bootstrap|pdf_lib)\.php$|^error_log$">
   <IfModule mod_authz_core.c>
     Require all denied

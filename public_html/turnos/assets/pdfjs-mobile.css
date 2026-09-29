@@ -1,0 +1,26 @@
+/* Se inyecta en el visor PDF.js (biblioteca_ver.php). En el teléfono la barra de herramientas va abajo, al alcance del pulgar. */
+@media (max-width: 760px) {
+  #mainContainer { min-width: 0; }
+  #viewerContainer { inset: 0 0 var(--toolbar-height) 0; }
+  #mainContainer > .toolbar { position: absolute; left: 0; right: 0; bottom: 0; }
+  #toolbarContainer {
+    border-bottom: 0;
+    box-shadow: 0 -1px 0 var(--toolbar-border-color), 0 -4px 12px rgb(0 0 0 / 0.18);
+  }
+  #toolbarContainer #loadingBar { top: auto; bottom: var(--toolbar-height); }
+  #toolbarContainer #toolbarViewer #toolbarViewerLeft { margin-inline-start: 2px; }
+  #toolbarViewerLeft .toolbarButtonSpacer { display: none !important; }
+  #pageNumber { width: 3.2em !important; }
+
+  /* Menús que se abren hacia arriba (la barra está abajo) */
+  .doorHanger, .doorHangerRight { inset-block-start: auto !important; inset-block-end: calc(100% + var(--doorhanger-height) - 2px); }
+  .doorHanger::before, .doorHanger::after, .doorHangerRight::before, .doorHangerRight::after { bottom: auto; top: 100%; }
+  .doorHanger::before, .doorHangerRight::before { border-bottom-color: transparent; border-top-color: var(--doorhanger-border-color); }
+  .doorHanger::after { border-bottom-color: transparent; border-top-color: var(--toolbar-bg-color); }
+  .doorHangerRight::after { border-bottom-color: transparent; border-top-color: var(--doorhanger-bg-color); }
+  #findbar { min-width: 0; max-width: calc(100vw - 16px); }
+  #viewsManager { inset-block: 8px calc(var(--toolbar-height) + 8px) !important; max-width: calc(100vw - 16px); }
+
+  /* Dibujar, texto y firma no sirven para leer y ocupan la barra */
+  #editorModeButtons, #editorModeSeparator { display: none !important; }
+}

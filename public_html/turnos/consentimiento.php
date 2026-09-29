@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require __DIR__ . '/bootstrap.php';
+require_once __DIR__ . '/includes/admin_ui.php';
 
 if (!db_ready()) {
     http_response_code(503);
@@ -58,22 +59,11 @@ $prep = turno_prep_lines($appt);
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="robots" content="noindex, nofollow">
+  <?= public_head('Consentimiento informado') ?>
   <meta name="referrer" content="no-referrer">
-  <title>Consentimiento informado · FluxusTerapia</title>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Outfit:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/turnos.css?v=20260929d">
 </head>
 <body>
-  <header class="top">
-    <a class="brand brand--home" href="../" title="Volver a FluxusTerapia">
-      <img class="brand-logo" src="../img/logo-circle.png" alt="FluxusTerapia" width="44" height="44">
-      <span>Turnos</span>
-    </a>
-    <nav><a href="../">Inicio</a></nav>
-  </header>
+  <?= public_header() ?>
   <main class="wrap">
     <p class="eyebrow">Tu turno · Consentimiento informado</p>
     <h1><?= $signed ? 'Consentimiento firmado' : 'Consentimiento informado' ?></h1>
@@ -88,10 +78,10 @@ $prep = turno_prep_lines($appt);
     </p>
 
     <?php if ($flash): ?>
-      <div class="alert" style="background:#d9f0e4;color:#164b36;padding:.8rem 1rem;border-radius:8px;margin:1rem 0"><?= h($flash['message']) ?></div>
+      <div class="alert ok"><?= h($flash['message']) ?></div>
     <?php endif; ?>
     <?php if ($error): ?>
-      <div class="alert error" style="margin:1rem 0"><?= h($error) ?></div>
+      <div class="alert error"><?= h($error) ?></div>
     <?php endif; ?>
 
     <?php if ($signed): ?>
@@ -126,16 +116,17 @@ $prep = turno_prep_lines($appt);
     <?php endif; ?>
 
     <?php if (!$signed): ?>
-      <section class="panel">
+      <a class="btn primary consent-jump" href="#firmar">Ir a firmar</a>
+      <section class="panel" id="firmar">
         <h2>Firmar</h2>
         <form method="post" action="<?= h($self) ?>" class="stack">
           <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
           <input type="hidden" name="token" value="<?= h($token) ?>">
           <label>Nombre y apellido
-            <input name="name" required minlength="3" maxlength="120" autocomplete="name" value="<?= h($form['name']) ?>">
+            <input name="name" required minlength="3" maxlength="120" autocomplete="name" autocapitalize="words" enterkeyhint="next" value="<?= h($form['name']) ?>">
           </label>
           <label>RUT / DNI
-            <input name="dni" required maxlength="14" pattern="[0-9 .\-kK]{6,14}" autocapitalize="characters" placeholder="Ej: 30123456 o 12345678-K" value="<?= h($form['dni']) ?>">
+            <input name="dni" required maxlength="14" autocomplete="off" enterkeyhint="done" pattern="[0-9 .\-kK]{6,14}" autocapitalize="characters" placeholder="Ej: 30123456 o 12345678-K" value="<?= h($form['dni']) ?>">
           </label>
           <label class="check">
             <input type="checkbox" name="accept" value="1" required>
@@ -169,7 +160,7 @@ $prep = turno_prep_lines($appt);
     <?php endif; ?>
 
     <?php if ($appt['status'] === 'confirmed'): ?>
-      <p style="display:flex;gap:.5rem;flex-wrap:wrap">
+      <p class="consent-actions">
         <a class="btn ghost" href="pdf.php?token=<?= h(urlencode($token)) ?>&amp;doc=consentimiento&amp;ver=1">Consentimiento (PDF)</a>
         <a class="btn ghost" href="pdf.php?token=<?= h(urlencode($token)) ?>&amp;ver=1">Comprobante y requisitos (PDF)</a>
         <?php if (turno_deposit_open($appt)): ?>

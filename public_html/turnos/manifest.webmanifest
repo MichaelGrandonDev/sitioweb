@@ -1,0 +1,17 @@
+{
+  "name": "FluxusTerapia · Admin de turnos",
+  "short_name": "Fluxus Admin",
+  "description": "Turnos, pacientes, planes MTC y biblioteca de FluxusTerapia.",
+  "lang": "es-AR",
+  "start_url": "/turnos/admin.php",
+  "scope": "/turnos/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#eef3ef",
+  "theme_color": "#0f3d36",
+  "icons": [
+    { "src": "/turnos/assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/turnos/assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/turnos/assets/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

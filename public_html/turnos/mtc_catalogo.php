@@ -11,6 +11,7 @@ if (!db_ready()) {
 }
 require_admin();
 require_once __DIR__ . '/includes/mtc_plan.php';
+require_once __DIR__ . '/includes/admin_ui.php';
 
 $tab = ($_GET['tab'] ?? $_POST['tab'] ?? '') === 'indicaciones' ? 'indicaciones' : 'patrones';
 $self = 'mtc_catalogo.php?tab=' . $tab;
@@ -179,22 +180,10 @@ function cat_rule_keys(array $rules, array $patterns): array
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="robots" content="noindex">
-  <title>Diagnósticos e indicaciones · Plan MTC · FluxusTerapia</title>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Outfit:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/turnos.css?v=20260929d">
-  <link rel="stylesheet" href="assets/plan_mtc.css?v=20260929e">
+  <?= admin_head('Diagnósticos e indicaciones · Plan MTC', ['plan_mtc.css']) ?>
 </head>
-<body class="mtc-page">
-  <header class="top">
-    <a class="brand brand--home" href="../" title="Volver a FluxusTerapia">
-      <img class="brand-logo" src="../img/logo-circle.png" alt="FluxusTerapia" width="44" height="44">
-      <span>Turnos · Plan MTC</span>
-    </a>
-    <nav><a href="admin.php">Admin turnos</a><a href="plan_mtc.php">Planes MTC</a><a href="mtc_catalogo.php">Diagnósticos e indicaciones</a></nav>
-  </header>
+<body class="mtc-page has-tabbar">
+  <?= admin_header('plan', 'Plan MTC') ?>
   <main class="wrap">
     <?php if ($flash): ?>
       <div class="alert <?= $flash['type'] === 'error' ? 'error' : 'ok' ?>"><?= h($flash['message']) ?></div>
@@ -202,17 +191,27 @@ function cat_rule_keys(array $rules, array $patterns): array
     <h1>Diagnósticos e indicaciones</h1>
     <p class="lede">Lo que usa «Generar plan»: los patrones con sus tratamientos (tuina, chi kung, moxa, ventosas y auriculoterapia, sin agujas) y las indicaciones que se proponen al paciente. Los planes ya guardados no cambian.</p>
     <nav class="mtc-tabs">
+      <a href="plan_mtc.php">Planes</a>
       <a href="mtc_catalogo.php?tab=patrones" class="<?= $tab === 'patrones' ? 'is-on' : '' ?>">Diagnósticos y tratamientos (<?= count($patterns) ?>)</a>
       <a href="mtc_catalogo.php?tab=indicaciones" class="<?= $tab === 'indicaciones' ? 'is-on' : '' ?>">Indicaciones (<?= count($indications) ?>)</a>
     </nav>
 
+<?php if ($mode === 'list'): ?>
+    <div class="admin-search">
+      <label class="sr-only" for="cat-q">Buscar en el catálogo</label>
+      <input type="search" id="cat-q" placeholder="Buscar <?= $tab === 'patrones' ? 'patrón, signo u órgano' : 'indicación' ?>…" autocomplete="off" enterkeyhint="search" data-filter="#cat-list" data-filter-empty="#cat-none">
+      <a class="btn primary" href="mtc_catalogo.php?tab=<?= h($tab) ?>&amp;nuevo=1">Agregar</a>
+    </div>
+    <p class="muted is-hidden" id="cat-none">Nada coincide con la búsqueda.</p>
+<?php endif; ?>
+
 <?php if ($mode === 'list' && $tab === 'patrones'): ?>
-    <p><a class="btn primary" href="mtc_catalogo.php?tab=patrones&amp;nuevo=1">Agregar patrón</a></p>
+    <div id="cat-list">
     <?php foreach (cat_organ_groups($patterns) as $organ => $group): ?>
-      <section class="panel">
+      <section class="panel" data-group>
         <h2><?= h($organ) ?></h2>
         <?php foreach ($group as $k => $p): ?>
-          <article class="mtc-row<?= $p['_active'] ? '' : ' is-off' ?>" id="item-<?= h($k) ?>">
+          <article class="mtc-row<?= $p['_active'] ? '' : ' is-off' ?>" id="item-<?= h($k) ?>" data-search="<?= h($organ . ' ' . $p['label'] . ' ' . $p['signs']) ?>">
             <div>
               <strong><?= h($p['label']) ?></strong>
               <?= $p['moxa_mode'] === 'no' ? '<span class="tag warn">sin moxa</span>' : ($p['moxa_mode'] === 'cauto' ? '<span class="tag">moxa con cautela</span>' : '') ?>
@@ -228,16 +227,17 @@ function cat_rule_keys(array $rules, array $patterns): array
         <?php endforeach; ?>
       </section>
     <?php endforeach; ?>
+    </div>
 
 <?php elseif ($mode === 'list'): ?>
-    <p><a class="btn primary" href="mtc_catalogo.php?tab=indicaciones&amp;nuevo=1">Agregar indicación</a></p>
+    <div id="cat-list">
     <?php foreach (MTC_IND_CATEGORIES as $cat => $catLabel): ?>
       <?php $group = array_filter($indications, static fn ($i) => $i['category'] === $cat); ?>
       <?php if (!$group) continue; ?>
-      <section class="panel">
+      <section class="panel" data-group>
         <h2><?= h($catLabel) ?></h2>
         <?php foreach ($group as $k => $i): ?>
-          <article class="mtc-row<?= $i['_active'] ? '' : ' is-off' ?>" id="item-<?= h($k) ?>">
+          <article class="mtc-row<?= $i['_active'] ? '' : ' is-off' ?>" id="item-<?= h($k) ?>" data-search="<?= h($catLabel . ' ' . $i['text']) ?>">
             <div>
               <?= h($i['text']) ?><br>
               <?= $i['therapist'] ? '<span class="tag warn">Requiere indicación del terapeuta</span> ' : '' ?>
@@ -255,6 +255,7 @@ function cat_rule_keys(array $rules, array $patterns): array
         <?php endforeach; ?>
       </section>
     <?php endforeach; ?>
+    </div>
 
 <?php else: ?>
     <?php $isSeed = $key !== null && (($tab === 'patrones' ? $patterns : $indications)[$key]['_seed'] ?? false); ?>

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require __DIR__ . '/bootstrap.php';
+require_once __DIR__ . '/includes/admin_ui.php';
 
 if (!db_ready()) {
     redirect('install.php');
@@ -71,20 +72,10 @@ $consentPending = empty($appt['consent_accepted_at']);
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Seña del turno · FluxusTerapia</title>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Outfit:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/turnos.css?v=20260929d">
+  <?= public_head('Seña del turno') ?>
 </head>
 <body>
-  <header class="top">
-    <a class="brand brand--home" href="../" title="Volver a FluxusTerapia">
-      <img class="brand-logo" src="../img/logo-circle.png" alt="FluxusTerapia" width="44" height="44">
-      <span>Turnos</span>
-    </a>
-    <nav><a href="../">Inicio</a></nav>
-  </header>
+  <?= public_header() ?>
   <main class="wrap">
     <p class="eyebrow">Reserva · Seña</p>
     <h1><?= $optional ? 'Seña del turno (opcional)' : ($paid ? ($appt['deposit_status'] === 'paid' ? 'Seña acreditada' : 'Turno confirmado') : 'Pagá la seña para confirmar') ?></h1>
@@ -99,7 +90,7 @@ $consentPending = empty($appt['consent_accepted_at']);
     </p>
 
     <?php if ($flash): ?>
-      <div class="alert" style="background:#d9f0e4;color:#164b36;padding:.8rem 1rem;border-radius:8px;margin:1rem 0">
+      <div class="alert ok">
         <?= h($flash['message']) ?>
       </div>
     <?php endif; ?>
@@ -148,7 +139,8 @@ $consentPending = empty($appt['consent_accepted_at']);
           <p class="muted small">
             Titular: <?= h((string) ($cfg['transfer_holder'] ?? '')) ?><br>
             Banco: <?= h((string) ($cfg['transfer_bank'] ?? '')) ?><br>
-            Alias: <strong><?= h($alias) ?></strong><br>
+            Alias: <strong><?= h($alias) ?></strong>
+            <button type="button" class="btn ghost btn-copy" data-copy="<?= h($alias) ?>">Copiar alias</button><br>
             <?php if (!empty($cfg['transfer_cbu'])): ?>CBU/CVU: <?= h((string) $cfg['transfer_cbu']) ?><br><?php endif; ?>
             <?= h((string) ($cfg['transfer_note'] ?? '')) ?>
           </p>
@@ -157,10 +149,10 @@ $consentPending = empty($appt['consent_accepted_at']);
             <input type="hidden" name="token" value="<?= h($token) ?>">
             <input type="hidden" name="action" value="pay_transfer">
             <label>Nº de operación
-              <input name="transfer_ref" required placeholder="Ej: 12345678">
+              <input name="transfer_ref" required placeholder="Ej: 12345678" autocomplete="off" autocapitalize="off" enterkeyhint="next">
             </label>
             <label>Nota (opcional)
-              <input name="note" placeholder="Desde qué banco transferiste">
+              <input name="note" placeholder="Desde qué banco transferiste" autocomplete="off" enterkeyhint="send">
             </label>
             <button class="btn primary" type="submit">Ya transferí · informar seña</button>
           </form>
@@ -192,5 +184,16 @@ $consentPending = empty($appt['consent_accepted_at']);
       </div>
     <?php endif; ?>
   </main>
+  <script>
+    document.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-copy]');
+      if (!btn || !navigator.clipboard) return;
+      navigator.clipboard.writeText(btn.getAttribute('data-copy')).then(function () {
+        var text = btn.textContent;
+        btn.textContent = 'Copiado';
+        setTimeout(function () { btn.textContent = text; }, 1600);
+      });
+    });
+  </script>
 </body>
 </html>

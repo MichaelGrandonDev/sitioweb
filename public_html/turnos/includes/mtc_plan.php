@@ -496,6 +496,9 @@ function mtc_schema(): void
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     ");
+    db()->exec('CREATE INDEX IF NOT EXISTS idx_mtc_plan_visits_plan ON mtc_plan_visits(plan_id)');
+    db()->exec('CREATE INDEX IF NOT EXISTS idx_mtc_plan_versions_plan ON mtc_plan_versions(plan_id, id)');
+    db()->exec('CREATE INDEX IF NOT EXISTS idx_mtc_plans_updated ON mtc_plans(updated_at)');
 }
 
 /** Versión de las plantillas: 2 = cinco técnicas (tuina, chi kung, moxa, ventosas, auriculoterapia), sin agujas. */

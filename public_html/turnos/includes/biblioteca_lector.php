@@ -406,36 +406,18 @@ function bib_private_headers(): void
 function bib_page_start(string $title, string $bodyClass = ''): void
 {
     bib_private_headers();
-    $nav = [['admin.php', 'Admin turnos'], ['biblioteca_lector.php', 'Biblioteca']];
-    if (is_file(__DIR__ . '/../pacientes.php')) {
-        array_splice($nav, 1, 0, [['pacientes.php', 'Pacientes']]);
-    }
+    require_once __DIR__ . '/admin_ui.php';
+    $reader = str_contains($bodyClass, 'bib-reader');
     ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="robots" content="noindex, nofollow">
+  <?= admin_head($title, ['biblioteca.css']) ?>
   <meta name="csrf-token" content="<?= h(csrf_token()) ?>">
   <meta name="color-scheme" content="light dark">
-  <title><?= h($title) ?> · FluxusTerapia</title>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Outfit:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/turnos.css?v=20260929e">
-  <link rel="stylesheet" href="assets/biblioteca.css?v=20260929a">
 </head>
-<body class="bib-page <?= h($bodyClass) ?>">
-  <header class="top">
-    <a class="brand brand--home" href="biblioteca_lector.php" title="Biblioteca">
-      <img class="brand-logo" src="../img/logo-circle.png" alt="FluxusTerapia" width="44" height="44">
-      <span>Biblioteca</span>
-    </a>
-    <nav>
-      <?php foreach ($nav as [$href, $label]): ?>
-        <a href="<?= h($href) ?>"><?= h($label) ?></a>
-      <?php endforeach; ?>
-    </nav>
-  </header>
+<body class="bib-page <?= h($bodyClass) ?><?= $reader ? '' : ' has-tabbar' ?>">
+  <?= admin_header('biblioteca', 'Biblioteca') ?>
     <?php
 }
 

@@ -8,6 +8,7 @@ if (!db_ready()) {
     redirect('install.php');
 }
 require_once __DIR__ . '/includes/mtc_plan.php';
+require_once __DIR__ . '/includes/admin_ui.php';
 
 function mail_result_text(string $result): string
 {
@@ -311,25 +312,13 @@ $logged = !empty($_SESSION['turnos_admin']);
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin turnos · FluxusTerapia</title>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Outfit:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/turnos.css?v=20260929e">
+  <?= admin_head('Admin turnos') ?>
 </head>
-<body>
-  <header class="top">
-    <a class="brand brand--home" href="../" title="Volver a FluxusTerapia">
-      <img class="brand-logo" src="../img/logo-circle.png" alt="FluxusTerapia" width="44" height="44">
-      <span>Turnos · Admin</span>
-    </a>
-    <nav><a href="../">Inicio</a></nav>
-  </header>
+<body class="<?= $logged ? 'has-tabbar' : '' ?>">
+  <?= admin_header('turnos', 'Turnos · Admin', $logged) ?>
   <main class="wrap">
     <?php if ($flash): ?>
-      <div class="alert <?= h($flash['type'] === 'error' ? 'error' : '') ?>" style="<?= $flash['type'] !== 'error' ? 'background:#d9f0e4;color:#164b36;padding:.8rem 1rem;border-radius:8px;' : '' ?>">
-        <?= h($flash['message']) ?>
-      </div>
+      <div class="alert <?= $flash['type'] === 'error' ? 'error' : 'ok' ?>" role="status"><?= h($flash['message']) ?></div>
     <?php endif; ?>
 
     <?php if (!$logged): ?>
@@ -337,7 +326,7 @@ $logged = !empty($_SESSION['turnos_admin']);
         <h1>Admin de turnos</h1>
         <form method="post" class="stack">
           <input type="hidden" name="action" value="login">
-          <label>Contraseña <input type="password" name="password" required></label>
+          <label>Contraseña <input type="password" name="password" required autocomplete="current-password" enterkeyhint="go"></label>
           <button class="btn primary" type="submit">Entrar</button>
         </form>
       </section>
@@ -353,14 +342,38 @@ $logged = !empty($_SESSION['turnos_admin']);
           ORDER BY p.created_at DESC
           LIMIT 40
         ")->fetchAll();
-        $upcoming = db()->query("
+
+        // Próximos turnos: búsqueda y de a 20 («Ver más»), para que la página cargue rápido en el teléfono.
+        $today = date('Y-m-d');
+        $q = is_string($_GET['q'] ?? null) ? mb_substr(trim($_GET['q']), 0, 80) : '';
+        $perPage = 20;
+        $show = max($perPage, min(400, (int) ($_GET['ver'] ?? $perPage)));
+        $where = "a.status IN ('confirmed','pending_deposit') AND a.date >= ?";
+        $params = [$today];
+        if ($q !== '') {
+            $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $q) . '%';
+            $where .= " AND (a.patient_name LIKE ? ESCAPE '\\' OR a.code LIKE ? ESCAPE '\\' OR a.patient_phone LIKE ? ESCAPE '\\' OR a.patient_email LIKE ? ESCAPE '\\' OR t.name LIKE ? ESCAPE '\\')";
+            array_push($params, $like, $like, $like, $like, $like);
+        }
+        $countStmt = db()->prepare("SELECT COUNT(*) FROM appointments a JOIN therapies t ON t.id = a.therapy_id WHERE $where");
+        $countStmt->execute($params);
+        $upcomingTotal = (int) $countStmt->fetchColumn();
+        $upStmt = db()->prepare("
           SELECT a.*, t.name AS therapy_name
           FROM appointments a
           JOIN therapies t ON t.id = a.therapy_id
-          WHERE a.status IN ('confirmed','pending_deposit') AND a.date >= date('now')
+          WHERE $where
           ORDER BY a.date, a.time
-          LIMIT 80
-        ")->fetchAll();
+          LIMIT $show
+        ");
+        $upStmt->execute($params);
+        $upcoming = $upStmt->fetchAll();
+        $upcomingByDay = [];
+        foreach ($upcoming as $a) {
+            $upcomingByDay[(string) $a['date']][] = $a;
+        }
+        $pageUrl = static fn (array $extra): string => 'admin.php?' . http_build_query(array_filter(['q' => $q] + $extra)) . '#proximos';
+
         $blocked = db()->query('SELECT * FROM blocked_dates ORDER BY date')->fetchAll();
         $manual = $_SESSION['manual_form'] ?? [];
         unset($_SESSION['manual_form']);
@@ -377,33 +390,62 @@ $logged = !empty($_SESSION['turnos_admin']);
             }
             return null;
         };
+        $csrf = csrf_token();
       ?>
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap">
-        <h1>Admin turnos</h1>
-        <form method="post" style="display:flex;gap:.4rem">
-          <a class="btn ghost" href="pacientes.php">Pacientes</a>
-          <a class="btn ghost" href="plan_mtc.php">Planes MTC</a>
-          <a class="btn ghost" href="biblioteca_lector.php">Biblioteca</a>
-          <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
-          <input type="hidden" name="action" value="logout">
-          <button class="btn ghost" type="submit">Salir</button>
-        </form>
+      <div class="admin-title">
+        <h1>Turnos</h1>
+        <span class="muted"><?= $upcomingTotal ?> próximo<?= $upcomingTotal === 1 ? '' : 's' ?><?= $q !== '' ? ' con «' . h($q) . '»' : '' ?></span>
+      </div>
+      <div class="admin-quick">
+        <a class="btn primary" href="#manual">+ Cargar turno</a>
+        <?php if ($pendingDeposits): ?>
+          <a class="btn ghost" href="#senas">Señas por confirmar <span class="admin-count"><?= count($pendingDeposits) ?></span></a>
+        <?php endif; ?>
       </div>
 
-      <section class="panel" id="manual">
-        <h2>Cargar turno manual</h2>
+      <?php if ($pendingDeposits): ?>
+      <section class="panel" id="senas">
+        <h2>Señas por confirmar</h2>
+        <?php foreach ($pendingDeposits as $p): ?>
+          <article class="turno-card is-waiting">
+            <div class="turno-who">
+              <strong><?= h($p['patient_name']) ?></strong> · <?= h($p['therapy_name']) ?><br>
+              <span class="turno-meta"><?= h(format_date_es((string) $p['date'])) ?> · <?= h(substr((string) $p['time'], 0, 5)) ?> · <?= h(money_ars((int) $p['amount'])) ?> · <?= h($p['method']) ?><br>
+              Ref: <?= h($p['transfer_ref'] ?: '—') ?> · código <?= h($p['code']) ?></span>
+            </div>
+            <div class="turno-actions">
+              <form method="post">
+                <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
+                <input type="hidden" name="action" value="confirm_deposit">
+                <input type="hidden" name="payment_id" value="<?= (int) $p['id'] ?>">
+                <button class="btn primary" type="submit">Confirmar</button>
+              </form>
+              <form method="post" data-confirm="¿Rechazar esta seña?">
+                <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
+                <input type="hidden" name="action" value="reject_deposit">
+                <input type="hidden" name="payment_id" value="<?= (int) $p['id'] ?>">
+                <button class="btn ghost" type="submit">Rechazar</button>
+              </form>
+            </div>
+          </article>
+        <?php endforeach; ?>
+      </section>
+      <?php endif; ?>
+
+      <details class="panel admin-fold is-primary" id="manual" data-open-wide <?= $manual ? 'open' : '' ?>>
+        <summary><h2>Cargar turno manual</h2></summary>
         <p class="hint">Para turnos reservados por WhatsApp, teléfono o en persona. Queda confirmado al instante. El mail le llega con el día, la hora y el lugar (con link a Google Maps), el link para firmar el consentimiento online, las indicaciones previas, los dos PDF y, si ponés seña, un QR para pagarla si quiere.</p>
         <form method="post" class="form-grid" id="manual-form">
-          <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
           <input type="hidden" name="action" value="create_manual">
           <label>Nombre y apellido
-            <input name="name" required maxlength="120" autocomplete="off" value="<?= h((string) ($manual['name'] ?? '')) ?>">
+            <input name="name" required maxlength="120" autocomplete="off" autocapitalize="words" enterkeyhint="next" value="<?= h((string) ($manual['name'] ?? '')) ?>">
           </label>
           <label>Email
-            <input type="email" name="email" required maxlength="190" autocomplete="off" value="<?= h((string) ($manual['email'] ?? '')) ?>">
+            <input type="email" name="email" required maxlength="190" autocomplete="off" inputmode="email" autocapitalize="off" spellcheck="false" enterkeyhint="next" value="<?= h((string) ($manual['email'] ?? '')) ?>">
           </label>
           <label>Teléfono / WhatsApp (opcional)
-            <input name="phone" maxlength="40" autocomplete="off" value="<?= h((string) ($manual['phone'] ?? '')) ?>">
+            <input type="tel" name="phone" maxlength="40" autocomplete="off" inputmode="tel" enterkeyhint="next" placeholder="Ej: 2932 537949" value="<?= h((string) ($manual['phone'] ?? '')) ?>">
           </label>
           <label>Terapia
             <select name="therapy_id" required>
@@ -414,7 +456,7 @@ $logged = !empty($_SESSION['turnos_admin']);
             </select>
           </label>
           <label>Día
-            <input type="date" name="date" id="manual-date" required min="<?= h(date('Y-m-d')) ?>" value="<?= h($manualDate) ?>">
+            <input type="date" name="date" id="manual-date" required min="<?= h($today) ?>" value="<?= h($manualDate) ?>">
           </label>
           <label>Horario
             <select name="time" id="manual-time" required>
@@ -429,7 +471,7 @@ $logged = !empty($_SESSION['turnos_admin']);
             <input type="time" name="time_custom" min="06:00" max="22:00" step="300" value="<?= h((string) ($manual['time_custom'] ?? '')) ?>">
           </label>
           <label>Seña opcional (ARS, 0 = sin link de pago)
-            <input type="number" name="deposit_amount" min="0" step="100" value="<?= (int) ($manual['deposit_amount'] ?? deposit_amount()) ?>">
+            <input type="number" name="deposit_amount" min="0" step="100" inputmode="numeric" value="<?= (int) ($manual['deposit_amount'] ?? deposit_amount()) ?>">
           </label>
           <?= location_picker($locations, (string) ($manual['location_id'] ?? $defaultLocationId), [
               'name' => $manual['location_name'] ?? '',
@@ -443,11 +485,12 @@ $logged = !empty($_SESSION['turnos_admin']);
             <input type="checkbox" name="send_mail" value="1" <?= ($manual['send_mail'] ?? true) ? 'checked' : '' ?>>
             <span>Enviar mail al paciente</span>
           </label>
-          <div class="span-2">
+          <div class="span-2 admin-bar">
             <button class="btn primary" type="submit">Cargar turno</button>
+            <span class="hint">Queda confirmado al instante.</span>
           </div>
         </form>
-      </section>
+      </details>
       <script>
         (function () {
           var date = document.getElementById('manual-date');
@@ -496,8 +539,144 @@ $logged = !empty($_SESSION['turnos_admin']);
         })();
       </script>
 
-      <section class="panel" id="lugares">
-        <h2>Lugares de atención</h2>
+      <section class="panel" id="proximos">
+        <h2>Próximos turnos</h2>
+        <form class="admin-search" method="get" action="admin.php#proximos" role="search">
+          <label class="sr-only" for="turnos-q">Buscar turnos</label>
+          <input type="search" id="turnos-q" name="q" value="<?= h($q) ?>" placeholder="Nombre, teléfono, código…" autocomplete="off" enterkeyhint="search" data-filter="#turnos-list" data-filter-empty="#turnos-none">
+          <button class="btn ghost" type="submit">Buscar</button>
+        </form>
+        <?php if ($q !== ''): ?>
+          <p class="hint"><a href="admin.php#proximos">Ver todos los turnos</a></p>
+        <?php endif; ?>
+        <?php if (!$upcoming): ?>
+          <p class="muted"><?= $q !== '' ? 'No hay turnos que coincidan.' : 'No hay turnos a futuro.' ?></p>
+        <?php endif; ?>
+        <p class="muted is-hidden" id="turnos-none">Ninguno de los turnos de esta lista coincide. Tocá «Buscar» para buscar en todos.</p>
+        <div id="turnos-list">
+          <?php foreach ($upcomingByDay as $day => $dayItems): ?>
+            <div data-group>
+              <h3 class="turno-day"><?= $day === $today ? 'Hoy · ' : ($day === date('Y-m-d', strtotime('+1 day')) ? 'Mañana · ' : '') ?><?= h(format_date_es($day)) ?></h3>
+              <?php foreach ($dayItems as $a): ?>
+                <?php
+                  $depAmount = money_ars((int) ($a['deposit_amount'] ?? 0));
+                  $depText = match ((string) $a['deposit_status']) {
+                      'paid' => 'seña ' . $depAmount . ' pagada',
+                      'optional' => 'seña ' . $depAmount . ' opcional, sin pagar',
+                      'none' => 'sin seña',
+                      default => 'seña ' . $depAmount,
+                  };
+                  $apptLoc = turno_location_of($a);
+                  $phone = trim((string) $a['patient_phone']);
+                  $contact = admin_phone_links($phone);
+                  $tokenQ = h(urlencode((string) $a['token']));
+                  $confirmed = $a['status'] === 'confirmed';
+                ?>
+                <article class="turno-card<?= $confirmed ? '' : ' is-waiting' ?>" id="turno-<?= (int) $a['id'] ?>"
+                  data-search="<?= h(implode(' ', [$a['patient_name'], $a['therapy_name'], $a['code'], $phone, $a['patient_email']])) ?>">
+                  <div class="turno-head">
+                    <span class="turno-time"><?= h(substr((string) $a['time'], 0, 5)) ?></span>
+                    <div class="turno-who"><strong><?= h($a['patient_name']) ?></strong><br><span class="muted"><?= h($a['therapy_name']) ?></span></div>
+                  </div>
+                  <div class="turno-tags">
+                    <?= $confirmed ? '<span class="tag ok">Confirmado</span>' : '<span class="tag warn">Espera seña</span>' ?>
+                    <?php if (!empty($a['consent_accepted_at'])): ?>
+                      <span class="tag ok">Consentimiento firmado</span>
+                    <?php else: ?>
+                      <span class="tag warn">Consentimiento pendiente</span>
+                    <?php endif; ?>
+                    <?php if (($a['source'] ?? '') === 'manual'): ?><span class="tag">Cargado a mano</span><?php endif; ?>
+                  </div>
+                  <div class="turno-meta">
+                    Lugar: <?= h($apptLoc['label']) ?><?php if ($apptLoc['map_link'] !== ''): ?> · <a href="<?= h($apptLoc['map_link']) ?>" target="_blank" rel="noopener">Mapa</a><?php endif; ?><br>
+                    <?= h(implode(' · ', array_filter([$phone, trim((string) $a['patient_email'])]))) ?><br>
+                    Código <?= h($a['code']) ?> · <?= h($depText) ?>
+                    <?php if ($confirmed): ?>
+                      <br><?= !empty($a['mail_sent_at']) ? 'Mail con requisitos enviado el ' . h(date('d/m H:i', strtotime((string) $a['mail_sent_at']))) : 'Mail con requisitos sin enviar' ?>
+                    <?php endif; ?>
+                    <?php if (!empty($a['consent_accepted_at'])): ?>
+                      <br>Firmó el <?= h(date('d/m/Y H:i', strtotime((string) $a['consent_accepted_at']))) ?> · <?= h((string) $a['consent_name']) ?> · RUT / DNI <?= h((string) $a['consent_dni']) ?>
+                    <?php endif; ?>
+                  </div>
+                  <div class="turno-actions">
+                    <?php if ($contact): ?>
+                      <a class="btn wa" href="<?= h($contact['wa']) ?>" target="_blank" rel="noopener">WhatsApp</a>
+                      <a class="btn ghost" href="<?= h($contact['tel']) ?>">Llamar</a>
+                    <?php endif; ?>
+                    <?= mtc_admin_link($a) ?>
+                    <?php if ($confirmed && $a['patient_email']): ?>
+                      <form method="post">
+                        <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
+                        <input type="hidden" name="action" value="send_mail">
+                        <input type="hidden" name="id" value="<?= (int) $a['id'] ?>">
+                        <button class="btn ghost" type="submit"><?= !empty($a['mail_sent_at']) ? 'Reenviar mail' : 'Enviar mail' ?></button>
+                      </form>
+                    <?php elseif (!$confirmed): ?>
+                      <form method="post">
+                        <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
+                        <input type="hidden" name="action" value="mark_deposit_paid">
+                        <input type="hidden" name="id" value="<?= (int) $a['id'] ?>">
+                        <button class="btn primary" type="submit">Marcar seña paga</button>
+                      </form>
+                    <?php endif; ?>
+                    <details class="turno-more">
+                      <summary>Más acciones</summary>
+                      <div class="turno-more-actions">
+                        <?php if ($confirmed): ?>
+                          <a class="btn ghost" href="pdf.php?token=<?= $tokenQ ?>" target="_blank" rel="noopener">Requisitos PDF</a>
+                          <a class="btn ghost" href="pdf.php?token=<?= $tokenQ ?>&amp;doc=consentimiento" target="_blank" rel="noopener">Consentimiento PDF</a>
+                          <a class="btn ghost" href="consentimiento.php?token=<?= $tokenQ ?>" target="_blank" rel="noopener">Consentimiento online</a>
+                          <?php if (turno_deposit_open($a)): ?>
+                            <a class="btn ghost" href="pay.php?token=<?= $tokenQ ?>" target="_blank" rel="noopener">Link seña</a>
+                            <form method="post">
+                              <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
+                              <input type="hidden" name="action" value="mark_deposit_paid">
+                              <input type="hidden" name="id" value="<?= (int) $a['id'] ?>">
+                              <button class="btn ghost" type="submit">Marcar seña paga</button>
+                            </form>
+                          <?php endif; ?>
+                        <?php else: ?>
+                          <a class="btn ghost" href="pay.php?token=<?= $tokenQ ?>" target="_blank" rel="noopener">Link seña</a>
+                        <?php endif; ?>
+                        <form method="post" data-confirm="¿Cancelar el turno de <?= h($a['patient_name']) ?>? El horario queda libre.">
+                          <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
+                          <input type="hidden" name="action" value="cancel">
+                          <input type="hidden" name="id" value="<?= (int) $a['id'] ?>">
+                          <button class="btn ghost" type="submit">Cancelar turno</button>
+                        </form>
+                      </div>
+                      <details class="admin-details">
+                        <summary>Cambiar lugar</summary>
+                        <?php $apptLocId = $savedLocationId($apptLoc); ?>
+                        <form method="post" class="form-grid">
+                          <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
+                          <input type="hidden" name="action" value="set_location">
+                          <input type="hidden" name="id" value="<?= (int) $a['id'] ?>">
+                          <?= location_picker($locations, $apptLocId ?? 'other', $apptLocId === null
+                              ? ['name' => $apptLoc['name'], 'address' => $apptLoc['address'], 'save' => false]
+                              : ['save' => true]) ?>
+                          <div class="span-2"><button class="btn primary" type="submit">Guardar lugar del turno</button></div>
+                        </form>
+                      </details>
+                    </details>
+                  </div>
+                </article>
+              <?php endforeach; ?>
+            </div>
+          <?php endforeach; ?>
+        </div>
+        <?php if ($upcomingTotal > count($upcoming)): ?>
+          <div class="admin-pager">
+            <span class="muted small">Mostrando <?= count($upcoming) ?> de <?= $upcomingTotal ?></span>
+            <a class="btn ghost" href="<?= h($pageUrl(['ver' => $show + $perPage])) ?>">Ver <?= min($perPage, $upcomingTotal - count($upcoming)) ?> más</a>
+          </div>
+        <?php endif; ?>
+      </section>
+
+      <h2 class="admin-section-title">Ajustes</h2>
+
+      <details class="panel admin-fold" id="lugares">
+        <summary><h2>Lugares de atención</h2><span class="muted"><?= count($locations) ?></span></summary>
         <p class="hint">Las direcciones que aparecen al cargar un turno. El predeterminado se usa en los turnos que reservan los pacientes desde la web (las clases online quedan como “Online”). Si una dirección tiene número de calle, el mail lleva un link a Google Maps; si cargás tu propio link del mapa, se usa ese. Editar o borrar un lugar no cambia los turnos ya dados.</p>
         <?php foreach ($locations as $loc): ?>
           <?php $locLink = turno_location_map_link(turno_location_snapshot($loc)); ?>
@@ -511,14 +690,14 @@ $logged = !empty($_SESSION['turnos_admin']);
             <div class="actions" style="display:flex;gap:.4rem;align-items:start;flex-wrap:wrap">
               <?php if ((int) $loc['is_default'] !== 1): ?>
                 <form method="post">
-                  <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
+                  <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
                   <input type="hidden" name="action" value="location_default">
                   <input type="hidden" name="id" value="<?= (int) $loc['id'] ?>">
                   <button class="btn ghost" type="submit">Hacer predeterminado</button>
                 </form>
               <?php endif; ?>
-              <form method="post" onsubmit="return confirm('¿Borrar este lugar de la lista? Los turnos ya dados conservan su dirección.')">
-                <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
+              <form method="post" data-confirm="¿Borrar este lugar de la lista? Los turnos ya dados conservan su dirección.">
+                <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
                 <input type="hidden" name="action" value="location_delete">
                 <input type="hidden" name="id" value="<?= (int) $loc['id'] ?>">
                 <button class="btn ghost" type="submit">Borrar</button>
@@ -527,7 +706,7 @@ $logged = !empty($_SESSION['turnos_admin']);
             <details class="admin-details">
               <summary>Editar</summary>
               <form method="post" class="form-grid">
-                <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
                 <input type="hidden" name="action" value="location_update">
                 <input type="hidden" name="id" value="<?= (int) $loc['id'] ?>">
                 <label>Nombre del lugar (opcional)
@@ -540,7 +719,7 @@ $logged = !empty($_SESSION['turnos_admin']);
                   <input name="notes" maxlength="300" placeholder="Ej: timbre 2, primer piso" value="<?= h((string) $loc['notes']) ?>">
                 </label>
                 <label>Link de Google Maps (opcional)
-                  <input type="url" name="maps_url" maxlength="500" placeholder="https://maps.app.goo.gl/…" value="<?= h((string) $loc['maps_url']) ?>">
+                  <input type="url" name="maps_url" maxlength="500" inputmode="url" autocapitalize="off" placeholder="https://maps.app.goo.gl/…" value="<?= h((string) $loc['maps_url']) ?>">
                 </label>
                 <div class="span-2"><button class="btn primary" type="submit">Guardar lugar</button></div>
               </form>
@@ -549,7 +728,7 @@ $logged = !empty($_SESSION['turnos_admin']);
         <?php endforeach; ?>
         <h3 style="margin-top:1rem">Agregar un lugar</h3>
         <form method="post" class="form-grid">
-          <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
           <input type="hidden" name="action" value="location_add">
           <label>Nombre del lugar (opcional)
             <input name="name" maxlength="120" placeholder="Ej: Consultorio Punta Alta">
@@ -561,7 +740,7 @@ $logged = !empty($_SESSION['turnos_admin']);
             <input name="notes" maxlength="300" placeholder="Ej: timbre 2, primer piso">
           </label>
           <label>Link de Google Maps (opcional)
-            <input type="url" name="maps_url" maxlength="500" placeholder="https://maps.app.goo.gl/…">
+            <input type="url" name="maps_url" maxlength="500" inputmode="url" autocapitalize="off" placeholder="https://maps.app.goo.gl/…">
           </label>
           <label class="check span-2">
             <input type="checkbox" name="make_default" value="1">
@@ -569,182 +748,61 @@ $logged = !empty($_SESSION['turnos_admin']);
           </label>
           <div class="span-2"><button class="btn primary" type="submit">Agregar lugar</button></div>
         </form>
-      </section>
+      </details>
 
-      <section class="panel">
-        <h2>Seña · monto y transferencia</h2>
+      <details class="panel admin-fold" id="sena">
+        <summary><h2>Seña · monto y transferencia</h2><span class="muted"><?= h(money_ars((int) ($depCfg['amount'] ?? 15000))) ?></span></summary>
         <form method="post" class="stack">
-          <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
           <input type="hidden" name="action" value="save_deposit_settings">
-          <label>Monto seña (ARS) <input type="number" name="amount" min="1" value="<?= (int) ($depCfg['amount'] ?? 15000) ?>"></label>
-          <label>Titular <input name="transfer_holder" value="<?= h((string) ($depCfg['transfer_holder'] ?? '')) ?>"></label>
-          <label>Banco <input name="transfer_bank" value="<?= h((string) ($depCfg['transfer_bank'] ?? '')) ?>"></label>
-          <label>Alias <input name="transfer_alias" value="<?= h((string) ($depCfg['transfer_alias'] ?? '')) ?>"></label>
-          <label>CBU/CVU <input name="transfer_cbu" value="<?= h((string) ($depCfg['transfer_cbu'] ?? '')) ?>"></label>
-          <label>Nota <input name="transfer_note" value="<?= h((string) ($depCfg['transfer_note'] ?? '')) ?>"></label>
+          <label>Monto seña (ARS) <input type="number" name="amount" min="1" inputmode="numeric" value="<?= (int) ($depCfg['amount'] ?? 15000) ?>"></label>
+          <label>Titular <input name="transfer_holder" autocomplete="off" value="<?= h((string) ($depCfg['transfer_holder'] ?? '')) ?>"></label>
+          <label>Banco <input name="transfer_bank" autocomplete="off" value="<?= h((string) ($depCfg['transfer_bank'] ?? '')) ?>"></label>
+          <label>Alias <input name="transfer_alias" autocomplete="off" autocapitalize="off" spellcheck="false" value="<?= h((string) ($depCfg['transfer_alias'] ?? '')) ?>"></label>
+          <label>CBU/CVU <input name="transfer_cbu" autocomplete="off" inputmode="numeric" value="<?= h((string) ($depCfg['transfer_cbu'] ?? '')) ?>"></label>
+          <label>Nota <input name="transfer_note" autocomplete="off" value="<?= h((string) ($depCfg['transfer_note'] ?? '')) ?>"></label>
           <button class="btn primary" type="submit">Guardar seña</button>
         </form>
         <p class="hint">Mercado Pago tarjeta/QR: <?= deposit_mp_enabled() ? 'activo' : 'cargar mp_access_token en turnos/config.php' ?></p>
-      </section>
+      </details>
 
-      <?php if ($pendingDeposits): ?>
-      <section class="panel">
-        <h2>Señas por confirmar</h2>
-        <?php foreach ($pendingDeposits as $p): ?>
-          <article style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;padding:.75rem 0;border-bottom:1px solid var(--line)">
-            <div>
-              <strong><?= h($p['patient_name']) ?></strong> · <?= h($p['therapy_name']) ?><br>
-              <span class="muted"><?= h($p['date']) ?> <?= h(substr((string) $p['time'], 0, 5)) ?> · <?= h(money_ars((int) $p['amount'])) ?> · <?= h($p['method']) ?></span><br>
-              <span class="muted">Ref: <?= h($p['transfer_ref'] ?: '—') ?> · código <?= h($p['code']) ?></span>
-            </div>
-            <div class="actions" style="display:flex;gap:.4rem">
-              <form method="post">
-                <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
-                <input type="hidden" name="action" value="confirm_deposit">
-                <input type="hidden" name="payment_id" value="<?= (int) $p['id'] ?>">
-                <button class="btn primary" type="submit">Confirmar</button>
-              </form>
-              <form method="post">
-                <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
-                <input type="hidden" name="action" value="reject_deposit">
-                <input type="hidden" name="payment_id" value="<?= (int) $p['id'] ?>">
-                <button class="btn ghost" type="submit">Rechazar</button>
-              </form>
-            </div>
-          </article>
-        <?php endforeach; ?>
-      </section>
-      <?php endif; ?>
-
-      <section class="panel">
-        <h2>Próximos turnos</h2>
-        <?php if (!$upcoming): ?>
-          <p class="muted">No hay turnos a futuro.</p>
-        <?php else: ?>
-          <?php foreach ($upcoming as $a): ?>
-            <article style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;padding:.75rem 0;border-bottom:1px solid var(--line)">
-              <div>
-                <?php
-                  $depAmount = money_ars((int) ($a['deposit_amount'] ?? 0));
-                  $depText = match ((string) $a['deposit_status']) {
-                      'paid' => 'seña ' . $depAmount . ' pagada',
-                      'optional' => 'seña ' . $depAmount . ' opcional, sin pagar',
-                      'none' => 'sin seña',
-                      default => 'seña ' . $depAmount,
-                  };
-                ?>
-                <strong><?= h($a['patient_name']) ?></strong> · <?= h($a['therapy_name']) ?>
-                <?php if (($a['source'] ?? '') === 'manual'): ?><span class="tag">Cargado a mano</span><?php endif; ?><br>
-                <span class="muted"><?= h(format_date_es($a['date'])) ?> · <?= h(format_time_es($a['time'])) ?></span><br>
-                <?php $apptLoc = turno_location_of($a); ?>
-                <span class="muted">Lugar: <?= h($apptLoc['label']) ?></span>
-                <?php if ($apptLoc['map_link'] !== ''): ?> · <a class="small" href="<?= h($apptLoc['map_link']) ?>" target="_blank" rel="noopener">Mapa</a><?php endif; ?><br>
-                <span class="muted"><?= h(implode(' · ', array_filter([trim((string) $a['patient_phone']), trim((string) $a['patient_email'])]))) ?></span>
-                · código <?= h($a['code']) ?>
-                · <?= h($depText) ?>
-                · <strong><?= $a['status'] === 'confirmed' ? 'Confirmado' : 'Espera seña' ?></strong>
-                <?php if ($a['status'] === 'confirmed'): ?>
-                  <br><span class="muted"><?= !empty($a['mail_sent_at']) ? 'Mail con requisitos enviado el ' . h(date('d/m H:i', strtotime((string) $a['mail_sent_at']))) : 'Mail con requisitos sin enviar' ?></span>
-                <?php endif; ?>
-                <br>
-                <?php if (!empty($a['consent_accepted_at'])): ?>
-                  <span class="tag ok">Consentimiento firmado</span>
-                  <span class="muted small"><?= h(date('d/m/Y H:i', strtotime((string) $a['consent_accepted_at']))) ?> · <?= h((string) $a['consent_name']) ?> · RUT / DNI <?= h((string) $a['consent_dni']) ?></span>
-                <?php else: ?>
-                  <span class="tag warn">Consentimiento pendiente</span>
-                <?php endif; ?>
-                <details class="admin-details">
-                  <summary>Cambiar lugar</summary>
-                  <?php $apptLocId = $savedLocationId($apptLoc); ?>
-                  <form method="post" class="form-grid">
-                    <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
-                    <input type="hidden" name="action" value="set_location">
-                    <input type="hidden" name="id" value="<?= (int) $a['id'] ?>">
-                    <?= location_picker($locations, $apptLocId ?? 'other', $apptLocId === null
-                        ? ['name' => $apptLoc['name'], 'address' => $apptLoc['address'], 'save' => false]
-                        : ['save' => true]) ?>
-                    <div class="span-2"><button class="btn primary" type="submit">Guardar lugar del turno</button></div>
-                  </form>
-                </details>
-              </div>
-              <div class="actions" style="display:flex;gap:.4rem;align-items:start;flex-wrap:wrap">
-                <?= mtc_admin_link($a) ?>
-                <?php if ($a['status'] === 'confirmed'): ?>
-                  <a class="btn ghost" href="pdf.php?token=<?= h(urlencode($a['token'])) ?>">Requisitos PDF</a>
-                  <a class="btn ghost" href="pdf.php?token=<?= h(urlencode($a['token'])) ?>&amp;doc=consentimiento">Consentimiento PDF</a>
-                  <a class="btn ghost" href="consentimiento.php?token=<?= h(urlencode($a['token'])) ?>" target="_blank" rel="noopener">Consentimiento online</a>
-                  <?php if ($a['patient_email']): ?>
-                    <form method="post">
-                      <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
-                      <input type="hidden" name="action" value="send_mail">
-                      <input type="hidden" name="id" value="<?= (int) $a['id'] ?>">
-                      <button class="btn ghost" type="submit"><?= !empty($a['mail_sent_at']) ? 'Reenviar mail' : 'Enviar mail' ?></button>
-                    </form>
-                  <?php endif; ?>
-                  <?php if (turno_deposit_open($a)): ?>
-                    <a class="btn ghost" href="pay.php?token=<?= h(urlencode($a['token'])) ?>" target="_blank" rel="noopener">Link seña</a>
-                    <form method="post">
-                      <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
-                      <input type="hidden" name="action" value="mark_deposit_paid">
-                      <input type="hidden" name="id" value="<?= (int) $a['id'] ?>">
-                      <button class="btn ghost" type="submit">Marcar seña paga</button>
-                    </form>
-                  <?php endif; ?>
-                <?php else: ?>
-                  <a class="btn ghost" href="pay.php?token=<?= h(urlencode($a['token'])) ?>">Link seña</a>
-                  <form method="post">
-                    <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
-                    <input type="hidden" name="action" value="mark_deposit_paid">
-                    <input type="hidden" name="id" value="<?= (int) $a['id'] ?>">
-                    <button class="btn primary" type="submit">Marcar seña paga</button>
-                  </form>
-                <?php endif; ?>
-                <form method="post">
-                  <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
-                  <input type="hidden" name="action" value="cancel">
-                  <input type="hidden" name="id" value="<?= (int) $a['id'] ?>">
-                  <button class="btn ghost" type="submit">Cancelar</button>
-                </form>
-              </div>
-            </article>
-          <?php endforeach; ?>
-        <?php endif; ?>
-      </section>
-
-      <section class="panel">
-        <h2>Requisitos para la sesión</h2>
+      <details class="panel admin-fold" id="requisitos">
+        <summary><h2>Requisitos para la sesión</h2></summary>
         <p class="hint">Horario de turnos: lunes a sábado de 8 a 20 hs (último turno 19 hs), cada una hora. Cuando se confirma el turno (seña acreditada o turno cargado a mano), al paciente le llega un mail con los requisitos y el consentimiento de su terapia en PDF, y el link para firmar el consentimiento online. Si dejás el texto vacío se usa el de por defecto.</p>
         <form method="post" class="stack">
-          <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
           <input type="hidden" name="action" value="save_docs">
           <label>Requisitos para la sesión (un renglón por punto)
             <textarea name="requisitos_text" rows="9"><?= h(turno_text_setting('requisitos_text', TURNO_REQUISITOS_DEFAULT)) ?></textarea>
           </label>
-          <button class="btn primary" type="submit">Guardar requisitos</button>
+          <div class="admin-bar"><button class="btn primary" type="submit">Guardar requisitos</button></div>
         </form>
-      </section>
+      </details>
 
       <?php $consentRows = turno_consent_rows(); ?>
-      <section class="panel" id="consentimientos">
-        <h2>Consentimientos informados</h2>
+      <details class="panel admin-fold" id="consentimientos">
+        <summary><h2>Consentimientos informados</h2></summary>
         <p class="hint">
           Cada terapia tiene su consentimiento. Un turno usa el de su terapia <strong>solo si está aprobado</strong>;
           mientras esté como borrador “a revisar”, se usa el <strong>consentimiento general</strong>.
           Los borradores se generaron automáticamente: revisalos antes de aprobarlos. Los consentimientos ya firmados no cambian.
         </p>
-        <p class="hint">
-          Datos del paciente que se completan solos:
-          <code>{nombre}</code> nombre y apellido,
-          <code>{NOMBRE}</code> el mismo en mayúsculas,
-          <code>{documento}</code> RUT / DNI,
-          <code>{email}</code> e-mail del turno,
-          <code>{fecha}</code> fecha de firma (dd-mm-aaaa).
-          Al firmar online se usan el nombre y el documento que escribe el paciente y la fecha de ese día; en el PDF del mail
-          van su nombre y e-mail, y el documento y la fecha quedan como líneas para completar a mano.
-          Un párrafo por renglón. Un renglón corto en mayúsculas es el título; los que empiezan con <code>PRIMERO:</code>, <code>SEGUNDO:</code>…
-          salen con la etiqueta en negrita y los que empiezan con <code>a)</code> o <code>i.-</code> salen como subítems.
-          “Vista previa” muestra lo que está escrito en el cuadro, aunque todavía no lo hayas guardado.
-        </p>
+        <details class="admin-details">
+          <summary>Cómo se escribe (datos que se completan solos y formato)</summary>
+          <p class="hint">
+            Datos del paciente que se completan solos:
+            <code>{nombre}</code> nombre y apellido,
+            <code>{NOMBRE}</code> el mismo en mayúsculas,
+            <code>{documento}</code> RUT / DNI,
+            <code>{email}</code> e-mail del turno,
+            <code>{fecha}</code> fecha de firma (dd-mm-aaaa).
+            Al firmar online se usan el nombre y el documento que escribe el paciente y la fecha de ese día; en el PDF del mail
+            van su nombre y e-mail, y el documento y la fecha quedan como líneas para completar a mano.
+            Un párrafo por renglón. Un renglón corto en mayúsculas es el título; los que empiezan con <code>PRIMERO:</code>, <code>SEGUNDO:</code>…
+            salen con la etiqueta en negrita y los que empiezan con <code>a)</code> o <code>i.-</code> salen como subítems.
+            “Vista previa” muestra lo que está escrito en el cuadro, aunque todavía no lo hayas guardado.
+          </p>
+        </details>
         <?php
           $consentItems = [['id' => 0, 'name' => 'Consentimiento general']];
           foreach (therapies() as $t) {
@@ -770,7 +828,7 @@ $logged = !empty($_SESSION['turnos_admin']);
               <?php endif; ?>
             </summary>
             <form method="post" class="stack">
-              <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
+              <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
               <input type="hidden" name="therapy_id" value="<?= $cid ?>">
               <label>Texto del consentimiento
                 <textarea name="text" rows="18" required maxlength="40000"><?= h($consentText) ?></textarea>
@@ -781,7 +839,7 @@ $logged = !empty($_SESSION['turnos_admin']);
                   <?php if ($cid > 0 && $approved && !empty($row['approved_at'])): ?> · aprobado el <?= h(date('d/m/Y H:i', strtotime((string) $row['approved_at']))) ?><?php endif; ?>
                 </p>
               <?php endif; ?>
-              <div class="consent-actions">
+              <div class="consent-actions admin-bar">
                 <?php if ($cid === 0): ?>
                   <button class="btn primary" type="submit" name="action" value="consent_save">Guardar</button>
                 <?php elseif ($approved): ?>
@@ -794,35 +852,35 @@ $logged = !empty($_SESSION['turnos_admin']);
                 <button class="btn ghost" type="submit" name="action" value="consent_preview_pdf" formtarget="_blank" formnovalidate>Vista previa PDF</button>
                 <button class="btn ghost" type="submit" name="action" value="consent_preview_html" formtarget="_blank" formnovalidate>Vista previa online</button>
                 <button class="btn ghost" type="submit" name="action" value="consent_reset" formnovalidate
-                  onclick="return confirm('<?= $cid === 0 ? '¿Volver al texto original del consentimiento general?' : '¿Reemplazar el texto por el sugerido? Queda como borrador y, hasta que lo apruebes, se usa el general.' ?>')"><?= $cid === 0 ? 'Restaurar texto original' : 'Volver al texto sugerido' ?></button>
+                  data-confirm="<?= $cid === 0 ? '¿Volver al texto original del consentimiento general?' : '¿Reemplazar el texto por el sugerido? Queda como borrador y, hasta que lo apruebes, se usa el general.' ?>"><?= $cid === 0 ? 'Restaurar texto original' : 'Volver al texto sugerido' ?></button>
               </div>
             </form>
           </details>
         <?php endforeach; ?>
-      </section>
+      </details>
 
-      <section class="panel">
-        <h2>Bloquear un día</h2>
+      <details class="panel admin-fold" id="bloquear">
+        <summary><h2>Bloquear un día</h2><span class="muted"><?= $blocked ? count($blocked) . ' bloqueado' . (count($blocked) === 1 ? '' : 's') : '' ?></span></summary>
         <form method="post" class="stack">
-          <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
           <input type="hidden" name="action" value="block">
-          <label>Fecha <input type="date" name="date" required></label>
+          <label>Fecha <input type="date" name="date" required min="<?= h($today) ?>"></label>
           <label>Motivo <input name="reason" placeholder="Ej: feriado / viaje"></label>
           <button class="btn primary" type="submit">Bloquear</button>
         </form>
         <?php if ($blocked): ?>
           <h3 style="margin-top:1rem">Días bloqueados</h3>
           <?php foreach ($blocked as $b): ?>
-            <form method="post" style="display:flex;gap:.5rem;align-items:center;margin:.4rem 0">
-              <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
+            <form method="post" class="location-row" style="align-items:center">
+              <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
               <input type="hidden" name="action" value="unblock">
               <input type="hidden" name="date" value="<?= h($b['date']) ?>">
-              <span><?= h($b['date']) ?> <?= $b['reason'] ? '· ' . h($b['reason']) : '' ?></span>
+              <span><?= h(format_date_es((string) $b['date'])) ?> <?= $b['reason'] ? '· ' . h($b['reason']) : '' ?></span>
               <button class="btn ghost" type="submit">Quitar</button>
             </form>
           <?php endforeach; ?>
         <?php endif; ?>
-      </section>
+      </details>
       <script>
         document.querySelectorAll('[data-location-picker]').forEach(function (box) {
           var select = box.querySelector('select');
@@ -836,13 +894,6 @@ $logged = !empty($_SESSION['turnos_admin']);
           select.addEventListener('change', toggle);
           toggle();
         });
-        (function () {
-          var target = location.hash.length > 1 && document.getElementById(location.hash.slice(1));
-          if (target && target.tagName === 'DETAILS') {
-            target.open = true;
-            target.scrollIntoView();
-          }
-        })();
       </script>
     <?php endif; ?>
   </main>

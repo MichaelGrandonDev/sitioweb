@@ -1,0 +1,10 @@
+# Assets del admin y de la reserva. Los que se piden con ?v=<versión> no cambian nunca: se cachean un año.
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/css text/javascript application/javascript application/json image/svg+xml text/plain
+</IfModule>
+
+<IfModule mod_headers.c>
+  <If "%{QUERY_STRING} =~ /(^|&)v=/">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </If>
+</IfModule>

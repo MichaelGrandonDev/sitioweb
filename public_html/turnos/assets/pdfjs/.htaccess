@@ -9,6 +9,11 @@ Options -Indexes
   AddType application/vnd.iccprofile .icc
 </IfModule>
 
+# El visor y el worker pesan ~4 MB sin comprimir (.mjs no entraba en el gzip del servidor).
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/javascript application/javascript text/css text/plain application/wasm image/svg+xml
+</IfModule>
+
 <IfModule mod_headers.c>
   Header set X-Robots-Tag "noindex, nofollow"
   <FilesMatch "\.(mjs|css|ftl|bcmap|pfb|ttf|wasm|svg|png)$">

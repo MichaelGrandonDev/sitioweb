@@ -209,6 +209,6 @@ bib_page_start('Biblioteca');
       <ul class="bib-jobs" id="bib-jobs"></ul>
     </section>
   </main>
-  <script src="assets/biblioteca.js?v=20260929a"></script>
+  <script src="<?= h(ui_asset('biblioteca.js')) ?>" defer></script>
 </body>
 </html>

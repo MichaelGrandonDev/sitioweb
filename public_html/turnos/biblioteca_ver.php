@@ -68,16 +68,26 @@ bib_page_start((string) $book['title'], 'bib-reader');
           if (current > 0 && current !== saved) { saved = current; post({ action: 'progress', page: current }, beacon); }
         };
         window.bibCurrentPage = function () { return current || <?= max(1, $page) ?>; };
+        var narrow = window.matchMedia('(max-width: 760px)').matches;
+        var touch = window.matchMedia('(pointer: coarse)').matches;
         document.addEventListener('webviewerloaded', function (e) {
           var w = e.detail && e.detail.source;
           if (!w || !w.PDFViewerApplicationOptions) { return; }
-          w.PDFViewerApplicationOptions.setAll({
+          var css = w.document.createElement('link');
+          css.rel = 'stylesheet';
+          css.href = <?= json_encode($base . '/' . ui_asset('pdfjs-mobile.css')) ?>;
+          w.document.head.appendChild(css);
+          var opts = {
             disablePreferences: true,
             disableAutoFetch: true,
             disableStream: true,
             enableScripting: false,
-            localeProperties: { lang: 'es-AR' }
-          });
+            localeProperties: { lang: 'es-AR' },
+            defaultZoomValue: narrow ? 'page-width' : 'auto',
+            toolbarDensity: touch ? 2 : 0
+          };
+          if (narrow) { opts.annotationEditorMode = -1; }
+          w.PDFViewerApplicationOptions.setAll(opts);
           w.PDFViewerApplication.initializedPromise.then(function () {
             var app = w.PDFViewerApplication;
             var where = document.getElementById('bib-where');
@@ -98,7 +108,17 @@ bib_page_start((string) $book['title'], 'bib-reader');
         document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') { save(true); } });
       })();
     </script>
-    <iframe class="bib-frame" id="bib-frame" src="<?= h($viewerUrl) ?>" title="<?= h($book['title']) ?>" allow="fullscreen" allowfullscreen></iframe>
+    <iframe class="bib-frame" id="bib-frame" title="<?= h($book['title']) ?>" allow="fullscreen" allowfullscreen></iframe>
+    <script>
+      (function () {
+        var url = <?= json_encode($viewerUrl) ?>;
+        if (window.matchMedia('(max-width: 760px)').matches) {
+          url += (url.indexOf('#') === -1 ? '#' : '&') + 'zoom=page-width';
+        }
+        document.getElementById('bib-frame').src = url;
+      })();
+    </script>
+    <noscript><p class="wrap"><a class="btn primary" href="<?= h($viewerUrl) ?>">Abrir el documento</a></p></noscript>
   <?php elseif (in_array($format, ['jpg', 'jpeg', 'png'], true)): ?>
     <div class="bib-image" id="bib-image">
       <img src="<?= h($fileUrl) ?>" alt="<?= h($book['title']) ?>" title="Tocá para acercar o alejar">
@@ -113,6 +133,6 @@ bib_page_start((string) $book['title'], 'bib-reader');
       </section>
     </main>
   <?php endif; ?>
-  <script src="assets/biblioteca.js?v=20260929a"></script>
+  <script src="<?= h(ui_asset('biblioteca.js')) ?>" defer></script>
 </body>
 </html>

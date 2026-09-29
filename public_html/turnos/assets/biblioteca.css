@@ -2,8 +2,6 @@
 .bib-page { --card: var(--paper); --field: #fff; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .small { font-size: 0.85rem; }
-.bib-page .top nav a { opacity: 0.9; }
-.bib-page .top nav a:hover { opacity: 1; text-decoration: underline; }
 .bib-page .alert.ok { background: #d9f0e4; color: #164b36; padding: 0.8rem 1rem; border-radius: 8px; }
 .bib-page input, .bib-page select, .bib-page textarea { background: var(--field); color: var(--ink); }
 
@@ -93,10 +91,19 @@
 .bib-image img { max-width: 100%; max-height: 100%; cursor: zoom-in; }
 .bib-image.is-zoomed { place-items: start; }
 .bib-image.is-zoomed img { max-width: none; max-height: none; cursor: zoom-out; }
-@media (max-width: 640px) {
+.bib-reader { padding-bottom: env(safe-area-inset-bottom); background: #2a2a2e; }
+.bib-reader .bib-bar { padding-top: max(0.4rem, env(safe-area-inset-top)); }
+@media (max-width: 760px) {
   .bib-reader .top { display: none; }
   .bib-back span { display: none; }
+  .bib-bar { gap: 0.4rem; }
+  .bib-bar .btn { min-height: 44px; padding: 0.45rem 0.65rem; font-size: 0.82rem; }
   .bib-search .btn { padding: 0.7rem 0.9rem; }
+  .bib-tags { flex-wrap: nowrap; overflow-x: auto; margin-inline: -1rem; padding: 0 1rem 0.2rem; scrollbar-width: none; }
+  .bib-chip { flex-shrink: 0; display: inline-flex; align-items: center; gap: 0.3rem; min-height: 36px; }
+  .bib-head .bib-actions { width: 100%; }
+  .bib-head .bib-actions .btn { flex: 1 1 auto; }
+  .bib-card-actions .btn.primary { flex: 1 1 auto; }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -111,5 +118,6 @@
   .bib-page .alert.ok { background: #1d3b2f; color: #cdeedd; }
   .bib-page .alert.error { background: #4a2020; color: #f5d0d0; }
   .bib-chip { color: #cfe3da; }
+  .bib-page .admin-details summary { color: #7fd3ae; }
   .bib-danger { color: #f0a3a3; border-color: rgba(240, 163, 163, 0.35); }
 }

@@ -696,6 +696,10 @@ function migrate_turnos_schema(): void
         ");
     }
 
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_deposit_payments_appt ON deposit_payments(appointment_id)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_deposit_payments_status ON deposit_payments(status, created_at)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_appointments_status_date ON appointments(status, date)');
+
     if (!$tableExists($pdo, 'deposit_settings')) {
         $pdo->exec("CREATE TABLE deposit_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '')");
         global $config;
