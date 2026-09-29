@@ -5,7 +5,7 @@
   <div class="hero-media" aria-hidden="true"></div>
   <div class="hero-copy">
     <h1>FluxusTerapia</h1>
-    <p class="hero-sub">Masoterapia y terapias para el bienestar integral</p>
+    <p class="hero-sub">Kinesiología, Medicina China y Acupuntura</p>
     <div class="hero-actions">
       <a class="cta primary" href="/turnos/">Reservar turno</a>
       <a class="cta ghost" href="/academia/">AcademiaFluxus</a>
@@ -17,21 +17,24 @@
   <div class="about-copy">
     <h2>Quiénes somos</h2>
     <p>
-      FluxusTerapia es el espacio de Michael Grandon, masajista profesional
-      (matrícula M10148 · Asociación Argentina de Masajistas), dedicado al
-      acompañamiento terapéutico con presencia y calma.
+      Somos un equipo de profesionales dedicados al servicio de la salud:
+      kinesiología, acupuntura, masoterapia, medicina china y técnicas manuales.
+      Nuestro propósito es que cada persona se sienta bien, en su cuerpo y en su día a día.
     </p>
     <p>
-      Integramos masoterapia, rehabilitación kinésica, medicina china y
-      prácticas de movimiento consciente para acompañar tu bienestar
+      Acompañamos cada proceso con escucha, presencia y tratamientos personalizados
+      para aliviar molestias, recuperar movilidad y cuidar tu bienestar
       de forma clara, humana y cercana.
+    </p>
+    <p>
+      Conocé a quienes formamos FluxusTerapia en <a class="about-link" href="#nosotros">Nosotros</a>.
     </p>
     <p class="about-place">Incontro Consultorios · Coronel Suárez</p>
   </div>
   <div class="about-media">
     <img
       src="{{ url_for('static', filename='img/about.jpg') }}"
-      alt="Espacio de bienestar y calma en FluxusTerapia"
+      alt="Sesión de acupuntura en FluxusTerapia"
       width="640"
       height="480"
     >
@@ -95,6 +98,20 @@
     </div>
   </div>
 </section>
+
+<section id="nosotros" class="team" aria-labelledby="nosotros-title">
+  <div class="team-inner">
+    <p class="team-kicker">Equipo</p>
+    <h2 id="nosotros-title">Nosotros</h2>
+    <p class="team-intro">
+      Somos un equipo de profesionales de la salud: kinesiología,
+      masoterapia, medicina china y acupuntura.
+    </p>
+    <p class="team-empty" data-team-empty>Muy pronto vas a conocer acá a cada profesional del equipo.</p>
+    <div class="team-grid" data-team-grid hidden></div>
+  </div>
+</section>
+<script src="{{ url_for('static', filename='js/nosotros.js') }}" defer></script>
 
 <section id="instagram" class="instagram">
   <div class="instagram-inner">

@@ -4,12 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}FluxusTerapia · Masoterapia y bienestar {% endblock %}</title>
-  <meta name="description" content="FluxusTerapia — masoterapia, rehabilitación kinésica, medicina china y movimiento consciente. Michael Grandon, masajista profesional en Coronel Suárez. Seguinos en Instagram @fluxusterapia.">
+  <meta name="description" content="FluxusTerapia — masoterapia, rehabilitación kinésica, medicina china y movimiento consciente. Un equipo de profesionales de la salud. Seguinos en Instagram @fluxusterapia.">
   <link rel="canonical" href="https://fluxusterapia.com/">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://fluxusterapia.com/">
   <meta property="og:title" content="FluxusTerapia">
-  <meta property="og:description" content="Masoterapia y terapias para el bienestar integral. Coronel Suárez · @fluxusterapia">
+  <meta property="og:description" content="Kinesiología, Medicina China y Acupuntura. Coronel Suárez · @fluxusterapia">
   <meta property="og:image" content="https://fluxusterapia.com/img/hero.jpg">
   <meta property="og:see_also" content="https://www.instagram.com/fluxusterapia/">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -32,9 +32,18 @@
     <nav class="site-nav" aria-label="Principal">
       <a href="{{ url_for('index') }}#inicio">Inicio</a>
       <a href="{{ url_for('index') }}#servicios">Servicios</a>
+      <a href="{{ url_for('index') }}#nosotros">Nosotros</a>
       <a href="{{ url_for('index') }}#contacto">Contacto</a>
       <a href="/blogs/">Blogs</a>
-      <a class="nav-academia" href="/academia/">AcademiaFluxus</a>
+      <details class="nav-drop">
+        <summary class="nav-academia" aria-label="AcademiaFluxus: clases en vivo y cursos grabados">AcademiaFluxus<svg class="nav-caret" viewBox="0 0 12 12" width="10" height="10" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></summary>
+        <div class="nav-drop-menu">
+          <div class="nav-drop-panel">
+            <a href="/academia/">Clases en vivo<small>Campus de AcademiaFluxus</small></a>
+            <a href="/cursos/">Cursos grabados<small>Comprá y cursá cuando quieras</small></a>
+          </div>
+        </div>
+      </details>
     </nav>
     <div class="social" aria-label="Redes">
       <a
@@ -79,7 +88,7 @@
   </main>
 
   <footer class="site-footer">
-    <p>© {{ year }} FluxusTerapia · Michael Grandon</p>
+    <p>© {{ year }} FluxusTerapia</p>
     <p>
       <a
         href="https://www.instagram.com/fluxusterapia/"

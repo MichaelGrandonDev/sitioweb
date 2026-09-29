@@ -84,7 +84,8 @@ function deposit_mp_api(string $method, string $path, ?array $body = null): arra
     return $data;
 }
 
-function mark_deposit_paid(int $appointmentId, string $note = ''): void
+/** Confirma el turno y manda el mail con los PDF (una sola vez). Devuelve el resultado del mail. */
+function mark_deposit_paid(int $appointmentId, string $note = ''): string
 {
     db()->prepare("
       UPDATE appointments
@@ -96,6 +97,12 @@ function mark_deposit_paid(int $appointmentId, string $note = ''): void
     if ($note !== '') {
         db()->prepare('UPDATE deposit_payments SET note = ? WHERE appointment_id = ? AND note = \'\'')
             ->execute([$note, $appointmentId]);
+    }
+    try {
+        return send_turno_confirmation($appointmentId);
+    } catch (Throwable $e) {
+        error_log('Turnos: no se pudo mandar el mail del turno ' . $appointmentId . ': ' . $e->getMessage());
+        return 'failed';
     }
 }
 

@@ -232,8 +232,11 @@ function create_appointment(array $data): array
     $email = trim((string) ($data['email'] ?? ''));
     $notes = trim((string) ($data['notes'] ?? ''));
 
-    if ($therapyId < 1 || $date === '' || $time === '' || $name === '' || $phone === '') {
-        throw new RuntimeException('Completá terapia, día, horario, nombre y teléfono.');
+    if ($therapyId < 1 || $date === '' || $time === '' || $name === '' || $phone === '' || $email === '') {
+        throw new RuntimeException('Completá terapia, día, horario, nombre, teléfono y email.');
+    }
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        throw new RuntimeException('Revisá el email: ahí te mandamos la confirmación y los requisitos.');
     }
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
         throw new RuntimeException('Fecha inválida.');
@@ -346,6 +349,9 @@ function migrate_turnos_schema(): void
     if (!in_array('deposit_paid_at', $apptCols, true)) {
         $pdo->exec('ALTER TABLE appointments ADD COLUMN deposit_paid_at TEXT DEFAULT NULL');
     }
+    if (!in_array('mail_sent_at', $apptCols, true)) {
+        $pdo->exec('ALTER TABLE appointments ADD COLUMN mail_sent_at TEXT DEFAULT NULL');
+    }
 
     // Un solo turno activo por día y horario: dos reservas simultáneas no pueden tomar el mismo.
     try {
@@ -396,9 +402,23 @@ function migrate_turnos_schema(): void
             $ins->execute([$k, $v]);
         }
     }
+
+    // Horario 2026-09: lunes a sábado de 8 a 20 (último turno 19 hs), turnos de 1 hora.
+    $ver = $pdo->query("SELECT value FROM deposit_settings WHERE key = 'schedule_version'")->fetchColumn();
+    if ($ver !== '2') {
+        $pdo->beginTransaction();
+        $pdo->exec('DELETE FROM weekly_hours');
+        $hours = $pdo->prepare("INSERT INTO weekly_hours (weekday, start_time, end_time) VALUES (?, '08:00', '20:00')");
+        foreach ([1, 2, 3, 4, 5, 6] as $wd) {
+            $hours->execute([$wd]);
+        }
+        $pdo->prepare("INSERT OR REPLACE INTO deposit_settings (key, value) VALUES ('schedule_version', '2')")->execute();
+        $pdo->commit();
+    }
 }
 
 if (db_ready()) {
     require_once __DIR__ . '/includes/deposit.php';
+    require_once __DIR__ . '/includes/turno_docs.php';
     migrate_turnos_schema();
 }

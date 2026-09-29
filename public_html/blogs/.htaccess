@@ -1,5 +1,3 @@
-DirectoryIndex index.php index.html
-
 <FilesMatch "^(config|bootstrap)\.php$|^error_log$">
   <IfModule mod_authz_core.c>
     Require all denied

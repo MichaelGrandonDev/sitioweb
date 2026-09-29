@@ -106,6 +106,8 @@ require __DIR__ . '/../includes/header.php';
 <p class="lede">Gestioná alumnos, cupos de inscripción, cursos, unidades, galería, blogs, tienda de grabados y cuotas.</p>
 
 <nav class="admin-nav">
+  <a class="btn primary" href="../fluxus/">Fluxus · Generador de clases</a>
+  <a class="btn primary" href="../fluxus/flyers.php">Flyers y afiches</a>
   <a class="btn primary" href="users.php">Gestionar alumnos</a>
   <a class="btn secondary" href="admins.php">Administradores</a>
   <a class="btn secondary" href="payments.php">Cuotas y pagos</a>

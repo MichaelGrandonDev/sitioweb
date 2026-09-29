@@ -39,7 +39,7 @@ $now = new DateTimeImmutable('now');
   <main class="wrap">
     <p class="eyebrow">Agenda</p>
     <h1>Reservar turno</h1>
-    <p class="lede">Elegí la terapia, un día disponible y un horario. Al confirmar se descarga tu comprobante PDF oficial.</p>
+    <p class="lede">Elegí la terapia, un día disponible y un horario: de lunes a sábado, de 8 a 20 hs, turnos de una hora. Cuando se confirma la seña te llega un mail con los requisitos para la sesión y el consentimiento informado en PDF.</p>
 
     <ol class="steps" aria-label="Pasos">
       <li class="is-active" data-step-label="1">Terapia</li>
@@ -80,7 +80,7 @@ $now = new DateTimeImmutable('now');
         <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
         <label>Nombre completo <input name="name" required autocomplete="name" placeholder="Cómo figurarás en el comprobante"></label>
         <label>Teléfono / WhatsApp <input name="phone" required autocomplete="tel" placeholder="Ej: 2932 537949"></label>
-        <label>Email (opcional) <input type="email" name="email" autocomplete="email" placeholder="para recordatorio"></label>
+        <label>Email <input type="email" name="email" required autocomplete="email" placeholder="Te mandamos la confirmación y los requisitos"></label>
         <label>Comentario (opcional) <textarea name="notes" rows="2" placeholder="Alguna molestia o preferencia"></textarea></label>
         <button class="btn primary" type="submit" id="confirm-btn">Reservar y pagar seña</button>
         <p class="hint">Seña de <?= h(money_ars(deposit_amount())) ?>: transferencia, QR o tarjeta. El horario queda reservado hasta acreditar el pago.</p>

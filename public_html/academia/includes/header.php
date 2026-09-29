@@ -35,6 +35,7 @@ $fluxusLogo = $fluxusHome . 'img/logo-circle.png';
       <?php if ($user): ?>
         <?php if ($user['role'] === 'admin'): ?>
           <a href="<?= h(($basePath ?? '') . 'admin/index.php') ?>">Admin</a>
+          <a href="<?= h(($basePath ?? '') . 'fluxus/') ?>">Admin Fluxus</a>
           <a href="<?= h(($basePath ?? '') . 'admin/shop.php') ?>">Tienda</a>
           <a href="<?= h(($basePath ?? '') . 'admin/admins.php') ?>">Admins</a>
           <a href="<?= h(($basePath ?? '') . 'admin/campus.php') ?>">Unidades</a>

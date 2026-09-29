@@ -22,8 +22,16 @@ LOCAL_DIR = ROOT / "public_html"
 ENV_FILE = ROOT / ".env"
 LOCK_FILE = ROOT / ".deploy.lock"
 
-SKIP_NAMES = {".DS_Store", ".git", "__pycache__", ".env", ".ftpquota"}
-SKIP_SUFFIXES = {".sqlite", ".sqlite-journal", ".pyc", ".log"}
+SKIP_NAMES = {".DS_Store", ".git", "__pycache__", ".env", ".ftpquota", "error_log"}
+SKIP_SUFFIXES = {
+    ".sqlite", ".sqlite3", ".db", ".sqlite-journal", ".sqlite-wal", ".sqlite-shm",
+    ".db-journal", ".db-wal", ".db-shm", ".pyc", ".log", ".part",
+}
+# Carpetas con datos del servidor (libros, imágenes, uploads, SQLite): nunca se suben
+# ni se pisan. Solo viajan sus archivos de protección.
+DATA_DIRS = {"data", "uploads"}
+DATA_DIR_ALLOWED = {".htaccess", ".gitkeep"}
+ALLOWED_DOTFILES = {".htaccess", ".user.ini"}
 
 
 def load_env(path: Path) -> dict[str, str]:
@@ -79,8 +87,10 @@ def should_skip(path: Path, local_root: Path) -> bool:
         return True
     if path.suffix.lower() in SKIP_SUFFIXES:
         return True
-    # Allow .htaccess; skip other dotfiles
-    if path.name.startswith(".") and path.name not in {".htaccess"}:
+    if any(part in DATA_DIRS for part in rel_parts[:-1]):
+        if path.is_dir() or path.name not in DATA_DIR_ALLOWED:
+            return True
+    if path.name.startswith(".") and path.name not in ALLOWED_DOTFILES:
         return True
     # Keep live secrets on the server; repo uses CHANGE_ME placeholders
     if path.name == "config.php" and path.is_file():
@@ -130,12 +140,24 @@ def remote_join(remote_root: str, rel: str) -> str:
 
 
 def upload_file(ftp: FTP, local: Path, remote_path: str) -> None:
+    # Se sube con nombre temporal y se renombra: nadie recibe un archivo a medio escribir
+    # (un JS truncado queda en la caché del navegador y rompe la página por días).
+    folder, name = remote_path.rsplit("/", 1) if "/" in remote_path else ("", remote_path)
+    temp_path = f"{folder}/.fxup-{os.getpid()}-{name}" if folder or remote_path.startswith("/") else f".fxup-{os.getpid()}-{name}"
     with local.open("rb") as handle:
-        ftp.storbinary(f"STOR {remote_path}", handle)
+        ftp.storbinary(f"STOR {temp_path}", handle)
     try:
-        ftp.sendcmd(f"SITE CHMOD 644 {remote_path}")
+        ftp.sendcmd(f"SITE CHMOD 644 {temp_path}")
     except Exception:
         pass
+    try:
+        ftp.rename(temp_path, remote_path)
+    except error_perm:
+        try:
+            ftp.delete(remote_path)
+        except error_perm:
+            pass
+        ftp.rename(temp_path, remote_path)
     print(f"  ↑ {remote_path}")
 
 

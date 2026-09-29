@@ -25,6 +25,11 @@ DNS.md
 public_html/academia/data/*.sqlite
 public_html/academia/data/*.sqlite-journal
 public_html/**/data/*.sqlite
+public_html/academia/fluxus/config.php
+public_html/academia/fluxus/data/books/
+public_html/academia/fluxus/data/images/
 public_html/**/data/*.sqlite-journal
+public_html/**/data/*.sqlite-wal
+public_html/**/data/*.sqlite-shm
 public_html/**/error_log
 public_html/error_log

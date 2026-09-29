@@ -63,10 +63,48 @@ final class FluxusPdf
         $this->y -= 16;
     }
 
+    public function small(string $text): void
+    {
+        foreach ($this->wrap($text, 105) as $line) {
+            $this->need(14);
+            $this->writeText($line, 9, false, 'L');
+        }
+        $this->y -= 2;
+    }
+
+    /** Líneas para completar a mano (firma, aclaración, DNI…), de a dos por renglón. */
+    public function signatureRow(string $left, string $right = ''): void
+    {
+        $this->need(60);
+        $this->y -= 30;
+        $y = $this->y + 12;
+        $this->buf .= sprintf("0.2 0.2 0.2 RG 0.7 w 50 %.2F m 270 %.2F l S\n", $y, $y);
+        if ($right !== '') {
+            $this->buf .= sprintf("0.2 0.2 0.2 RG 0.7 w 325 %.2F m 545 %.2F l S\n", $y, $y);
+        }
+        $this->buf .= sprintf("BT /F2 9 Tf 0.3 0.3 0.3 rg 50 %.2F Td (%s) Tj ET\n", $this->y, $this->encode($left));
+        if ($right !== '') {
+            $this->buf .= sprintf("BT /F2 9 Tf 0.3 0.3 0.3 rg 325 %.2F Td (%s) Tj ET\n", $this->y, $this->encode($right));
+        }
+        $this->y -= 22;
+    }
+
     public function output(string $filename): never
+    {
+        $pdf = $this->render();
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Cache-Control: private, max-age=0, must-revalidate');
+        header('Pragma: public');
+        echo $pdf;
+        exit;
+    }
+
+    public function render(): string
     {
         if ($this->buf !== '') {
             $this->pages[] = $this->buf;
+            $this->buf = '';
         }
         if (!$this->pages) {
             $this->pages[] = '';
@@ -112,13 +150,7 @@ final class FluxusPdf
             $pdf .= sprintf("%010d 00000 n \n", $offsets[$i] ?? 0);
         }
         $pdf .= "trailer\n<< /Size " . ($max + 1) . " /Root 1 0 R >>\nstartxref\n{$xref}\n%%EOF";
-
-        header('Content-Type: application/pdf');
-        header('Content-Disposition: attachment; filename="' . $filename . '"');
-        header('Cache-Control: private, max-age=0, must-revalidate');
-        header('Pragma: public');
-        echo $pdf;
-        exit;
+        return $pdf;
     }
 
     private function need(float $h): void

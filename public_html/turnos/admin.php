@@ -8,6 +8,16 @@ if (!db_ready()) {
     redirect('install.php');
 }
 
+function mail_result_text(string $result): string
+{
+    return match ($result) {
+        'sent' => ' Se le mandó el mail con los requisitos y el consentimiento.',
+        'already' => ' El mail ya se había mandado antes.',
+        'no_email' => ' No tiene email cargado: mandale los PDF por WhatsApp.',
+        default => ' Ojo: no se pudo mandar el mail.',
+    };
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     if ($action === 'login') {
@@ -59,8 +69,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($row) {
             db()->prepare("UPDATE deposit_payments SET status = 'approved', confirmed_at = ? WHERE id = ?")
                 ->execute([date('Y-m-d H:i:s'), $pid]);
-            mark_deposit_paid((int) $row['appointment_id'], 'Seña confirmada por admin');
-            flash('success', 'Seña confirmada. Turno acreditado.');
+            $mail = mark_deposit_paid((int) $row['appointment_id'], 'Seña confirmada por admin');
+            flash('success', 'Seña confirmada. Turno acreditado.' . mail_result_text($mail));
         }
         redirect('admin.php');
     }
@@ -84,9 +94,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'mark_deposit_paid') {
         $id = (int) ($_POST['id'] ?? 0);
         if ($id > 0) {
-            mark_deposit_paid($id, 'Marcado por admin');
-            flash('success', 'Seña marcada como paga.');
+            $mail = mark_deposit_paid($id, 'Marcado por admin');
+            flash('success', 'Seña marcada como paga.' . mail_result_text($mail));
         }
+        redirect('admin.php');
+    }
+    if ($action === 'send_mail') {
+        $result = send_turno_confirmation((int) ($_POST['id'] ?? 0), true);
+        flash($result === 'sent' ? 'success' : 'error', trim(mail_result_text($result)));
+        redirect('admin.php');
+    }
+    if ($action === 'save_docs') {
+        deposit_setting_set('requisitos_text', trim((string) ($_POST['requisitos_text'] ?? '')));
+        deposit_setting_set('consentimiento_text', trim((string) ($_POST['consentimiento_text'] ?? '')));
+        flash('success', 'Requisitos y consentimiento guardados. Los próximos mails usan estos textos.');
         redirect('admin.php');
     }
 }
@@ -217,10 +238,22 @@ $logged = !empty($_SESSION['turnos_admin']);
                 · código <?= h($a['code']) ?>
                 · seña <?= h(money_ars((int) ($a['deposit_amount'] ?? 15000))) ?>
                 · <strong><?= $a['status'] === 'confirmed' ? 'Confirmado' : 'Espera seña' ?></strong>
+                <?php if ($a['status'] === 'confirmed'): ?>
+                  <br><span class="muted"><?= !empty($a['mail_sent_at']) ? 'Mail con requisitos enviado el ' . h(date('d/m H:i', strtotime((string) $a['mail_sent_at']))) : 'Mail con requisitos sin enviar' ?></span>
+                <?php endif; ?>
               </div>
               <div class="actions" style="display:flex;gap:.4rem;align-items:start;flex-wrap:wrap">
                 <?php if ($a['status'] === 'confirmed'): ?>
-                  <a class="btn ghost" href="pdf.php?token=<?= h(urlencode($a['token'])) ?>">PDF</a>
+                  <a class="btn ghost" href="pdf.php?token=<?= h(urlencode($a['token'])) ?>">Requisitos PDF</a>
+                  <a class="btn ghost" href="pdf.php?token=<?= h(urlencode($a['token'])) ?>&amp;doc=consentimiento">Consentimiento PDF</a>
+                  <?php if ($a['patient_email']): ?>
+                    <form method="post">
+                      <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
+                      <input type="hidden" name="action" value="send_mail">
+                      <input type="hidden" name="id" value="<?= (int) $a['id'] ?>">
+                      <button class="btn ghost" type="submit"><?= !empty($a['mail_sent_at']) ? 'Reenviar mail' : 'Enviar mail' ?></button>
+                    </form>
+                  <?php endif; ?>
                 <?php else: ?>
                   <a class="btn ghost" href="pay.php?token=<?= h(urlencode($a['token'])) ?>">Link seña</a>
                   <form method="post">
@@ -240,6 +273,22 @@ $logged = !empty($_SESSION['turnos_admin']);
             </article>
           <?php endforeach; ?>
         <?php endif; ?>
+      </section>
+
+      <section class="panel">
+        <h2>Requisitos y consentimiento informado</h2>
+        <p class="hint">Horario de turnos: lunes a sábado de 8 a 20 hs (último turno 19 hs), cada una hora. Cuando se confirma la seña, al paciente le llega un mail con estos dos PDF. Un renglón por punto.</p>
+        <form method="post" class="stack">
+          <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="action" value="save_docs">
+          <label>Requisitos para la sesión
+            <textarea name="requisitos_text" rows="9"><?= h(turno_text_setting('requisitos_text', TURNO_REQUISITOS_DEFAULT)) ?></textarea>
+          </label>
+          <label>Consentimiento informado (puntos que declara el paciente)
+            <textarea name="consentimiento_text" rows="12"><?= h(turno_text_setting('consentimiento_text', TURNO_CONSENTIMIENTO_DEFAULT)) ?></textarea>
+          </label>
+          <button class="btn primary" type="submit">Guardar textos</button>
+        </form>
       </section>
 
       <section class="panel">

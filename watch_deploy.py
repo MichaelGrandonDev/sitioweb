@@ -16,17 +16,15 @@ ROOT = Path(__file__).resolve().parent
 WATCH_DIRS = [ROOT / "public_html", ROOT / "static"]
 DEBOUNCE_SEC = 3.0
 SKIP_NAMES = {".DS_Store", ".git", "__pycache__", ".env", ".deploy.lock"}
-SKIP_SUFFIXES = {".sqlite", ".sqlite-journal", ".pyc", ".log"}
 
 
 def tracked(path: Path) -> bool:
     if any(part in SKIP_NAMES for part in path.parts):
         return False
-    if path.suffix.lower() in SKIP_SUFFIXES:
-        return False
-    if path.name.startswith(".") and path.name not in {".htaccess"}:
-        return False
-    return True
+    for folder in WATCH_DIRS:
+        if path.is_relative_to(folder):
+            return not deploy_mod.should_skip(path, folder)
+    return False
 
 
 def snapshot() -> dict[str, float]:

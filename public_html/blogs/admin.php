@@ -216,6 +216,7 @@ if (is_admin()) {
       <a href="./">← Ver blogs públicos</a>
       · <a href="../galeria/admin.php">Galería</a>
       · <a href="../academia/admin/">Panel Academia</a>
+      · <a href="../academia/fluxus/">Fluxus</a>
     </p>
 
     <?php if ($flash): ?>

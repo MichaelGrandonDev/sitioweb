@@ -99,14 +99,15 @@ $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' . $qrD
     <section class="panel">
       <p style="margin:0 0 .35rem;font-size:.9rem;color:var(--muted)">Seña requerida</p>
       <p style="margin:0;font-size:2rem;font-weight:700;color:var(--brand)"><?= h(money_ars($amount)) ?></p>
-      <p class="hint">El horario queda reservado. Al acreditar la seña descargás el comprobante PDF.</p>
+      <p class="hint">El horario queda reservado. Al acreditar la seña te llega un mail con el comprobante, los requisitos y el consentimiento informado en PDF.</p>
     </section>
 
     <?php if ($paid): ?>
       <section class="panel success">
         <h2>¡Listo!</h2>
-        <p>Tu seña está paga y el turno confirmado.</p>
-        <a class="btn primary" href="pdf.php?token=<?= h(urlencode($token)) ?>">Descargar comprobante PDF</a>
+        <p>Tu seña está paga y el turno confirmado. Te mandamos un mail a <strong><?= h((string) $appt['patient_email']) ?></strong> con estos dos PDF:</p>
+        <a class="btn primary" href="pdf.php?token=<?= h(urlencode($token)) ?>">Comprobante y requisitos (PDF)</a>
+        <a class="btn primary" href="pdf.php?token=<?= h(urlencode($token)) ?>&amp;doc=consentimiento">Consentimiento informado (PDF)</a>
         <a class="btn ghost" href="../">Volver al inicio</a>
       </section>
     <?php else: ?>

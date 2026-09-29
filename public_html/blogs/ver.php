@@ -23,7 +23,7 @@ if (!$post) {
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="../css/style.css?v=20260925p">
+  <link rel="stylesheet" href="../css/style.css?v=20260929s">
   <link rel="stylesheet" href="assets/blogs.css?v=1">
   <link rel="icon" href="../img/logo.png" type="image/png">
 </head>
@@ -36,10 +36,18 @@ if (!$post) {
       <a href="../">Inicio</a>
       <a href="../#servicios">Servicios</a>
       <a href="../galeria/">Galería</a>
+      <a href="../#nosotros">Nosotros</a>
       <a href="../#contacto">Contacto</a>
       <a href="./">Blogs</a>
-      <a href="../cursos/">Cursos grabados</a>
-      <a class="nav-academia" href="../academia/">AcademiaFluxus</a>
+      <details class="nav-drop">
+        <summary class="nav-academia" aria-label="AcademiaFluxus: clases en vivo y cursos grabados">AcademiaFluxus<svg class="nav-caret" viewBox="0 0 12 12" width="10" height="10" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></summary>
+        <div class="nav-drop-menu">
+          <div class="nav-drop-panel">
+            <a href="../academia/">Clases en vivo<small>Campus de AcademiaFluxus</small></a>
+            <a href="../cursos/">Cursos grabados<small>Comprá y cursá cuando quieras</small></a>
+          </div>
+        </div>
+      </details>
     </nav>
     <div class="social" aria-label="Redes">
       <a
@@ -126,7 +134,7 @@ if (!$post) {
   </main>
 
   <footer class="site-footer">
-    <p>© <?= date('Y') ?> FluxusTerapia · Michael Grandon</p>
+    <p>© <?= date('Y') ?> FluxusTerapia</p>
   </footer>
 </body>
 </html>

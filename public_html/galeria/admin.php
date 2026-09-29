@@ -166,6 +166,7 @@ if (is_admin() && $editId > 0) {
       <a href="./">← Ver galería pública</a>
       · <a href="../blogs/admin.php">Blogs</a>
       · <a href="../academia/admin/">Panel Academia</a>
+      · <a href="../academia/fluxus/">Fluxus</a>
     </p>
 
     <?php if ($flash): ?>
