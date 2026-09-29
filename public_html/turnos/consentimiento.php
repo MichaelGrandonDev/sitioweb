@@ -64,7 +64,7 @@ $prep = turno_prep_lines($appt);
   <meta name="referrer" content="no-referrer">
   <title>Consentimiento informado · FluxusTerapia</title>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Outfit:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/turnos.css?v=20260929c">
+  <link rel="stylesheet" href="assets/turnos.css?v=20260929d">
 </head>
 <body>
   <header class="top">
@@ -82,6 +82,9 @@ $prep = turno_prep_lines($appt);
       <?= h(format_date_es($appt['date'])) ?> ·
       <?= h(format_time_es($appt['time'])) ?> ·
       código <?= h($appt['code']) ?>
+      <?php $loc = turno_location_of($appt); ?>
+      <br>Lugar: <?= h($loc['label']) ?>
+      <?php if ($loc['map_link'] !== ''): ?> · <a href="<?= h($loc['map_link']) ?>" target="_blank" rel="noopener">Cómo llegar</a><?php endif; ?>
     </p>
 
     <?php if ($flash): ?>

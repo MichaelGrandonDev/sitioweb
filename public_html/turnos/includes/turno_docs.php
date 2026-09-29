@@ -326,14 +326,21 @@ function turno_pdf_header(FluxusPdf $pdf, string $subtitle): void
 
 function turno_pdf_details(FluxusPdf $pdf, array $appt): void
 {
-    global $config;
+    $loc = turno_location_of($appt);
     $pdf->heading('Detalle del turno');
     $pdf->paragraph('Código: ' . $appt['code']);
     $pdf->paragraph('Terapia: ' . $appt['therapy_name']);
     $pdf->paragraph('Día: ' . format_date_es((string) $appt['date']));
     $pdf->paragraph('Hora: ' . format_time_es((string) $appt['time']));
     $pdf->paragraph('Duración aproximada: ' . (int) $appt['duration_min'] . ' minutos');
-    $pdf->paragraph('Lugar: ' . $config['place_name'] . ' · ' . $config['place_city']);
+    $pdf->paragraph('Lugar: ' . $loc['label']);
+    if ($loc['notes'] !== '') {
+        $pdf->paragraph('Indicaciones para llegar: ' . $loc['notes']);
+    }
+    // El PDF no corta palabras: un link más largo que el renglón se saldría de la hoja.
+    if ($loc['map_link'] !== '' && strlen($loc['map_link']) <= 88) {
+        $pdf->paragraph('Mapa: ' . $loc['map_link']);
+    }
 }
 
 /** Comprobante + requisitos para la sesión. */
@@ -438,7 +445,14 @@ function turno_ics(array $appt): string
         return $out . $line;
     };
 
+    $loc = turno_location_of($appt);
     $desc = 'Código: ' . $appt['code'];
+    if ($loc['notes'] !== '') {
+        $desc .= "\nIndicaciones para llegar: " . $loc['notes'];
+    }
+    if ($loc['map_link'] !== '') {
+        $desc .= "\nCómo llegar: " . $loc['map_link'];
+    }
     if (empty($appt['consent_accepted_at'])) {
         $desc .= "\nFirmá el consentimiento online: " . turno_page_url($appt, 'consentimiento.php');
     }
@@ -460,7 +474,7 @@ function turno_ics(array $appt): string
         'DTSTART:' . $stamp($start),
         'DTEND:' . $stamp($end),
         'SUMMARY:' . $esc('Turno ' . $appt['therapy_name'] . ' · FluxusTerapia'),
-        'LOCATION:' . $esc(($config['place_name'] ?? 'FluxusTerapia') . ', ' . ($config['place_city'] ?? '')),
+        'LOCATION:' . $esc($loc['label'] === $loc['address'] ? $loc['address'] : $loc['name'] . ', ' . $loc['address']),
         'DESCRIPTION:' . $esc($desc),
         'STATUS:CONFIRMED',
         'BEGIN:VALARM',
@@ -562,7 +576,7 @@ function send_turno_confirmation(int $appointmentId, bool $force = false): strin
     $e = static fn ($v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
     $date = format_date_es((string) $appt['date']);
     $time = format_time_es((string) $appt['time']);
-    $place = $config['place_name'] . ' · ' . $config['place_city'];
+    $loc = turno_location_of($appt);
     $reqUrl = turno_doc_url($appt, 'requisitos');
     $conUrl = turno_doc_url($appt, 'consentimiento');
     $signUrl = turno_page_url($appt, 'consentimiento.php');
@@ -604,7 +618,10 @@ function send_turno_confirmation(int $appointmentId, bool $force = false): strin
         . '<strong style="font-size:17px">' . $e($appt['therapy_name']) . '</strong><br>'
         . 'Día: <strong>' . $e($date) . '</strong><br>'
         . 'Hora: <strong>' . $e($time) . '</strong> · duración aproximada ' . (int) $appt['duration_min'] . ' min<br>'
-        . $e($place) . '<br>Código: <strong>' . $e($appt['code']) . '</strong>'
+        . 'Lugar: <strong>' . $e($loc['label']) . '</strong><br>'
+        . ($loc['notes'] !== '' ? $e($loc['notes']) . '<br>' : '')
+        . ($loc['map_link'] !== '' ? '<a href="' . $e($loc['map_link']) . '" style="color:#0f3d36;font-weight:700">Cómo llegar (Google Maps)</a><br>' : '')
+        . 'Código: <strong>' . $e($appt['code']) . '</strong>'
         . '</td></tr></table>';
 
     $html .= $h2('Consentimiento informado');
@@ -649,7 +666,10 @@ function send_turno_confirmation(int $appointmentId, bool $force = false): strin
 
     $text = 'Hola, ' . $appt['patient_name'] . "\n\n"
         . "Tu turno quedó confirmado:\n"
-        . $appt['therapy_name'] . "\nDía: " . $date . "\nHora: " . $time . "\n" . $place . "\nCódigo: " . $appt['code'] . "\n\n"
+        . $appt['therapy_name'] . "\nDía: " . $date . "\nHora: " . $time . "\nLugar: " . $loc['label'] . "\n"
+        . ($loc['notes'] !== '' ? $loc['notes'] . "\n" : '')
+        . ($loc['map_link'] !== '' ? 'Cómo llegar: ' . $loc['map_link'] . "\n" : '')
+        . 'Código: ' . $appt['code'] . "\n\n"
         . "CONSENTIMIENTO INFORMADO\n"
         . ($signed
             ? 'Ya lo firmaste online el ' . date('d/m/Y', strtotime((string) $appt['consent_accepted_at'])) . ".\n\n"

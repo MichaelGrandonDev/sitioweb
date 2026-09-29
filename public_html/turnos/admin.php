@@ -18,6 +18,30 @@ function mail_result_text(string $result): string
     };
 }
 
+/**
+ * Selector del lugar de la sesión: uno de la lista u "Otra dirección…" escrita a mano.
+ * $selected = id del lugar o "other"; $custom = valores de la dirección escrita a mano.
+ */
+function location_picker(array $locations, string $selected, array $custom = []): string
+{
+    if (!$locations) {
+        $selected = 'other';
+    }
+    $html = '<div class="location-picker span-2" data-location-picker><label>Lugar de la sesión<select name="location_id">';
+    foreach ($locations as $loc) {
+        $html .= '<option value="' . (int) $loc['id'] . '"' . ($selected === (string) $loc['id'] ? ' selected' : '') . '>'
+            . h(turno_location_label($loc) . ((int) $loc['is_default'] === 1 ? ' (predeterminado)' : '')) . '</option>';
+    }
+    $html .= '<option value="other"' . ($selected === 'other' ? ' selected' : '') . '>Otra dirección…</option></select></label>'
+        . '<div class="location-custom' . ($selected === 'other' ? '' : ' is-hidden') . '">'
+        . '<label>Nombre del lugar (opcional)<input name="location_name" maxlength="120" autocomplete="off" placeholder="Ej: Consultorio Coronel Suárez" value="' . h((string) ($custom['name'] ?? '')) . '"></label>'
+        . '<label>Dirección<input name="location_address" maxlength="200" autocomplete="off" placeholder="Calle, número y ciudad" value="' . h((string) ($custom['address'] ?? '')) . '"></label>'
+        . '<label class="check"><input type="checkbox" name="location_save" value="1"' . (($custom['save'] ?? true) ? ' checked' : '') . '>'
+        . '<span>Guardar esta dirección en la lista para usarla en otros turnos</span></label>'
+        . '</div></div>';
+    return $html;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     if ($action === 'login') {
@@ -113,13 +137,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'deposit_amount' => (int) $post('deposit_amount'),
         ];
         try {
-            $appt = create_manual_appointment($input);
+            [$location, $saveLocation] = turno_location_from_form($_POST);
+            $appt = create_manual_appointment($input + ['location' => $location]);
         } catch (RuntimeException $e) {
-            $_SESSION['manual_form'] = $input + ['send_mail' => $sendMail, 'time_select' => $post('time'), 'time_custom' => $post('time_custom')];
+            $_SESSION['manual_form'] = $input + [
+                'send_mail' => $sendMail,
+                'time_select' => $post('time'),
+                'time_custom' => $post('time_custom'),
+                'location_id' => $post('location_id'),
+                'location_name' => $post('location_name'),
+                'location_address' => $post('location_address'),
+                'location_save' => $post('location_save') === '1',
+            ];
             flash('error', $e->getMessage());
             redirect('admin.php#manual');
         }
-        $msg = 'Turno cargado y confirmado: ' . $input['name'] . ' · ' . format_date_es($appt['date']) . ' · ' . format_time_es($appt['time']) . ' (código ' . $appt['code'] . ').';
+        $msg = 'Turno cargado y confirmado: ' . $input['name'] . ' · ' . format_date_es($appt['date']) . ' · ' . format_time_es($appt['time'])
+            . ' · ' . turno_location_label($location) . ' (código ' . $appt['code'] . ').';
+        if ($saveLocation) {
+            turno_location_save($location);
+            $msg .= ' La dirección quedó guardada en la lista.';
+        }
         $result = 'skipped';
         if ($sendMail) {
             try {
@@ -134,6 +172,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         flash($result === 'failed' ? 'error' : 'success', $msg);
         redirect('admin.php');
+    }
+    if ($action === 'set_location') {
+        $id = (int) ($_POST['id'] ?? 0);
+        try {
+            [$location, $saveLocation] = turno_location_from_form($_POST);
+        } catch (RuntimeException $e) {
+            flash('error', $e->getMessage());
+            redirect('admin.php');
+        }
+        db()->prepare('UPDATE appointments SET location_name = ?, location_address = ?, location_notes = ?, location_maps = ? WHERE id = ?')
+            ->execute([$location['name'], $location['address'], $location['notes'], $location['maps'], $id]);
+        if ($saveLocation) {
+            turno_location_save($location);
+        }
+        flash('success', 'Lugar del turno cambiado a: ' . turno_location_label($location) . '.'
+            . ($saveLocation ? ' La dirección quedó guardada en la lista.' : '')
+            . ' Si ya le habías mandado el mail, reenviáselo para que le llegue la dirección nueva.');
+        redirect('admin.php');
+    }
+    if (in_array($action, ['location_add', 'location_update', 'location_default', 'location_delete'], true)) {
+        $id = (int) ($_POST['id'] ?? 0);
+        $fields = [];
+        foreach (['name', 'address', 'notes', 'maps_url'] as $key) {
+            $fields[$key] = is_string($_POST[$key] ?? null) ? $_POST[$key] : '';
+        }
+        try {
+            if ($action === 'location_add') {
+                $newId = turno_location_save($fields);
+                if (($_POST['make_default'] ?? '') === '1') {
+                    turno_location_set_default($newId);
+                }
+                flash('success', 'Lugar agregado a la lista.');
+            } elseif ($action === 'location_update') {
+                turno_location_save($fields, $id);
+                flash('success', 'Lugar actualizado. Los turnos ya dados conservan la dirección que tenían.');
+            } elseif ($action === 'location_default') {
+                turno_location_set_default($id);
+                flash('success', 'Lugar predeterminado cambiado. Se usa para los turnos nuevos.');
+            } else {
+                turno_location_delete($id);
+                flash('success', 'Lugar borrado de la lista. Los turnos ya dados conservan su dirección.');
+            }
+        } catch (RuntimeException $e) {
+            flash('error', $e->getMessage());
+        }
+        redirect('admin.php#lugares');
     }
     if ($action === 'send_mail') {
         $result = send_turno_confirmation((int) ($_POST['id'] ?? 0), true);
@@ -163,7 +247,7 @@ $logged = !empty($_SESSION['turnos_admin']);
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin turnos · FluxusTerapia</title>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Outfit:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/turnos.css?v=20260929c">
+  <link rel="stylesheet" href="assets/turnos.css?v=20260929d">
 </head>
 <body>
   <header class="top">
@@ -215,6 +299,16 @@ $logged = !empty($_SESSION['turnos_admin']);
         $manualDate = (string) ($manual['date'] ?? '');
         $manualSlots = preg_match('/^\d{4}-\d{2}-\d{2}$/', $manualDate) ? available_slots_for($manualDate) : [];
         $manualTime = (string) ($manual['time_select'] ?? '');
+        $locations = turno_locations();
+        $defaultLocationId = $locations ? (string) $locations[0]['id'] : 'other';
+        $savedLocationId = static function (array $snapshot) use ($locations): ?string {
+            foreach ($locations as $loc) {
+                if (trim((string) $loc['name']) === $snapshot['name'] && trim((string) $loc['address']) === $snapshot['address']) {
+                    return (string) $loc['id'];
+                }
+            }
+            return null;
+        };
       ?>
       <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap">
         <h1>Admin turnos</h1>
@@ -227,7 +321,7 @@ $logged = !empty($_SESSION['turnos_admin']);
 
       <section class="panel" id="manual">
         <h2>Cargar turno manual</h2>
-        <p class="hint">Para turnos reservados por WhatsApp, teléfono o en persona. Queda confirmado al instante. El mail le llega con el día y la hora, el link para firmar el consentimiento online, las indicaciones previas, los dos PDF y, si ponés seña, un QR para pagarla si quiere.</p>
+        <p class="hint">Para turnos reservados por WhatsApp, teléfono o en persona. Queda confirmado al instante. El mail le llega con el día, la hora y el lugar (con link a Google Maps), el link para firmar el consentimiento online, las indicaciones previas, los dos PDF y, si ponés seña, un QR para pagarla si quiere.</p>
         <form method="post" class="form-grid" id="manual-form">
           <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
           <input type="hidden" name="action" value="create_manual">
@@ -266,6 +360,11 @@ $logged = !empty($_SESSION['turnos_admin']);
           <label>Seña opcional (ARS, 0 = sin link de pago)
             <input type="number" name="deposit_amount" min="0" step="100" value="<?= (int) ($manual['deposit_amount'] ?? deposit_amount()) ?>">
           </label>
+          <?= location_picker($locations, (string) ($manual['location_id'] ?? $defaultLocationId), [
+              'name' => $manual['location_name'] ?? '',
+              'address' => $manual['location_address'] ?? '',
+              'save' => $manual['location_save'] ?? true,
+          ]) ?>
           <label class="span-2">Notas (opcional, no se muestran al paciente)
             <textarea name="notes" rows="2" maxlength="1000"><?= h((string) ($manual['notes'] ?? '')) ?></textarea>
           </label>
@@ -325,6 +424,81 @@ $logged = !empty($_SESSION['turnos_admin']);
           toggleCustom();
         })();
       </script>
+
+      <section class="panel" id="lugares">
+        <h2>Lugares de atención</h2>
+        <p class="hint">Las direcciones que aparecen al cargar un turno. El predeterminado se usa en los turnos que reservan los pacientes desde la web (las clases online quedan como “Online”). Si una dirección tiene número de calle, el mail lleva un link a Google Maps; si cargás tu propio link del mapa, se usa ese. Editar o borrar un lugar no cambia los turnos ya dados.</p>
+        <?php foreach ($locations as $loc): ?>
+          <?php $locLink = turno_location_map_link(turno_location_snapshot($loc)); ?>
+          <article class="location-row">
+            <div>
+              <strong><?= h(turno_location_label($loc)) ?></strong>
+              <?php if ((int) $loc['is_default'] === 1): ?><span class="tag ok">Predeterminado</span><?php endif; ?>
+              <?php if (trim((string) $loc['notes']) !== ''): ?><br><span class="muted small"><?= h((string) $loc['notes']) ?></span><?php endif; ?>
+              <?php if ($locLink !== ''): ?><br><a class="small" href="<?= h($locLink) ?>" target="_blank" rel="noopener">Ver en Google Maps</a><?php endif; ?>
+            </div>
+            <div class="actions" style="display:flex;gap:.4rem;align-items:start;flex-wrap:wrap">
+              <?php if ((int) $loc['is_default'] !== 1): ?>
+                <form method="post">
+                  <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
+                  <input type="hidden" name="action" value="location_default">
+                  <input type="hidden" name="id" value="<?= (int) $loc['id'] ?>">
+                  <button class="btn ghost" type="submit">Hacer predeterminado</button>
+                </form>
+              <?php endif; ?>
+              <form method="post" onsubmit="return confirm('¿Borrar este lugar de la lista? Los turnos ya dados conservan su dirección.')">
+                <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="action" value="location_delete">
+                <input type="hidden" name="id" value="<?= (int) $loc['id'] ?>">
+                <button class="btn ghost" type="submit">Borrar</button>
+              </form>
+            </div>
+            <details class="admin-details">
+              <summary>Editar</summary>
+              <form method="post" class="form-grid">
+                <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="action" value="location_update">
+                <input type="hidden" name="id" value="<?= (int) $loc['id'] ?>">
+                <label>Nombre del lugar (opcional)
+                  <input name="name" maxlength="120" value="<?= h((string) $loc['name']) ?>">
+                </label>
+                <label>Dirección
+                  <input name="address" required maxlength="200" value="<?= h((string) $loc['address']) ?>">
+                </label>
+                <label>Indicaciones para llegar (opcional)
+                  <input name="notes" maxlength="300" placeholder="Ej: timbre 2, primer piso" value="<?= h((string) $loc['notes']) ?>">
+                </label>
+                <label>Link de Google Maps (opcional)
+                  <input type="url" name="maps_url" maxlength="500" placeholder="https://maps.app.goo.gl/…" value="<?= h((string) $loc['maps_url']) ?>">
+                </label>
+                <div class="span-2"><button class="btn primary" type="submit">Guardar lugar</button></div>
+              </form>
+            </details>
+          </article>
+        <?php endforeach; ?>
+        <h3 style="margin-top:1rem">Agregar un lugar</h3>
+        <form method="post" class="form-grid">
+          <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="action" value="location_add">
+          <label>Nombre del lugar (opcional)
+            <input name="name" maxlength="120" placeholder="Ej: Consultorio Punta Alta">
+          </label>
+          <label>Dirección
+            <input name="address" required maxlength="200" placeholder="Calle, número y ciudad">
+          </label>
+          <label>Indicaciones para llegar (opcional)
+            <input name="notes" maxlength="300" placeholder="Ej: timbre 2, primer piso">
+          </label>
+          <label>Link de Google Maps (opcional)
+            <input type="url" name="maps_url" maxlength="500" placeholder="https://maps.app.goo.gl/…">
+          </label>
+          <label class="check span-2">
+            <input type="checkbox" name="make_default" value="1">
+            <span>Usarlo como predeterminado</span>
+          </label>
+          <div class="span-2"><button class="btn primary" type="submit">Agregar lugar</button></div>
+        </form>
+      </section>
 
       <section class="panel">
         <h2>Seña · monto y transferencia</h2>
@@ -391,6 +565,9 @@ $logged = !empty($_SESSION['turnos_admin']);
                 <strong><?= h($a['patient_name']) ?></strong> · <?= h($a['therapy_name']) ?>
                 <?php if (($a['source'] ?? '') === 'manual'): ?><span class="tag">Cargado a mano</span><?php endif; ?><br>
                 <span class="muted"><?= h(format_date_es($a['date'])) ?> · <?= h(format_time_es($a['time'])) ?></span><br>
+                <?php $apptLoc = turno_location_of($a); ?>
+                <span class="muted">Lugar: <?= h($apptLoc['label']) ?></span>
+                <?php if ($apptLoc['map_link'] !== ''): ?> · <a class="small" href="<?= h($apptLoc['map_link']) ?>" target="_blank" rel="noopener">Mapa</a><?php endif; ?><br>
                 <span class="muted"><?= h(implode(' · ', array_filter([trim((string) $a['patient_phone']), trim((string) $a['patient_email'])]))) ?></span>
                 · código <?= h($a['code']) ?>
                 · <?= h($depText) ?>
@@ -405,6 +582,19 @@ $logged = !empty($_SESSION['turnos_admin']);
                 <?php else: ?>
                   <span class="tag warn">Consentimiento pendiente</span>
                 <?php endif; ?>
+                <details class="admin-details">
+                  <summary>Cambiar lugar</summary>
+                  <?php $apptLocId = $savedLocationId($apptLoc); ?>
+                  <form method="post" class="form-grid">
+                    <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
+                    <input type="hidden" name="action" value="set_location">
+                    <input type="hidden" name="id" value="<?= (int) $a['id'] ?>">
+                    <?= location_picker($locations, $apptLocId ?? 'other', $apptLocId === null
+                        ? ['name' => $apptLoc['name'], 'address' => $apptLoc['address'], 'save' => false]
+                        : ['save' => true]) ?>
+                    <div class="span-2"><button class="btn primary" type="submit">Guardar lugar del turno</button></div>
+                  </form>
+                </details>
               </div>
               <div class="actions" style="display:flex;gap:.4rem;align-items:start;flex-wrap:wrap">
                 <?php if ($a['status'] === 'confirmed'): ?>
@@ -499,6 +689,20 @@ $logged = !empty($_SESSION['turnos_admin']);
           <?php endforeach; ?>
         <?php endif; ?>
       </section>
+      <script>
+        document.querySelectorAll('[data-location-picker]').forEach(function (box) {
+          var select = box.querySelector('select');
+          var custom = box.querySelector('.location-custom');
+          var address = custom.querySelector('[name="location_address"]');
+          function toggle() {
+            var on = select.value === 'other';
+            custom.classList.toggle('is-hidden', !on);
+            address.required = on;
+          }
+          select.addEventListener('change', toggle);
+          toggle();
+        });
+      </script>
     <?php endif; ?>
   </main>
 </body>

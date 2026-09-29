@@ -224,6 +224,7 @@ function available_days(int $year, int $month): array
 
 function create_appointment(array $data): array
 {
+    global $config;
     $therapyId = (int) ($data['therapy_id'] ?? 0);
     $date = trim((string) ($data['date'] ?? ''));
     $time = trim((string) ($data['time'] ?? ''));
@@ -261,13 +262,16 @@ function create_appointment(array $data): array
     $code = strtoupper(bin2hex(random_bytes(4)));
     $token = bin2hex(random_bytes(16));
     $deposit = deposit_amount();
+    $loc = turno_location_snapshot(preg_match('/online/i', (string) $therapy['name'])
+        ? ['name' => (string) ($config['place_name'] ?? 'FluxusTerapia'), 'address' => 'Online']
+        : turno_location_default());
 
     try {
         $ins = db()->prepare("
           INSERT INTO appointments
             (code, token, therapy_id, date, time, patient_name, patient_phone, patient_email, notes,
-             status, deposit_amount, deposit_status)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_deposit', ?, 'pending')
+             status, deposit_amount, deposit_status, location_name, location_address, location_notes, location_maps)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_deposit', ?, 'pending', ?, ?, ?, ?)
         ");
         $ins->execute([
             $code,
@@ -280,6 +284,10 @@ function create_appointment(array $data): array
             $email,
             $notes,
             $deposit,
+            $loc['name'],
+            $loc['address'],
+            $loc['notes'],
+            $loc['maps'],
         ]);
     } catch (Throwable $e) {
         throw new RuntimeException('No se pudo reservar (¿horario tomado?). Probá otro horario.');
@@ -316,6 +324,7 @@ function create_manual_appointment(array $data): array
     $email = trim((string) ($data['email'] ?? ''));
     $notes = trim((string) ($data['notes'] ?? ''));
     $deposit = array_key_exists('deposit_amount', $data) ? (int) $data['deposit_amount'] : deposit_amount();
+    $loc = turno_location_snapshot(is_array($data['location'] ?? null) ? $data['location'] : turno_location_default());
 
     if ($therapyId < 1 || $date === '' || $time === '' || $name === '' || $email === '') {
         throw new RuntimeException('Completá nombre, email, terapia, día y horario.');
@@ -379,9 +388,12 @@ function create_manual_appointment(array $data): array
         db()->prepare("
           INSERT INTO appointments
             (code, token, therapy_id, date, time, patient_name, patient_phone, patient_email, notes,
-             status, deposit_amount, deposit_status, source)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, 'manual')
-        ")->execute([$code, $token, $therapyId, $date, $time, $name, $phone, $email, $notes, $deposit, $depositStatus]);
+             status, deposit_amount, deposit_status, source, location_name, location_address, location_notes, location_maps)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, 'manual', ?, ?, ?, ?)
+        ")->execute([
+            $code, $token, $therapyId, $date, $time, $name, $phone, $email, $notes, $deposit, $depositStatus,
+            $loc['name'], $loc['address'], $loc['notes'], $loc['maps'],
+        ]);
     } catch (PDOException $e) {
         if ((string) $e->getCode() === '23000') {
             throw $taken($holder());
@@ -399,6 +411,170 @@ function create_manual_appointment(array $data): array
         'deposit_amount' => $deposit,
         'deposit_status' => $depositStatus,
     ];
+}
+
+/**
+ * Lugares de atención guardados. Cada turno guarda una copia (location_*) del lugar elegido,
+ * así editar o borrar un lugar de la lista no cambia los turnos ya dados.
+ */
+function turno_locations(): array
+{
+    return db()->query('SELECT * FROM turno_locations WHERE active = 1 ORDER BY is_default DESC, name, address')->fetchAll();
+}
+
+function turno_location_by_id(int $id): ?array
+{
+    $stmt = db()->prepare('SELECT * FROM turno_locations WHERE id = ? AND active = 1 LIMIT 1');
+    $stmt->execute([$id]);
+    return $stmt->fetch() ?: null;
+}
+
+/** Lugar predeterminado; si no queda ninguno guardado, el de config.php. */
+function turno_location_default(): array
+{
+    global $config;
+    $row = db()->query('SELECT * FROM turno_locations WHERE active = 1 ORDER BY is_default DESC, id LIMIT 1')->fetch();
+    return $row ?: [
+        'name' => (string) ($config['place_name'] ?? 'FluxusTerapia'),
+        'address' => (string) ($config['place_city'] ?? ''),
+    ];
+}
+
+/** @return array{name: string, address: string, notes: string, maps: string} */
+function turno_location_snapshot(array $loc): array
+{
+    return [
+        'name' => trim((string) ($loc['name'] ?? '')),
+        'address' => trim((string) ($loc['address'] ?? '')),
+        'notes' => trim((string) ($loc['notes'] ?? '')),
+        'maps' => trim((string) ($loc['maps_url'] ?? $loc['maps'] ?? '')),
+    ];
+}
+
+/** Nombre opcional, dirección obligatoria, indicaciones y link de mapa opcionales. */
+function turno_location_clean(array $in): array
+{
+    $loc = array_map(
+        static fn (string $v): string => trim(preg_replace('/\s+/u', ' ', $v) ?? ''),
+        turno_location_snapshot($in)
+    );
+    if ($loc['address'] === '') {
+        throw new RuntimeException('Escribí la dirección del lugar.');
+    }
+    if (mb_strlen($loc['name']) > 120 || mb_strlen($loc['address']) > 200 || mb_strlen($loc['notes']) > 300 || strlen($loc['maps']) > 500) {
+        throw new RuntimeException('Algún dato del lugar es demasiado largo.');
+    }
+    if ($loc['maps'] !== '' && (!preg_match('#^https?://#i', $loc['maps']) || !filter_var($loc['maps'], FILTER_VALIDATE_URL))) {
+        throw new RuntimeException('El link del mapa tiene que ser una dirección web (https://…).');
+    }
+    return $loc;
+}
+
+/** Guarda un lugar nuevo o actualiza $id. Si ya hay uno igual en la lista, devuelve ese. */
+function turno_location_save(array $in, int $id = 0): int
+{
+    $loc = turno_location_clean($in);
+    $pdo = db();
+    if ($id > 0) {
+        $pdo->prepare('UPDATE turno_locations SET name = ?, address = ?, notes = ?, maps_url = ? WHERE id = ? AND active = 1')
+            ->execute([$loc['name'], $loc['address'], $loc['notes'], $loc['maps'], $id]);
+        return $id;
+    }
+    $same = $pdo->prepare('SELECT id FROM turno_locations WHERE active = 1 AND lower(name) = lower(?) AND lower(address) = lower(?) LIMIT 1');
+    $same->execute([$loc['name'], $loc['address']]);
+    $existing = $same->fetchColumn();
+    if ($existing !== false) {
+        return (int) $existing;
+    }
+    $hasDefault = (bool) $pdo->query('SELECT 1 FROM turno_locations WHERE active = 1 AND is_default = 1')->fetchColumn();
+    $pdo->prepare('INSERT INTO turno_locations (name, address, notes, maps_url, is_default) VALUES (?, ?, ?, ?, ?)')
+        ->execute([$loc['name'], $loc['address'], $loc['notes'], $loc['maps'], $hasDefault ? 0 : 1]);
+    return (int) $pdo->lastInsertId();
+}
+
+function turno_location_set_default(int $id): void
+{
+    if (!turno_location_by_id($id)) {
+        return;
+    }
+    $pdo = db();
+    $pdo->beginTransaction();
+    $pdo->exec('UPDATE turno_locations SET is_default = 0');
+    $pdo->prepare('UPDATE turno_locations SET is_default = 1 WHERE id = ?')->execute([$id]);
+    $pdo->commit();
+}
+
+/** Lo saca de la lista. Si era el predeterminado, pasa a serlo el más antiguo que quede. */
+function turno_location_delete(int $id): void
+{
+    $pdo = db();
+    $pdo->prepare('UPDATE turno_locations SET active = 0, is_default = 0 WHERE id = ?')->execute([$id]);
+    if (!$pdo->query('SELECT 1 FROM turno_locations WHERE active = 1 AND is_default = 1')->fetchColumn()) {
+        $pdo->exec('UPDATE turno_locations SET is_default = 1 WHERE id = (SELECT id FROM turno_locations WHERE active = 1 ORDER BY id LIMIT 1)');
+    }
+}
+
+/**
+ * Lugar elegido en un formulario del admin: location_id = id de la lista, u "other" con
+ * location_name (opcional) y location_address; location_save = 1 lo suma a la lista.
+ *
+ * @return array{0: array{name: string, address: string, notes: string, maps: string}, 1: bool}
+ */
+function turno_location_from_form(array $in): array
+{
+    $choice = is_string($in['location_id'] ?? null) ? $in['location_id'] : '';
+    if ($choice === 'other') {
+        $loc = turno_location_clean([
+            'name' => is_string($in['location_name'] ?? null) ? $in['location_name'] : '',
+            'address' => is_string($in['location_address'] ?? null) ? $in['location_address'] : '',
+        ]);
+        return [$loc, ($in['location_save'] ?? '') === '1'];
+    }
+    $row = ctype_digit($choice) ? turno_location_by_id((int) $choice) : null;
+    if ($choice !== '' && !$row) {
+        throw new RuntimeException('Ese lugar ya no está en la lista. Elegí otro.');
+    }
+    return [turno_location_snapshot($row ?? turno_location_default()), false];
+}
+
+function turno_location_label(array $loc): string
+{
+    $name = trim((string) ($loc['name'] ?? ''));
+    $address = trim((string) ($loc['address'] ?? ''));
+    if ($name === '' || mb_strtolower($name) === mb_strtolower($address)) {
+        return $address;
+    }
+    return $address === '' ? $name : $name . ' · ' . $address;
+}
+
+/** Link de Google Maps: el cargado en el lugar o una búsqueda de la dirección si tiene número de calle. */
+function turno_location_map_link(array $loc): string
+{
+    if (trim((string) ($loc['maps'] ?? '')) !== '') {
+        return trim((string) $loc['maps']);
+    }
+    $address = trim((string) ($loc['address'] ?? ''));
+    return preg_match('/\d/', $address) ? 'https://maps.google.com/?q=' . urlencode($address) : '';
+}
+
+/**
+ * Lugar del turno: la copia guardada en el turno o, en turnos viejos sin lugar, el predeterminado.
+ *
+ * @return array{name: string, address: string, notes: string, maps: string, label: string, map_link: string}
+ */
+function turno_location_of(array $appt): array
+{
+    $loc = trim((string) ($appt['location_address'] ?? '')) !== ''
+        ? turno_location_snapshot([
+            'name' => $appt['location_name'] ?? '',
+            'address' => $appt['location_address'],
+            'notes' => $appt['location_notes'] ?? '',
+            'maps' => $appt['location_maps'] ?? '',
+        ])
+        : turno_location_snapshot(turno_location_default());
+    $loc['label'] = turno_location_label($loc);
+    $loc['map_link'] = turno_location_map_link($loc);
+    return $loc;
 }
 
 function appointment_by_token(string $token, bool $confirmedOnly = true): ?array
@@ -461,6 +637,32 @@ function migrate_turnos_schema(): void
         if (!in_array($col, $apptCols, true)) {
             $pdo->exec('ALTER TABLE appointments ADD COLUMN ' . $col . ' TEXT DEFAULT NULL');
         }
+    }
+    // Copia del lugar donde se hace la sesión (ver turno_locations). Vacío = turno viejo, se usa el predeterminado.
+    foreach (['location_name', 'location_address', 'location_notes', 'location_maps'] as $col) {
+        if (!in_array($col, $apptCols, true)) {
+            $pdo->exec('ALTER TABLE appointments ADD COLUMN ' . $col . ' TEXT DEFAULT NULL');
+        }
+    }
+    $pdo->exec("
+      CREATE TABLE IF NOT EXISTS turno_locations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL DEFAULT '',
+        address TEXT NOT NULL,
+        notes TEXT NOT NULL DEFAULT '',
+        maps_url TEXT NOT NULL DEFAULT '',
+        is_default INTEGER NOT NULL DEFAULT 0,
+        active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    ");
+    // Los lugares borrados quedan con active = 0, así que la tabla solo está vacía la primera vez.
+    if ((int) $pdo->query('SELECT COUNT(*) FROM turno_locations')->fetchColumn() === 0) {
+        global $config;
+        $pdo->prepare('INSERT INTO turno_locations (name, address, is_default) VALUES (?, ?, 1)')->execute([
+            (string) ($config['place_name'] ?? 'FluxusTerapia'),
+            (string) ($config['place_city'] ?? 'Punta Alta'),
+        ]);
     }
 
     // Un solo turno activo por día y horario: dos reservas simultáneas no pueden tomar el mismo.

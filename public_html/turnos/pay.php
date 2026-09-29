@@ -75,7 +75,7 @@ $consentPending = empty($appt['consent_accepted_at']);
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Seña del turno · FluxusTerapia</title>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Outfit:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/turnos.css?v=20260929c">
+  <link rel="stylesheet" href="assets/turnos.css?v=20260929d">
 </head>
 <body>
   <header class="top">
@@ -93,6 +93,9 @@ $consentPending = empty($appt['consent_accepted_at']);
       <?= h(format_date_es($appt['date'])) ?> ·
       <?= h(format_time_es($appt['time'])) ?> ·
       código <?= h($appt['code']) ?>
+      <?php $loc = turno_location_of($appt); ?>
+      <br>Lugar: <?= h($loc['label']) ?>
+      <?php if ($loc['map_link'] !== ''): ?> · <a href="<?= h($loc['map_link']) ?>" target="_blank" rel="noopener">Cómo llegar</a><?php endif; ?>
     </p>
 
     <?php if ($flash): ?>
