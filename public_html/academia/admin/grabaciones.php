@@ -15,6 +15,15 @@ if (!in_array($courseId, $courseIds, true)) {
 
 $isAjax = ($_POST['ajax'] ?? '') === '1';
 
+function grabaciones_bonus_checkbox(bool $full): string
+{
+    return '<label class="check"><input type="checkbox" name="bonus" value="1"' . ($full ? ' disabled' : '') . '> '
+        . 'Es una clase <strong>bonus</strong> (extra: no cuenta para el progreso'
+        . (RECORDING_BONUS_NEEDS_COMPLETION ? ' y el alumno la ve al completar todas las clases' : '') . ')'
+        . ($full ? ' · <span class="muted">ya hay ' . RECORDING_MAX_BONUS . ', es el máximo</span>' : '')
+        . '</label>';
+}
+
 function grabaciones_json(array $payload, int $code = 200): never
 {
     http_response_code($code);
@@ -34,10 +43,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = (string) ($_POST['action'] ?? '');
     $title = trim((string) ($_POST['title'] ?? ''));
     $description = trim((string) ($_POST['description'] ?? ''));
+    $asBonus = ($_POST['bonus'] ?? '') === '1';
 
     if ($action === 'upload_start') {
         if (!in_array($courseId, $courseIds, true)) {
             grabaciones_json(['ok' => false, 'error' => 'Elegí un curso.'], 400);
+        }
+        if ($asBonus && recording_bonus_count($courseId) >= RECORDING_MAX_BONUS) {
+            grabaciones_json(['ok' => false, 'error' => recording_bonus_limit_message()], 400);
         }
         grabaciones_json(recording_upload_start($courseId, (string) ($_POST['filename'] ?? ''), (int) ($_POST['size'] ?? 0)));
     }
@@ -56,8 +69,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$res['ok']) {
             grabaciones_json($res, 409);
         }
-        recording_add((int) $res['course_id'], $title, $description, '', (string) $res['path']);
-        flash('success', 'Clase "' . $title . '" publicada. Ya la ven los alumnos del curso.');
+        if (recording_add((int) $res['course_id'], $title, $description, '', (string) $res['path'], $asBonus) === 0) {
+            delete_upload((string) $res['path']);
+            grabaciones_json(['ok' => false, 'error' => recording_bonus_limit_message()], 409);
+        }
+        flash('success', ($asBonus ? 'Clase bonus "' : 'Clase "') . $title . '" publicada. Ya la ven los alumnos del curso.');
         grabaciones_json(['ok' => true, 'redirect' => 'grabaciones.php?course_id=' . (int) $res['course_id']]);
     }
 
@@ -72,10 +88,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('error', 'Elegí el curso y poné un título.');
         } elseif (!recording_url_supported($url)) {
             flash('error', 'Pegá un link de YouTube o de Google Drive (archivo de video).');
+        } elseif (recording_add($courseId, $title, $description, $url, '', $asBonus) === 0) {
+            flash('error', recording_bonus_limit_message());
         } else {
-            recording_add($courseId, $title, $description, $url, '');
-            flash('success', 'Clase "' . $title . '" publicada. Ya la ven los alumnos del curso.');
+            flash('success', ($asBonus ? 'Clase bonus "' : 'Clase "') . $title . '" publicada. Ya la ven los alumnos del curso.');
         }
+    }
+
+    if ($action === 'move') {
+        recording_move_to((int) ($_POST['resource_id'] ?? 0), (int) ($_POST['position'] ?? 0));
+        redirect('grabaciones.php?course_id=' . $courseId . '#rec-' . (int) ($_POST['resource_id'] ?? 0));
+    }
+
+    if ($action === 'set_bonus') {
+        $res = recording_set_bonus((int) ($_POST['resource_id'] ?? 0), $asBonus);
+        if ($res['ok']) {
+            flash('success', $asBonus ? 'Listo: la clase ahora es bonus (no cuenta para el progreso).' : 'Listo: la clase volvió a la lista de clases, al final.');
+        } else {
+            flash('error', $res['error'] ?? 'No se pudo cambiar.');
+        }
+        redirect('grabaciones.php?course_id=' . $courseId . '#rec-' . (int) ($_POST['resource_id'] ?? 0));
     }
 
     if ($action === 'save_live' && $courseId > 0) {
@@ -116,6 +148,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($rid > 0 && $title !== '') {
             $pdo->prepare("UPDATE course_resources SET title = ?, description = ? WHERE id = ? AND type = 'video'")
                 ->execute([$title, $description, $rid]);
+            if ((int) ($_POST['position'] ?? 0) > 0) {
+                recording_move_to($rid, (int) $_POST['position']);
+            }
             $moved = $target > 0 && in_array($target, $courseIds, true) ? recording_move($rid, $target) : false;
             if ($moved) {
                 $targetTitle = (string) array_column($courses, 'title', 'id')[$target];
@@ -141,7 +176,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect('grabaciones.php?course_id=' . $courseId);
 }
 
-$recordings = $courseId > 0 ? recordings_for_user($me, $courseId) : [];
+$plan = recording_plan($courseId > 0 ? recordings_of_course($courseId) : [], [], true);
+$bonusFull = count($plan['bonus']) >= RECORDING_MAX_BONUS;
+$bonusCheckbox = grabaciones_bonus_checkbox($bonusFull);
 $students = 0;
 if ($courseId > 0) {
     $st = $pdo->prepare("SELECT COUNT(*) FROM enrollments e JOIN users u ON u.id = e.user_id WHERE e.course_id = ? AND u.role = 'student' AND u.active = 1");
@@ -263,6 +300,7 @@ require __DIR__ . '/../includes/header.php';
       <strong data-dz-title>Arrastrá el video acá o tocá para elegirlo</strong>
       <span data-dz-sub>MP4, MOV, M4V o WebM · sin límite de tamaño</span>
     </label>
+    <?= $bonusCheckbox ?>
     <p class="hint">
       Los videos pesados tardan: no cierres esta pestaña hasta que termine. Si el video es de iPhone (.MOV) y algún alumno no lo puede ver,
       exportalo como MP4 o subilo a YouTube como "No listado".
@@ -286,29 +324,29 @@ require __DIR__ . '/../includes/header.php';
     <label>Link del video
       <input name="url" type="url" required placeholder="https://youtu.be/… o https://drive.google.com/file/d/…">
     </label>
+    <?= $bonusCheckbox ?>
     <p class="muted small" style="margin:0">YouTube: subilo como "No listado". Drive: en Compartir elegí "Cualquier persona con el enlace".</p>
     <p class="hint" style="margin:0"><strong>Para que no se puedan descargar:</strong> subí el archivo (pestaña "Subir video") o usá YouTube "No listado". Los videos de Google Drive muestran un botón de descarga que no se puede ocultar desde acá.</p>
     <button class="btn primary" type="submit"><?= aca_icon('check') ?> Publicar clase</button>
   </form>
 </section>
 
-<section class="panel">
-  <h2 class="panel-title">Clases publicadas (<?= count($recordings) ?>)</h2>
-  <?php if (!$recordings): ?>
-    <p class="muted">Este curso todavía no tiene clases grabadas.</p>
-  <?php endif; ?>
-  <div class="rec-admin-list">
-  <?php foreach ($recordings as $r): ?>
-    <?php
+<?php
+  // Una clase del listado: número, flechas para ordenar, pasar a bonus, editar y eliminar.
+  $renderAdmin = static function (array $r, int $count) use ($courseId, $courses, $bonusFull): void {
       $rid = (int) $r['id'];
+      $isBonus = (int) $r['is_bonus'] === 1;
+      $num = (int) $r['num'];
       $full = trim((string) $r['file_path']) !== '' ? resolve_upload_path((string) $r['file_path']) : null;
       $thumb = recording_thumbnail($r);
-    ?>
-    <article class="rec-admin">
+      $csrf = '<input type="hidden" name="csrf" value="' . h(csrf_token()) . '"><input type="hidden" name="course_id" value="' . $courseId . '"><input type="hidden" name="resource_id" value="' . $rid . '">';
+      ?>
+    <article class="rec-admin" id="rec-<?= $rid ?>">
       <a class="rec-thumb" href="../resource.php?id=<?= $rid ?>"<?= $thumb !== '' ? ' style="background-image:url(\'' . h($thumb) . '\')"' : '' ?>>
         <span class="rec-play"><?= aca_icon('play') ?></span>
       </a>
       <div>
+        <p class="rec-admin-num"><?= h(recording_label($r)) ?></p>
         <h3><a href="../resource.php?id=<?= $rid ?>"><?= h($r['title']) ?></a></h3>
         <p class="muted small">
           <?php if ($full !== null): ?>
@@ -329,6 +367,9 @@ require __DIR__ . '/../includes/header.php';
             <input type="hidden" name="resource_id" value="<?= $rid ?>">
             <label>Título <input name="title" required value="<?= h($r['title']) ?>"></label>
             <label>Descripción <textarea name="description"><?= h((string) $r['description']) ?></textarea></label>
+            <label><?= $isBonus ? 'Número de bonus' : 'Número de clase' ?> (1 a <?= $count ?>)
+              <input name="position" type="number" min="1" max="<?= $count ?>" value="<?= $num ?>" style="max-width:7rem">
+            </label>
             <label>Curso
               <select name="target_course_id">
                 <?php foreach ($courses as $c): ?>
@@ -343,18 +384,61 @@ require __DIR__ . '/../includes/header.php';
           </form>
         </details>
       </div>
-      <div class="actions">
+      <div class="actions rec-admin-actions">
+        <form method="post">
+          <?= $csrf ?>
+          <input type="hidden" name="action" value="move">
+          <input type="hidden" name="position" value="<?= $num - 1 ?>">
+          <button class="icon-btn" type="submit" title="Subir un lugar" aria-label="Subir un lugar"<?= $num <= 1 ? ' disabled' : '' ?>><?= aca_icon('arrow-up') ?></button>
+        </form>
+        <form method="post">
+          <?= $csrf ?>
+          <input type="hidden" name="action" value="move">
+          <input type="hidden" name="position" value="<?= $num + 1 ?>">
+          <button class="icon-btn" type="submit" title="Bajar un lugar" aria-label="Bajar un lugar"<?= $num >= $count ? ' disabled' : '' ?>><?= aca_icon('arrow-down') ?></button>
+        </form>
+        <form method="post">
+          <?= $csrf ?>
+          <input type="hidden" name="action" value="set_bonus">
+          <input type="hidden" name="bonus" value="<?= $isBonus ? '0' : '1' ?>">
+          <button class="btn ghost small-btn" type="submit"<?= !$isBonus && $bonusFull ? ' disabled title="Ya hay ' . RECORDING_MAX_BONUS . ' bonus en este curso (es el máximo)"' : '' ?>>
+            <?= aca_icon($isBonus ? 'arrow-left' : 'gift') ?> <?= $isBonus ? 'Quitar de bonus' : 'Pasar a bonus' ?>
+          </button>
+        </form>
         <a class="btn secondary small-btn" href="../resource.php?id=<?= $rid ?>"><?= aca_icon('eye') ?> Ver</a>
         <form method="post" onsubmit="return confirm('¿Eliminar esta clase? Si el video está subido, se borra del servidor.')">
-          <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
+          <?= $csrf ?>
           <input type="hidden" name="action" value="delete">
-          <input type="hidden" name="course_id" value="<?= $courseId ?>">
-          <input type="hidden" name="resource_id" value="<?= $rid ?>">
           <button class="btn ghost small-btn" type="submit" title="Eliminar" aria-label="Eliminar"><?= aca_icon('trash') ?></button>
         </form>
       </div>
     </article>
-  <?php endforeach; ?>
+      <?php
+  };
+?>
+
+<section class="panel">
+  <h2 class="panel-title">Clases del curso (<?= count($plan['classes']) ?>)</h2>
+  <p class="hint" style="margin:-.3rem 0 .9rem">Los alumnos las ven numeradas en este orden: Clase 1, 2, 3… Usá las flechas para cambiar el orden.</p>
+  <?php if (!$plan['classes']): ?>
+    <p class="muted">Este curso todavía no tiene clases grabadas.</p>
+  <?php endif; ?>
+  <div class="rec-admin-list">
+    <?php foreach ($plan['classes'] as $r) { $renderAdmin($r, count($plan['classes'])); } ?>
+  </div>
+</section>
+
+<section class="panel" style="margin-top:1rem">
+  <h2 class="panel-title"><?= aca_icon('gift') ?> Bonus (<?= count($plan['bonus']) ?> de <?= RECORDING_MAX_BONUS ?>)</h2>
+  <p class="hint" style="margin:-.3rem 0 .9rem">
+    Hasta <?= RECORDING_MAX_BONUS ?> clases extra por curso. No cuentan para el progreso<?= RECORDING_BONUS_NEEDS_COMPLETION ? ' y el alumno las desbloquea cuando completa todas las clases (antes las ve con candado)' : '' ?>.
+    Para agregar una: tildá «Es una clase bonus» al publicarla, o tocá «Pasar a bonus» en una clase de arriba.
+  </p>
+  <?php if (!$plan['bonus']): ?>
+    <p class="muted" style="margin:0">Este curso no tiene clases bonus.</p>
+  <?php endif; ?>
+  <div class="rec-admin-list">
+    <?php foreach ($plan['bonus'] as $r) { $renderAdmin($r, count($plan['bonus'])); } ?>
   </div>
 </section>
 
@@ -402,6 +486,7 @@ require __DIR__ . '/../includes/header.php';
     fd.append('csrf', form.elements.csrf.value);
     fd.append('course_id', form.elements.course_id.value);
     fd.append('ajax', '1');
+    fd.append('bonus', form.elements.bonus && form.elements.bonus.checked ? '1' : '0');
     Object.keys(fields).forEach(function (k) { fd.append(k, fields[k]); });
     if (file) fd.append('chunk', file, 'chunk');
     return fetch('grabaciones.php', { method: 'POST', body: fd, credentials: 'same-origin' })
