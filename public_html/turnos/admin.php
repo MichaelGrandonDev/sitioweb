@@ -47,15 +47,7 @@ function location_picker(array $locations, string $selected, array $custom = [])
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     if ($action === 'login') {
-        $adminPass = (string) $config['admin_pass'];
-        if (fluxus_password_configured($adminPass) && hash_equals($adminPass, (string) ($_POST['password'] ?? ''))) {
-            fluxus_session_login();
-            $_SESSION['turnos_admin'] = true;
-            redirect('admin.php');
-        }
-        fluxus_login_failed();
-        flash('error', 'Contraseña incorrecta.');
-        redirect('admin.php');
+        redirect('../academia/login.php?as=admin');
     }
     require_admin();
     if (!verify_csrf($_POST['csrf'] ?? null)) {
@@ -324,11 +316,8 @@ $logged = !empty($_SESSION['turnos_admin']);
     <?php if (!$logged): ?>
       <section class="panel">
         <h1>Admin de turnos</h1>
-        <form method="post" class="stack">
-          <input type="hidden" name="action" value="login">
-          <label>Contraseña <input type="password" name="password" required autocomplete="current-password" enterkeyhint="go"></label>
-          <button class="btn primary" type="submit">Entrar</button>
-        </form>
+        <p class="muted">Se entra con el usuario <strong>Administrador</strong> de AcademiaFluxus.</p>
+        <p><a class="btn primary" href="../academia/login.php?as=admin">Ingresar como administrador</a></p>
       </section>
     <?php else: ?>
       <?php

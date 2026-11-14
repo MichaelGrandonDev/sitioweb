@@ -20,22 +20,50 @@
   <meta name="twitter:title" content="FluxusTerapia">
   <meta name="twitter:description" content="Kinesiología, Medicina China y Acupuntura. Instagram @fluxusterapia">
 
+  <meta name="theme-color" content="#0f3d36">
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=20260929s">
-  <link rel="icon" href="img/logo.png" type="image/png">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Outfit:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="css/style.css?v=20261114b">
+  <link rel="icon" href="img/favicon-48.png" type="image/png" sizes="48x48">
+  <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+  <script type="speculationrules">
+  {
+    "prerender": [{
+      "where": {"and": [
+        {"href_matches": "/*"},
+        {"not": {"href_matches": "/academia/*"}},
+        {"not": {"href_matches": "/turnos/*"}},
+        {"not": {"href_matches": "/cursos/*"}},
+        {"not": {"href_matches": "/*admin*"}},
+        {"not": {"href_matches": "/*install*"}},
+        {"not": {"href_matches": "/*logout*"}},
+        {"not": {"href_matches": "/*api.php*"}},
+        {"not": {"href_matches": "/*/uploads/*"}},
+        {"not": {"href_matches": "/*.pdf"}},
+        {"not": {"selector_matches": "[target=_blank], [download], [data-lightbox], [rel~=nofollow]"}}
+      ]},
+      "eagerness": "moderate"
+    }]
+  }
+  </script>
 </head>
 <body>
+  <a class="skip-link" href="#contenido">Saltar al contenido</a>
   <header class="site-header">
     <a class="brand" href="/" title="FluxusTerapia · Inicio">
-      <img
-        class="brand-logo"
-        src="img/logo-circle.png"
-        alt="FluxusTerapia"
-        width="68"
-        height="68"
-      >
+      <picture>
+        <source type="image/webp" srcset="img/logo-circle-136.webp">
+        <img
+          class="brand-logo"
+          src="img/logo-circle.png"
+          alt="FluxusTerapia"
+          width="68"
+          height="68"
+          decoding="async"
+        >
+      </picture>
     </a>
     <nav class="site-nav" aria-label="Principal">
       <a href="#inicio">Inicio</a>
@@ -48,14 +76,14 @@
         <summary class="nav-academia" aria-label="AcademiaFluxus: clases en vivo y cursos grabados">AcademiaFluxus<svg class="nav-caret" viewBox="0 0 12 12" width="10" height="10" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></summary>
         <div class="nav-drop-menu">
           <div class="nav-drop-panel">
-            <a href="academia/">Clases en vivo<small>Campus de AcademiaFluxus</small></a>
-            <a href="cursos/">Cursos grabados<small>Comprá y cursá cuando quieras</small></a>
+            <a href="academia/login.php?as=alumno">Campus alumno<small>Clases grabadas, en vivo y consultas</small></a>
+            <a href="academia/inscripcion.php">Inscribirme<small>Pedí tu cupo en la academia</small></a>
           </div>
         </div>
       </details>
       <a
         class="nav-admin"
-        href="academia/fluxus/"
+        href="academia/login.php?as=admin"
         aria-label="Panel de administración"
         title="Panel de administración"
       >
@@ -105,9 +133,18 @@
     </div>
   </header>
 
-  <main>
+  <main id="contenido">
     <section id="inicio" class="hero">
-      <div class="hero-media" aria-hidden="true"></div>
+      <div class="hero-media" aria-hidden="true">
+        <picture>
+          <source
+            type="image/webp"
+            srcset="img/hero-800.webp 800w, img/hero-1280.webp 1280w, img/hero-1920.webp 1920w"
+            sizes="100vw"
+          >
+          <img src="img/hero.jpg?v=2" alt="" width="2000" height="1334" fetchpriority="high">
+        </picture>
+      </div>
       <div class="hero-copy">
         <h1>FluxusTerapia</h1>
         <p class="hero-sub">Kinesiología, Medicina China y Acupuntura</p>
@@ -137,12 +174,21 @@
         <p class="about-place">Punta Alta · Coronel Suárez · Online</p>
       </div>
       <div class="about-media">
-        <img
-          src="img/about.jpg?v=2"
-          alt="Sesión de acupuntura en FluxusTerapia"
-          width="640"
-          height="480"
-        >
+        <picture>
+          <source
+            type="image/webp"
+            srcset="img/about-640.webp 640w, img/about-1200.webp 1200w"
+            sizes="(min-width: 800px) 45vw, 100vw"
+          >
+          <img
+            src="img/about.jpg?v=2"
+            alt="Sesión de acupuntura en FluxusTerapia"
+            width="1200"
+            height="777"
+            loading="lazy"
+            decoding="async"
+          >
+        </picture>
       </div>
     </section>
 
@@ -221,22 +267,30 @@
       <div class="acu-inner">
         <div class="acu-media">
           <figure class="acu-photo acu-photo--main">
-            <img
-              src="img/acupuntura-modelo.jpg?v=1"
-              alt="Modelo de acupuntura con los meridianos y puntos marcados"
-              width="660"
-              height="585"
-              loading="lazy"
-            >
+            <picture>
+              <source type="image/webp" srcset="img/acupuntura-modelo-660.webp">
+              <img
+                src="img/acupuntura-modelo.jpg?v=1"
+                alt="Modelo de acupuntura con los meridianos y puntos marcados"
+                width="660"
+                height="585"
+                loading="lazy"
+                decoding="async"
+              >
+            </picture>
           </figure>
           <figure class="acu-photo acu-photo--float">
-            <img
-              src="img/ventosas.jpg?v=1"
-              alt="Terapia con ventosas sobre la espalda"
-              width="1200"
-              height="777"
-              loading="lazy"
-            >
+            <picture>
+              <source type="image/webp" srcset="img/ventosas-640.webp">
+              <img
+                src="img/ventosas.jpg?v=1"
+                alt="Terapia con ventosas sobre la espalda"
+                width="1200"
+                height="777"
+                loading="lazy"
+                decoding="async"
+              >
+            </picture>
           </figure>
         </div>
         <div class="acu-copy">
@@ -362,7 +416,7 @@
     </svg>
   </a>
 
-  <script src="js/main.js?v=20260925k"></script>
+  <script src="js/main.js?v=20261114a" defer></script>
   <script src="js/nosotros.js?v=20260929a" defer></script>
 </body>
 </html>

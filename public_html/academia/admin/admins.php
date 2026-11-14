@@ -103,11 +103,10 @@ require __DIR__ . '/../includes/header.php';
 ?>
 <p class="eyebrow">Admin</p>
 <h1>Administradores</h1>
-<p class="lede">Agregá otras personas con acceso completo al panel: alumnos, cursos, unidades, tienda y cuotas. Entran por AcademiaFluxus → Administrador.</p>
+<p class="lede">Agregá otras personas con acceso completo al panel: alumnos, clases grabadas, consultas, turnos, galería y blogs. Entran por AcademiaFluxus → Administrador.</p>
 <nav class="admin-nav">
   <a class="btn secondary" href="index.php">← Panel</a>
   <a class="btn secondary" href="users.php">Alumnos</a>
-  <a class="btn secondary" href="payments.php">Cuotas</a>
 </nav>
 
 <section class="panel" style="margin-bottom:1.25rem">

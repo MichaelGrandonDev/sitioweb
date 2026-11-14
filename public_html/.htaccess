@@ -1,4 +1,4 @@
-DirectoryIndex index.html index.htm index.php
+DirectoryIndex index.php index.html index.htm
 Options -Indexes
 
 <IfModule mod_rewrite.c>
@@ -6,11 +6,27 @@ Options -Indexes
   RewriteCond %{HTTPS} off
   RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
+  # La home es index.php (contenido editable desde el admin); /index.html queda solo de respaldo
+  RewriteCond %{THE_REQUEST} \s/index\.(html|php)[\s?]
+  RewriteRule ^index\.(html|php)$ / [L,R=301]
+
   # FluxusAcademia: /academia y /academia/ → index.php (evita 403)
   RewriteRule ^academia/?$ academia/index.php [L,QSA]
 
   # Turnos: /turnos y /turnos/ → index.php
   RewriteRule ^turnos/?$ turnos/index.php [L,QSA]
+</IfModule>
+
+<IfModule mod_mime.c>
+  AddType image/webp .webp
+  AddType image/avif .avif
+  AddType font/woff2 .woff2
+  AddType image/svg+xml .svg
+</IfModule>
+
+# Compresión de texto (HTML, CSS, JS, JSON, SVG)
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/css text/xml text/javascript application/javascript application/x-javascript application/json application/xml application/rss+xml image/svg+xml
 </IfModule>
 
 # Cache de assets estáticos (velocidad / fluidez en revisitas)
@@ -22,6 +38,9 @@ Options -Indexes
   ExpiresByType image/jpeg "access plus 30 days"
   ExpiresByType image/png "access plus 30 days"
   ExpiresByType image/webp "access plus 30 days"
+  ExpiresByType image/avif "access plus 30 days"
+  ExpiresByType image/gif "access plus 30 days"
+  ExpiresByType image/x-icon "access plus 30 days"
   ExpiresByType image/svg+xml "access plus 30 days"
   ExpiresByType font/woff2 "access plus 30 days"
 </IfModule>
@@ -35,7 +54,7 @@ Options -Indexes
   <FilesMatch "\.(css|js)$">
     Header set Cache-Control "public, max-age=604800"
   </FilesMatch>
-  <FilesMatch "\.(jpg|jpeg|png|webp|svg|woff2)$">
+  <FilesMatch "\.(jpg|jpeg|png|gif|ico|webp|avif|svg|woff2)$">
     Header set Cache-Control "public, max-age=2592000"
   </FilesMatch>
 </IfModule>

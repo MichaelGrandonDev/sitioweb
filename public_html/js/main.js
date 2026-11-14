@@ -5,6 +5,31 @@ if (yearEl) {
   yearEl.textContent = String(new Date().getFullYear());
 }
 
+(function initMobileHeader() {
+  const header = document.querySelector(".site-header");
+  if (!header || !window.matchMedia) return;
+  const mobile = window.matchMedia("(max-width: 900px)");
+  let lastY = window.scrollY;
+  let ticking = false;
+
+  function update() {
+    ticking = false;
+    const y = window.scrollY;
+    const menuOpen = header.querySelector("details[open]");
+    const hide = mobile.matches && !menuOpen && y > 160 && y > lastY + 4;
+    if (hide) header.classList.add("is-hidden");
+    else if (y < lastY - 4 || y <= 160 || !mobile.matches || menuOpen) header.classList.remove("is-hidden");
+    if (Math.abs(y - lastY) > 4) lastY = y;
+  }
+
+  window.addEventListener("scroll", () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(update);
+  }, { passive: true });
+  header.addEventListener("focusin", () => header.classList.remove("is-hidden"));
+})();
+
 (function initWhatsAppFloat() {
   const btn = document.querySelector(".whatsapp-float");
   if (!btn) return;

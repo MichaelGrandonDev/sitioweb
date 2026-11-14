@@ -3,16 +3,17 @@
 declare(strict_types=1);
 
 /**
- * Auth compartida del sitio (Galería + Blogs) con el login Administrador de AcademiaFluxus.
+ * Auth compartida del sitio: el login Administrador de AcademiaFluxus abre Galería, Blogs y Turnos.
  */
 function site_admin_grant(): void
 {
     $_SESSION['site_admin'] = true;
+    $_SESSION['turnos_admin'] = true;
 }
 
 function site_admin_revoke(): void
 {
-    unset($_SESSION['site_admin'], $_SESSION['blogs_admin'], $_SESSION['galeria_admin']);
+    unset($_SESSION['site_admin'], $_SESSION['blogs_admin'], $_SESSION['galeria_admin'], $_SESSION['turnos_admin']);
 }
 
 function site_is_admin(): bool

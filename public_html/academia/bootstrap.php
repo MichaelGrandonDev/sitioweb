@@ -9,6 +9,9 @@ require_once __DIR__ . '/includes/payments.php';
 require_once __DIR__ . '/includes/shop.php';
 require_once __DIR__ . '/includes/uploads.php';
 require_once __DIR__ . '/includes/inscriptions.php';
+require_once __DIR__ . '/includes/recordings.php';
+require_once __DIR__ . '/includes/tickets.php';
+require_once __DIR__ . '/includes/ui.php';
 require_once __DIR__ . '/../includes/session.php';
 
 fluxus_session_start();
@@ -53,6 +56,13 @@ function short_text(string $text, int $max = 100): string
         return $text;
     }
     return rtrim(substr($text, 0, $max - 1)) . '…';
+}
+
+/** Fecha guardada por SQLite (CURRENT_TIMESTAMP, en UTC) en la hora de Argentina. */
+function format_db_time(string $utc, string $format = 'd/m/Y H:i'): string
+{
+    $ts = strtotime($utc . ' UTC');
+    return date($format, $ts === false ? time() : $ts);
 }
 
 function redirect(string $path): never
@@ -143,7 +153,7 @@ function embed_video(string $url): string
     }
 
     // YouTube
-    if (preg_match('~(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/embed/)([A-Za-z0-9_-]{6,})~', $url, $m)) {
+    if (preg_match('~(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/embed/|youtube\.com/live/)([A-Za-z0-9_-]{6,})~', $url, $m)) {
         $id = h($m[1]);
         return '<div class="video-frame"><iframe src="https://www.youtube.com/embed/' . $id . '" title="Clase" allowfullscreen loading="lazy"></iframe></div>';
     }
@@ -191,6 +201,9 @@ function migrate_schema(): void
     $userCols = $cols($pdo, 'users');
     if (!in_array('email', $userCols, true)) {
         $pdo->exec("ALTER TABLE users ADD COLUMN email TEXT NOT NULL DEFAULT ''");
+    }
+    if (!in_array('last_login_at', $userCols, true)) {
+        $pdo->exec('ALTER TABLE users ADD COLUMN last_login_at TEXT DEFAULT NULL');
     }
 
     $courseCols = $cols($pdo, 'courses');
@@ -473,6 +486,7 @@ function migrate_schema(): void
     }
 
     migrate_lessons_into_campus($pdo);
+    tickets_migrate($pdo);
 }
 
 /**

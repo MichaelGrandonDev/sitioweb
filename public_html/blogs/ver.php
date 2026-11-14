@@ -4,6 +4,21 @@ declare(strict_types=1);
 
 require __DIR__ . '/bootstrap.php';
 
+$sitioParts = null;
+if (is_file(__DIR__ . '/../includes/sitio.php')) {
+    try {
+        require_once __DIR__ . '/../includes/sitio.php';
+        $sitioParts = sitio_public_parts();
+    } catch (Throwable $e) {
+        $sitioParts = null;
+    }
+}
+
+if (!headers_sent()) {
+    header('Cache-Control: private, no-cache, must-revalidate');
+    header_remove('Pragma');
+}
+
 if (!db_ready()) {
     redirect('install.php');
 }
@@ -20,17 +35,47 @@ if (!$post) {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><?= $post ? h($post['title']) . ' · ' : '' ?>Blogs · FluxusTerapia</title>
+  <meta name="description" content="<?= h($post && !empty($post['excerpt']) ? (string) $post['excerpt'] : 'Notas, papers y lecturas de FluxusTerapia.') ?>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="../css/style.css?v=20260929s">
+  <link rel="stylesheet" href="<?= $sitioParts ? sitio_e($sitioParts['fonts']) : 'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&amp;family=Outfit:wght@400;500;600;700&amp;display=swap' ?>">
+  <link rel="stylesheet" href="../css/style.css?v=20261114b">
+<?php if (!empty($sitioParts['css'])): ?>
+  <style id="sitio-estilo"><?= $sitioParts['css'] ?></style>
+<?php endif; ?>
   <link rel="stylesheet" href="assets/blogs.css?v=1">
-  <link rel="icon" href="../img/logo.png" type="image/png">
+  <link rel="icon" href="../img/favicon-48.png" type="image/png" sizes="48x48">
+  <link rel="apple-touch-icon" href="../img/apple-touch-icon.png">
+  <meta name="theme-color" content="#0f3d36">
+  <script type="speculationrules">
+  {
+    "prerender": [{
+      "where": {"and": [
+        {"href_matches": "/*"},
+        {"not": {"href_matches": "/academia/*"}},
+        {"not": {"href_matches": "/turnos/*"}},
+        {"not": {"href_matches": "/cursos/*"}},
+        {"not": {"href_matches": "/*admin*"}},
+        {"not": {"href_matches": "/*install*"}},
+        {"not": {"href_matches": "/*logout*"}},
+        {"not": {"href_matches": "/*api.php*"}},
+        {"not": {"href_matches": "/*/uploads/*"}},
+        {"not": {"href_matches": "/*.pdf"}},
+        {"not": {"selector_matches": "[target=_blank], [download], [data-lightbox], [rel~=nofollow]"}}
+      ]},
+      "eagerness": "moderate"
+    }]
+  }
+  </script>
 </head>
 <body>
+  <a class="skip-link" href="#contenido">Saltar al contenido</a>
   <header class="site-header">
     <a class="brand" href="../">
-      <img class="brand-logo" src="../img/logo-circle.png" alt="FluxusTerapia" width="68" height="68">
+      <picture>
+        <source type="image/webp" srcset="../img/logo-circle-136.webp">
+        <img class="brand-logo" src="../img/logo-circle.png" alt="FluxusTerapia" width="68" height="68" decoding="async">
+      </picture>
     </a>
     <nav class="site-nav" aria-label="Principal">
       <a href="../">Inicio</a>
@@ -43,8 +88,8 @@ if (!$post) {
         <summary class="nav-academia" aria-label="AcademiaFluxus: clases en vivo y cursos grabados">AcademiaFluxus<svg class="nav-caret" viewBox="0 0 12 12" width="10" height="10" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></summary>
         <div class="nav-drop-menu">
           <div class="nav-drop-panel">
-            <a href="../academia/">Clases en vivo<small>Campus de AcademiaFluxus</small></a>
-            <a href="../cursos/">Cursos grabados<small>Comprá y cursá cuando quieras</small></a>
+            <a href="../academia/login.php?as=alumno">Campus alumno<small>Clases grabadas, en vivo y consultas</small></a>
+            <a href="../academia/inscripcion.php">Inscribirme<small>Pedí tu cupo en la academia</small></a>
           </div>
         </div>
       </details>
@@ -52,7 +97,7 @@ if (!$post) {
     <div class="social" aria-label="Redes">
       <a
         class="social-ig"
-        href="https://www.instagram.com/fluxusterapia/"
+        href="<?= !empty($sitioParts['instagram']) ? sitio_e($sitioParts['instagram']) : 'https://www.instagram.com/fluxusterapia/' ?>"
         target="_blank"
         rel="noopener noreferrer me"
         aria-label="Instagram @fluxusterapia"
@@ -87,7 +132,7 @@ if (!$post) {
     </div>
   </header>
 
-  <main class="blogs-wrap blogs-article">
+  <main class="blogs-wrap blogs-article" id="contenido">
     <?php if (!$post): ?>
       <p class="blogs-empty">No encontramos esa publicación.</p>
       <p><a class="cta secondary" href="./">Volver a Blogs</a></p>
@@ -98,7 +143,7 @@ if (!$post) {
         <p class="blog-lead"><?= h($post['excerpt']) ?></p>
       <?php endif; ?>
       <?php if (!empty($post['cover_path'])): ?>
-        <p class="blog-cover"><img src="<?= h($post['cover_path']) ?>" alt="" style="width:100%;max-height:420px;object-fit:cover;border-radius:10px"></p>
+        <p class="blog-cover"><img src="<?= h($post['cover_path']) ?>" alt="" decoding="async" fetchpriority="high" style="width:100%;max-height:420px;object-fit:cover;border-radius:10px"></p>
       <?php endif; ?>
       <?php if (!empty($post['video_url'])): ?>
         <?php
@@ -136,5 +181,6 @@ if (!$post) {
   <footer class="site-footer">
     <p>© <?= date('Y') ?> FluxusTerapia</p>
   </footer>
+  <script src="../js/main.js?v=20261114a" defer></script>
 </body>
 </html>

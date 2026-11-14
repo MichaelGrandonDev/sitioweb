@@ -32,8 +32,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $expect = 'alumno';
         }
 
-        $stmt = db()->prepare('SELECT * FROM users WHERE username = ? AND active = 1 LIMIT 1');
-        $stmt->execute([$username]);
+        $stmt = db()->prepare("
+          SELECT * FROM users
+          WHERE active = 1 AND (username = ? OR (email <> '' AND lower(email) = lower(?)))
+          ORDER BY (username = ?) DESC
+          LIMIT 1
+        ");
+        $stmt->execute([$username, $username, $username]);
         $found = $stmt->fetch();
 
         if ($found && password_verify($password, $found['password_hash'])) {
@@ -45,6 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 fluxus_session_login();
                 $_SESSION['user_id'] = (int) $found['id'];
+                db()->prepare('UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?')->execute([(int) $found['id']]);
                 if ($role === 'admin') {
                     require_once __DIR__ . '/../includes/site_admin.php';
                     site_admin_grant();
@@ -78,20 +84,19 @@ require __DIR__ . '/includes/header.php';
     <a class="portal-card admin" href="login.php?as=admin">
       <span class="portal-kicker">Gestión</span>
       <h2>Administrador</h2>
-      <p>Alumnos, cupos, cursos, contenidos y pagos.</p>
+      <p>Alumnos, clases grabadas, consultas y todo el sitio.</p>
       <span class="portal-go">Entrar →</span>
     </a>
     <a class="portal-card student" href="login.php?as=alumno">
       <span class="portal-kicker">Campus</span>
       <h2>Alumno</h2>
-      <p>Cursos, clases, progreso y cuotas.</p>
+      <p>Tus cursos, clases grabadas y consultas al profesor.</p>
       <span class="portal-go">Entrar →</span>
     </a>
   </div>
 
   <nav class="portal-links" aria-label="Otras opciones">
     <a href="inscripcion.php">Inscribirme</a>
-    <a href="../cursos/">Cursos grabados</a>
     <a href="../">FluxusTerapia</a>
   </nav>
 </section>
@@ -102,14 +107,14 @@ require __DIR__ . '/includes/header.php';
   <p class="lede">
     <?= $as === 'admin'
       ? 'Ingresá con tu usuario de administrador.'
-      : 'Usá el usuario y la contraseña que te enviamos.' ?>
+      : 'Usá tu email y la contraseña que te enviamos.' ?>
   </p>
   <?php if ($error): ?><div class="alert error"><?= h($error) ?></div><?php endif; ?>
   <form method="post" class="stack">
     <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
     <input type="hidden" name="as" value="<?= h($as) ?>">
-    <label>Usuario
-      <input type="text" name="username" required autocomplete="username" autofocus>
+    <label><?= $as === 'admin' ? 'Usuario' : 'Email' ?>
+      <input type="text" name="username" required autocomplete="username" autocapitalize="none" spellcheck="false" autofocus>
     </label>
     <label>Contraseña
       <input type="password" name="password" required autocomplete="current-password">

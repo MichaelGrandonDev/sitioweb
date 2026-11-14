@@ -65,7 +65,6 @@ require __DIR__ . '/../includes/header.php';
 <nav class="admin-nav">
   <a class="btn secondary" href="index.php">← Panel</a>
   <a class="btn secondary" href="users.php">Alumnos</a>
-  <a class="btn secondary" href="payments.php">Cuotas</a>
 </nav>
 
 <section class="panel" style="margin:1rem 0">

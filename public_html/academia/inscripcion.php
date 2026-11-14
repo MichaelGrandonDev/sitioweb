@@ -112,7 +112,6 @@ $alias = (string) ($cfg['transfer_alias'] ?? 'michael.grandon.mp');
 </p>
 <p class="actions">
   <a class="btn secondary" href="login.php?as=alumno">Ya tengo usuario</a>
-  <a class="btn secondary" href="../cursos/">Prefiero un curso grabado</a>
 </p>
 
 <?php if ($error): ?><div class="alert error"><?= h($error) ?></div><?php endif; ?>

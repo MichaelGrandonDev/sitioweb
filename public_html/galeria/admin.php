@@ -15,17 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = (string) ($_POST['action'] ?? '');
 
     if ($action === 'login') {
-        $pass = (string) ($_POST['password'] ?? '');
-        $adminPass = (string) $config['admin_pass'];
-        if (fluxus_password_configured($adminPass) && hash_equals($adminPass, $pass)) {
-            fluxus_session_login();
-            site_admin_grant();
-            flash('success', 'Ingreso correcto.');
-        } else {
-            fluxus_login_failed();
-            flash('error', 'Contraseña incorrecta. También podés entrar como Administrador en AcademiaFluxus.');
-        }
-        redirect('admin.php');
+        redirect('../academia/login.php?as=admin');
     }
 
     if ($action === 'logout') {
@@ -174,15 +164,8 @@ if (is_admin() && $editId > 0) {
     <?php endif; ?>
 
     <?php if (!is_admin()): ?>
-      <p class="muted">Entrá como <strong>Administrador</strong> en AcademiaFluxus, o con la contraseña del sitio.</p>
-      <p style="margin:.75rem 0"><a class="cta primary" href="../academia/login.php?as=admin">Ir a login Administrador</a></p>
-      <form method="post" class="blogs-form">
-        <input type="hidden" name="action" value="login">
-        <label>Contraseña admin
-          <input type="password" name="password" required autocomplete="current-password">
-        </label>
-        <button class="cta primary" type="submit">Ingresar</button>
-      </form>
+      <p class="muted">Se entra con el usuario <strong>Administrador</strong> de AcademiaFluxus.</p>
+      <p style="margin:.75rem 0"><a class="cta primary" href="../academia/login.php?as=admin">Ingresar como administrador</a></p>
     <?php else: ?>
       <form method="post" style="margin-bottom:1.5rem">
         <input type="hidden" name="action" value="logout">

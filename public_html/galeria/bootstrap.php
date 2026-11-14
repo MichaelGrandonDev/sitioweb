@@ -186,6 +186,14 @@ function store_gallery_upload(array $file): array
         return ['ok' => false, 'error' => 'No se pudo guardar el archivo.'];
     }
     @chmod($dest, 0644);
+    if (in_array($ext, ['jpg', 'jpeg', 'png', 'webp'], true) && is_file(__DIR__ . '/../includes/sitio_img.php')) {
+        try {
+            require_once __DIR__ . '/../includes/sitio_img.php';
+            sitio_img_shrink_inplace($dest, 2000);
+        } catch (Throwable $e) {
+            error_log('Galería: no se pudo optimizar ' . $name . ': ' . $e->getMessage());
+        }
+    }
     return [
         'ok' => true,
         'path' => 'uploads/' . $name,

@@ -4,21 +4,130 @@ $flash = take_flash();
 // Logo FluxusTerapia → home del sitio
 $fluxusHome = (isset($basePath) && $basePath === '../') ? '../../' : '../';
 $fluxusLogo = $fluxusHome . 'img/logo-circle.png';
+$base = $basePath ?? (in_admin_dir() ? '../' : '');
+$useShell = $user !== null;
+
+if ($useShell) {
+    $openTickets = tickets_pending_count($user);
+    $isAdminArea = $user['role'] === 'admin' && in_admin_dir();
+    $current = (in_admin_dir() ? 'admin/' : '') . basename((string) ($_SERVER['SCRIPT_NAME'] ?? ''));
+    $aliases = [
+        'resource.php' => 'clases.php',
+        'course.php' => 'dashboard.php',
+        'ticket.php' => 'tickets.php',
+    ];
+    $current = $aliases[$current] ?? $current;
+
+    if ($isAdminArea) {
+        $navItems = [
+            ['admin/index.php', 'Panel', 'grid', 0],
+            ['admin/users.php', 'Alumnos', 'users', 0],
+            ['admin/grabaciones.php', 'Clases grabadas', 'video', 0],
+            ['admin/tickets.php', 'Consultas', 'chat', $openTickets],
+            ['admin/courses.php', 'Cursos', 'book', 0],
+            ['admin/campus.php', 'Materiales', 'layers', 0],
+            ['admin/inscriptions.php', 'Inscripciones', 'inbox', 0],
+            ['admin/admins.php', 'Administradores', 'key', 0],
+        ];
+        $webItems = [
+            ['admin/sitio_textos.php', 'Textos', 'pen', 0],
+            ['admin/sitio_fotos.php', 'Fotos', 'image', 0],
+            ['admin/sitio_contacto.php', 'Contacto y WhatsApp', 'whatsapp', 0],
+            ['admin/sitio_estilo.php', 'Letra y colores', 'type', 0],
+        ];
+        if ($current === 'admin/sitio_historial.php') {
+            $current = 'admin/sitio_textos.php';
+        }
+        $siteItems = [
+            ['../turnos/admin.php', 'Turnos y pacientes', 'calendar'],
+            ['../galeria/admin.php', 'Galería', 'image'],
+            ['../blogs/admin.php', 'Blogs', 'pen'],
+            ['fluxus/', 'Generador de clases', 'spark'],
+        ];
+        $footLink = ['dashboard.php', 'Ver como alumno', 'eye'];
+        $mobileItems = array_slice($navItems, 0, 4);
+    } else {
+        $navItems = [
+            ['dashboard.php', 'Inicio', 'home', 0],
+            ['clases.php', 'Clases grabadas', 'play', 0],
+            ['tickets.php', 'Consultas', 'chat', $openTickets],
+            ['cuenta.php', 'Mi cuenta', 'user', 0],
+        ];
+        $siteItems = [];
+        $webItems = [];
+        $footLink = $user['role'] === 'admin' ? ['admin/index.php', 'Volver al panel', 'grid'] : null;
+        $mobileItems = $navItems;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0f3d36">
   <title><?= h(($pageTitle ?? 'Academia') . ' · AcademiaFluxus') ?></title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="<?= h(($assetPrefix ?? '') . 'assets/css/academia.css') ?>">
+  <link rel="stylesheet" href="<?= h(($assetPrefix ?? $base) . 'assets/css/academia.css') ?>?v=<?= (int) @filemtime(__DIR__ . '/../assets/css/academia.css') ?>">
   <link rel="icon" href="<?= h($fluxusHome) ?>img/logo.png" type="image/png">
 </head>
-<body class="<?= trim((!empty($campusMode) ? 'is-campus ' : '') . (!empty($minimalShell) ? 'is-minimal' : '')) ?>">
-  <?php if (!empty($minimalShell) && !$user): ?>
+<body class="<?= trim((!empty($campusMode) ? 'is-campus ' : '') . (!empty($minimalShell) && !$useShell ? 'is-minimal ' : '') . ($useShell ? 'has-shell' : '')) ?>">
+<?php if ($useShell): ?>
+<div class="shell">
+  <aside class="side" id="side">
+    <a class="side-brand" href="<?= h($fluxusHome) ?>" title="Volver a FluxusTerapia">
+      <img src="<?= h($fluxusLogo) ?>" alt="" width="40" height="40">
+      <span>AcademiaFluxus<em><?= $isAdminArea ? 'Administración' : 'Campus alumno' ?></em></span>
+    </a>
+    <nav class="side-nav" aria-label="Secciones">
+      <?php foreach ($navItems as [$href, $label, $icon, $badge]): ?>
+        <a class="side-link<?= $current === $href ? ' is-active' : '' ?>" href="<?= h($base . $href) ?>"<?= $current === $href ? ' aria-current="page"' : '' ?>>
+          <?= aca_icon($icon) ?><span><?= h($label) ?></span>
+          <?php if ($badge > 0): ?><b class="side-badge"><?= (int) $badge ?></b><?php endif; ?>
+        </a>
+      <?php endforeach; ?>
+      <?php if ($webItems): ?>
+        <p class="side-label">Sitio web</p>
+        <?php foreach ($webItems as [$href, $label, $icon]): ?>
+          <a class="side-link<?= $current === $href ? ' is-active' : '' ?>" href="<?= h($base . $href) ?>"<?= $current === $href ? ' aria-current="page"' : '' ?>><?= aca_icon($icon) ?><span><?= h($label) ?></span></a>
+        <?php endforeach; ?>
+      <?php endif; ?>
+      <?php if ($siteItems): ?>
+        <p class="side-label">Más secciones</p>
+        <?php foreach ($siteItems as [$href, $label, $icon]): ?>
+          <a class="side-link is-quiet" href="<?= h($base . $href) ?>"><?= aca_icon($icon) ?><span><?= h($label) ?></span></a>
+        <?php endforeach; ?>
+      <?php endif; ?>
+    </nav>
+    <?php if ($footLink): ?>
+      <a class="side-switch" href="<?= h($base . $footLink[0]) ?>"><?= aca_icon($footLink[2]) ?><span><?= h($footLink[1]) ?></span></a>
+    <?php endif; ?>
+    <div class="side-user">
+      <span class="avatar"><?= h(aca_initial((string) $user['name'])) ?></span>
+      <span class="side-user-text">
+        <strong><?= h($user['name']) ?></strong>
+        <em><?= h((string) ($user['email'] ?: $user['username'])) ?></em>
+      </span>
+      <a class="icon-btn" href="<?= h($base . 'logout.php') ?>" title="Cerrar sesión" aria-label="Cerrar sesión"><?= aca_icon('logout') ?></a>
+    </div>
+  </aside>
+  <div class="side-scrim" data-side-close></div>
+
+  <div class="shell-main">
+    <header class="mobile-top">
+      <img src="<?= h($fluxusLogo) ?>" alt="" width="34" height="34">
+      <p>Hola, <?= h(aca_first_name((string) $user['name'])) ?></p>
+      <?php if ($isAdminArea): ?>
+        <button class="icon-btn" type="button" data-side-open aria-label="Abrir menú"><?= aca_icon('menu') ?></button>
+      <?php else: ?>
+        <a class="icon-btn" href="<?= h($base . 'logout.php') ?>" aria-label="Cerrar sesión"><?= aca_icon('logout') ?></a>
+      <?php endif; ?>
+    </header>
+    <main class="shell-content<?= !empty($campusMode) ? ' is-wide' : '' ?>">
+<?php else: ?>
+  <?php if (!empty($minimalShell)): ?>
   <header class="topbar topbar--minimal">
     <a class="brand brand--home" href="<?= h($fluxusHome) ?>" title="Volver a FluxusTerapia">
       <img class="brand-logo" src="<?= h($fluxusLogo) ?>" alt="FluxusTerapia" width="48" height="48">
@@ -32,33 +141,13 @@ $fluxusLogo = $fluxusHome . 'img/logo-circle.png';
       <span class="brand-text">AcademiaFluxus <em>Campus</em></span>
     </a>
     <nav>
-      <?php if ($user): ?>
-        <?php if ($user['role'] === 'admin'): ?>
-          <a href="<?= h(($basePath ?? '') . 'admin/index.php') ?>">Admin</a>
-          <a href="<?= h(($basePath ?? '') . 'fluxus/') ?>">Admin Fluxus</a>
-          <a href="<?= h(($basePath ?? '') . 'admin/shop.php') ?>">Tienda</a>
-          <a href="<?= h(($basePath ?? '') . 'admin/admins.php') ?>">Admins</a>
-          <a href="<?= h(($basePath ?? '') . 'admin/campus.php') ?>">Unidades</a>
-          <a href="<?= h(($basePath ?? '') . 'admin/payments.php') ?>">Cuotas</a>
-          <a href="<?= h(($basePath ?? '') . 'dashboard.php') ?>">Vista alumno</a>
-        <?php else: ?>
-          <a href="<?= h(($basePath ?? '') . 'dashboard.php') ?>">Mis cursos</a>
-          <a href="<?= h(($basePath ?? '') . '../cursos/') ?>">Cursos grabados</a>
-          <a href="<?= h(($basePath ?? '') . 'payments.php') ?>">Mis cuotas</a>
-        <?php endif; ?>
-        <a href="<?= h(($basePath ?? '') . 'cart.php') ?>" class="cart-link">Carrito<?= cart_count() > 0 ? ' (' . cart_count() . ')' : '' ?></a>
-        <span class="topbar-user"><?= h($user['name']) ?><?= $user['role'] === 'admin' ? ' · Admin' : ' · Alumno' ?></span>
-        <a href="<?= h(($basePath ?? '') . 'logout.php') ?>">Salir</a>
-      <?php else: ?>
-        <a href="<?= h(($basePath ?? '') . '../cursos/') ?>">Cursos grabados</a>
-        <a href="<?= h(($basePath ?? '') . '../cursos/cart.php') ?>" class="cart-link">Carrito<?= cart_count() > 0 ? ' (' . cart_count() . ')' : '' ?></a>
-        <a href="<?= h(($basePath ?? '') . 'inscripcion.php') ?>">Inscribirme</a>
-        <a href="<?= h(($basePath ?? '') . 'login.php') ?>">Ingresar</a>
-      <?php endif; ?>
+      <a href="<?= h($base . 'inscripcion.php') ?>">Inscribirme</a>
+      <a href="<?= h($base . 'login.php') ?>">Ingresar</a>
     </nav>
   </header>
   <?php endif; ?>
   <main class="<?= !empty($campusMode) ? 'campus-wrap' : 'wrap' ?>">
+<?php endif; ?>
     <?php if ($flash): ?>
-      <div class="alert <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div>
+      <div class="alert <?= h($flash['type']) ?>" role="status"><?= h($flash['message']) ?></div>
     <?php endif; ?>

@@ -109,11 +109,11 @@ require __DIR__ . '/../includes/header.php';
 ?>
 <p class="eyebrow">Admin</p>
 <h1>Cursos y clases</h1>
-<p class="lede">Creá cursos, dalos de baja o eliminálos. El contenido de las unidades (PDF, videos, archivos) se carga en Campus virtual y sirve tanto para el campus como para cursos grabados de la tienda.</p>
+<p class="lede">Creá cursos, dalos de baja o eliminálos. Las clases grabadas se suben en Clases grabadas; PDFs y otros materiales, en Unidades y materiales.</p>
 <nav class="admin-nav">
   <a class="btn secondary" href="index.php">← Panel</a>
+  <a class="btn secondary" href="grabaciones.php">Clases grabadas</a>
   <a class="btn secondary" href="campus.php">Unidades y materiales</a>
-  <a class="btn secondary" href="shop.php">Tienda</a>
   <a class="btn secondary" href="users.php">Alumnos</a>
 </nav>
 

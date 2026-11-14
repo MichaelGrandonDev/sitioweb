@@ -101,7 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 (course_id, section_id, type, title, description, url, content, file_path, track_completion, sort_order)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ")->execute([$courseId, $sectionId, $type, $title, $description, $url, $content, $filePath, $track, 99]);
-            flash('success', 'Contenido publicado en la unidad. Visible en campus y, si el curso está en tienda, en cursos grabados.');
+            flash('success', 'Contenido publicado en la unidad. Ya lo ven los alumnos del curso.');
         } elseif ($title === '') {
             flash('error', 'Indicá un título o subí un archivo.');
         }
@@ -191,12 +191,12 @@ require __DIR__ . '/../includes/header.php';
 <h1>Unidades programáticas y materiales</h1>
 <p class="lede">
   Armá las unidades del curso y subí PDFs, videos, documentos o enlaces.
-  El mismo contenido alimenta el campus de AcademiaFluxus y los cursos grabados de la tienda.
+  Para clases grabadas en video usá <a href="grabaciones.php">Clases grabadas</a>, que acepta archivos grandes.
 </p>
 <nav class="admin-nav">
   <a class="btn secondary" href="index.php">← Panel</a>
   <a class="btn secondary" href="courses.php">Cursos</a>
-  <a class="btn secondary" href="shop.php">Tienda</a>
+  <a class="btn secondary" href="grabaciones.php">Clases grabadas</a>
   <a class="btn secondary" href="users.php">Alumnos</a>
   <?php if ($course): ?>
     <a class="btn primary" href="../course.php?id=<?= $courseId ?>" target="_blank">Ver campus alumno</a>

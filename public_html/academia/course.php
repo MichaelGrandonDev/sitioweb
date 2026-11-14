@@ -113,6 +113,8 @@ require __DIR__ . '/includes/header.php';
   <aside class="campus-nav" id="campus-nav">
     <p class="campus-nav-label">Este curso</p>
     <a class="campus-nav-item active" href="course.php?id=<?= $courseId ?>"><?= h($course['title']) ?></a>
+    <a class="campus-nav-item" href="clases.php?course_id=<?= $courseId ?>">Clases grabadas</a>
+    <a class="campus-nav-item" href="tickets.php?nuevo=1&amp;to=teacher&amp;course_id=<?= $courseId ?>#nueva">Consultar al profesor</a>
     <a class="campus-nav-item" href="#avisos">Avisos</a>
     <a class="campus-nav-item" href="#eventos">Próximos eventos</a>
     <?php if (trim((string) ($course['meet_url'] ?? '')) !== ''): ?>
@@ -123,8 +125,8 @@ require __DIR__ . '/includes/header.php';
     <?php endif; ?>
 
     <p class="campus-nav-label">Campus</p>
-    <a class="campus-nav-item" href="dashboard.php">Área personal</a>
     <a class="campus-nav-item" href="dashboard.php">Mis cursos</a>
+    <a class="campus-nav-item" href="tickets.php">Mis consultas</a>
     <?php foreach ($myCourses as $mc): ?>
       <?php if ((int) $mc['id'] === $courseId) continue; ?>
       <a class="campus-nav-item subtle" href="course.php?id=<?= (int) $mc['id'] ?>"><?= h($mc['title']) ?></a>

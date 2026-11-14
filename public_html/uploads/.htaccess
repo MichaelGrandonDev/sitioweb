@@ -1,0 +1,10 @@
+# Solo fotos: nunca se ejecuta ni se sirve código desde acá.
+Options -Indexes
+<FilesMatch "(?i)\.(php\d?|phtml|phar|pl|py|cgi|sh|shtml|html?|svg|js|htaccess|user\.ini)$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Deny from all
+  </IfModule>
+</FilesMatch>

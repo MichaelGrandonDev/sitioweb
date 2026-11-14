@@ -86,7 +86,7 @@ function welcome_email_html(string $name, string $username, string $password, st
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#eef3ef;border-radius:8px;margin:0 0 20px;">
                 <tr>
                   <td style="padding:16px 18px;font-family:Arial,sans-serif;font-size:15px;line-height:1.7;color:#12201c;">
-                    <strong>Usuario:</strong> {$safeUser}<br>
+                    <strong>Email:</strong> {$safeUser}<br>
                     <strong>Contraseña:</strong> {$safePass}<br>
                     <strong>Ingreso:</strong> <a href="{$safeUrl}" style="color:#0f3d36;">{$safeUrl}</a>
                   </td>
@@ -117,14 +117,14 @@ HTML;
 function send_welcome_email(string $email, string $name, string $username, string $password): bool
 {
     global $config;
-    $loginUrl = rtrim((string) ($config['site_url'] ?? 'https://fluxusterapia.com'), '/') . '/academia/login.php';
+    $loginUrl = rtrim((string) ($config['site_url'] ?? 'https://fluxusterapia.com'), '/') . '/academia/login.php?as=alumno';
     $subject = 'Bienvenida a AcademiaFluxus · tus datos de acceso';
-    $html = welcome_email_html($name, $username, $password, $loginUrl);
+    $html = welcome_email_html($name, $email, $password, $loginUrl);
     $text = "Hola, {$name}\n\n"
         . "Qué alegría tenerte en AcademiaFluxus. En este tiempo te vamos a acompañar "
         . "con presencia, calma y una propuesta clara para que avances a tu ritmo.\n\n"
-        . "Tus datos de acceso:\n"
-        . "Usuario: {$username}\n"
+        . "Tus datos de acceso al Campus Alumno:\n"
+        . "Email: {$email}\n"
         . "Contraseña: {$password}\n"
         . "Ingreso: {$loginUrl}\n\n"
         . "Con cariño,\nMichael · FluxusTerapia\n";
