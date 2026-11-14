@@ -60,3 +60,14 @@ En Admin → Cursos, al crear o editar un curso se puede subir una **foto del cu
 - Es **privada**: se guarda en `data/uploads/` y se sirve por `cover.php` solo a quien tiene sesión y acceso al curso (sin sesión manda al login; sin acceso, 403).
 - El alumno ve la foto en la tarjeta de **Mis cursos** y como cabecera del curso, con la descripción completa (respeta los saltos de línea).
 - Test: `php qa/test_course_cover.php`.
+
+## Clases grabadas: orden, vistas y bonus
+
+En Admin → **Clases**, elegí el curso. Abajo aparecen dos listas: **Clases del curso** y **Bonus (x de 3)**.
+
+- **Ordenar**: el alumno ve las clases numeradas (Clase 1, 2, 3…) en el orden de la lista. Usá las flechas ↑ ↓ de cada clase, o en «Editar» cambiá el **Número de clase**. Las clases nuevas se agregan al final.
+- **Bonus**: hasta **3 por curso**. Para crear una, tildá **«Es una clase bonus»** al subir el video o pegar el link; para convertir una que ya existe, tocá **«Pasar a bonus»** (y **«Quitar de bonus»** para volverla a la lista normal, al final). Si ya hay 3, el panel avisa y no deja agregar otra.
+- Las bonus **no cuentan para el progreso** del alumno. Por defecto el alumno las ve **con candado** hasta completar todas las clases del curso; ahí aparece un mensaje «¡Buen trabajo!» que lo invita a verlas. El bloqueo se valida también en el servidor (no se pueden abrir por URL).
+- Para que las bonus estén **siempre visibles**, cambiá `RECORDING_BONUS_NEEDS_COMPLETION` a `false` en `academia/includes/recordings.php` (el máximo se cambia en `RECORDING_MAX_BONUS`).
+- El alumno marca cada clase con **«Marcar como vista»** (en la lista o en la página de la clase; se puede desmarcar). Los videos subidos al campus se marcan solos al llegar a ~90 %; los de YouTube/Drive, solo con el botón.
+- Test: `php qa/test_clases_progreso.php`.
