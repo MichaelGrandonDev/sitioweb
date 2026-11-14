@@ -106,6 +106,7 @@ CREATE TABLE course_resources (
   track_completion INTEGER NOT NULL DEFAULT 1,
   lesson_id INTEGER DEFAULT NULL,
   sort_order INTEGER NOT NULL DEFAULT 0,
+  is_bonus INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE CASCADE,
   FOREIGN KEY(section_id) REFERENCES course_sections(id) ON DELETE CASCADE

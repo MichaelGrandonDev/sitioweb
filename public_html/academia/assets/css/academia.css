@@ -1606,3 +1606,171 @@ a.stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-lift); }
 @media (max-width: 640px) {
   .campus-cover { aspect-ratio: 16 / 9; }
 }
+
+/* ——— Clases numeradas, tilde de vista, felicitación y bonus ——— */
+.course-classes { margin-bottom: 2rem; scroll-margin-top: 1rem; }
+.cc-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 0.6rem 1.4rem; margin: 0 0 0.9rem; }
+.cc-head h2 { margin: 0; font-size: 1.7rem; color: var(--brand-deep); }
+.cc-progress { display: grid; gap: 0.3rem; min-width: 220px; flex: 0 1 300px; font-size: 0.88rem; color: var(--muted); }
+.cc-progress b { color: var(--brand); font-weight: 600; }
+
+.class-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.55rem; }
+.class-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.7rem 0.55rem 0.55rem;
+  border-radius: 16px;
+  background: #fff;
+  border: 1px solid rgba(15, 61, 54, 0.08);
+  box-shadow: var(--shadow-soft);
+  scroll-margin-top: 1rem;
+  transition: border-color .15s ease, background .15s ease;
+}
+.class-item:hover { border-color: rgba(47, 143, 107, 0.35); }
+.class-item.is-seen { background: linear-gradient(90deg, rgba(223, 234, 227, 0.55), #fff 60%); }
+.class-link { display: flex; align-items: center; gap: 0.85rem; min-width: 0; color: inherit; }
+.class-thumb {
+  position: relative;
+  flex-shrink: 0;
+  width: 7.2rem;
+  aspect-ratio: 16 / 9;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--brand), var(--accent)) center / cover no-repeat;
+  overflow: hidden;
+}
+.class-thumb::after { content: ""; position: absolute; inset: 0; background: rgba(10, 40, 35, 0.28); }
+.class-num {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--brand);
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.class-num .ico { width: 1.05rem; height: 1.05rem; }
+.class-item.is-seen .class-num { background: var(--accent); color: #fff; }
+.class-body { display: grid; gap: 0.12rem; min-width: 0; }
+.class-body small { font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+.class-body strong { font-size: 1.02rem; line-height: 1.3; color: var(--ink); overflow-wrap: anywhere; }
+.class-desc { color: var(--muted); font-size: 0.86rem; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.class-seen-tag { font-weight: 600; color: var(--brand); }
+.class-check { margin: 0; }
+.seen-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.6rem;
+  padding: 0.4rem 0.85rem 0.4rem 0.6rem;
+  border-radius: 99px;
+  border: 1.5px solid rgba(15, 61, 54, 0.2);
+  background: #fff;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.seen-toggle .ico { width: 1.15rem; height: 1.15rem; }
+.seen-toggle:hover { border-color: var(--accent); color: var(--brand); }
+.seen-toggle.is-on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.seen-toggle.is-on:hover { background: #287d5d; }
+.seen-toggle:focus-visible { outline: 3px solid rgba(47, 143, 107, 0.35); outline-offset: 2px; }
+.class-item.is-locked { background: rgba(255, 255, 255, 0.6); box-shadow: none; border-style: dashed; grid-template-columns: minmax(0, 1fr); }
+.class-item.is-locked .class-link { cursor: default; }
+.class-item.is-locked .class-thumb { filter: grayscale(0.7) brightness(0.95); }
+.class-item.is-locked .class-num { background: rgba(255, 255, 255, 0.85); color: var(--muted); }
+.class-item.is-locked strong { color: var(--muted); }
+.class-item.is-locked:hover { border-color: rgba(15, 61, 54, 0.08); }
+
+.bonus-block { margin-top: 1.2rem; padding: 1rem; border-radius: 18px; background: linear-gradient(135deg, rgba(223, 234, 227, 0.7), rgba(238, 243, 239, 0.4)); border: 1px solid rgba(47, 143, 107, 0.16); scroll-margin-top: 1rem; }
+.bonus-head { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.8rem; }
+.bonus-head h3 { margin: 0; font-family: var(--font-display); font-size: 1.45rem; color: var(--brand-deep); }
+.bonus-head p { margin: 0; font-size: 0.86rem; color: var(--muted); }
+.bonus-ico { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; flex-shrink: 0; border-radius: 12px; background: #fff; color: var(--accent); }
+.bonus-block.is-locked .bonus-ico { color: var(--muted); }
+
+.done-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  margin: 0 0 1rem;
+  padding: 1.1rem 1.2rem;
+  border-radius: 18px;
+  background: linear-gradient(135deg, var(--brand), #1d5a4a);
+  color: #fff;
+  box-shadow: var(--shadow-soft);
+}
+.done-banner[hidden] { display: none; }
+.done-banner-ico { display: grid; place-items: center; width: 3rem; height: 3rem; flex-shrink: 0; border-radius: 50%; background: rgba(255, 255, 255, 0.12); color: var(--accent-soft); }
+.done-banner-ico .ico { width: 1.7rem; height: 1.7rem; }
+.done-banner strong { display: block; font-family: var(--font-display); font-size: 1.7rem; font-weight: 600; line-height: 1.1; }
+.done-banner p { margin: 0.2rem 0 0; color: rgba(255, 255, 255, 0.82); font-size: 0.92rem; }
+.done-banner p.done-banner-lead { color: #fff; font-size: 1rem; }
+.done-banner .btn { margin-top: 0.7rem; background: #fff; color: var(--brand); }
+.done-banner .btn:hover { background: var(--foam); box-shadow: none; }
+.done-banner.is-new { animation: done-in .6s ease both; }
+.done-banner.is-new .done-banner-ico { animation: done-pop .7s .2s ease both; }
+@keyframes done-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes done-pop { 0% { transform: scale(.6); } 60% { transform: scale(1.12); } 100% { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .done-banner.is-new, .done-banner.is-new .done-banner-ico { animation: none; } }
+
+.class-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin-top: 0.3rem; }
+.class-nav a { display: flex; align-items: center; gap: 0.7rem; padding: 0.75rem 0.9rem; border-radius: 14px; border: 1px solid rgba(15, 61, 54, 0.1); background: #fff; color: var(--ink); font-size: 0.9rem; line-height: 1.3; min-width: 0; transition: border-color .15s ease, background .15s ease; }
+.class-nav a:hover { border-color: var(--accent); background: var(--foam); }
+.class-nav a span { min-width: 0; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.class-nav small { display: block; font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+.class-nav .ico { width: 1.2rem; height: 1.2rem; flex-shrink: 0; color: var(--accent); }
+.class-nav-next { grid-column: 2; justify-content: space-between; text-align: right; }
+.class-nav-next.is-end { background: var(--foam); }
+.class-nav-prev:only-child { grid-column: 1; }
+
+.playlist .pl-group { display: flex; align-items: center; gap: 0.4rem; margin: 0.5rem 0.4rem 0.2rem; padding-top: 0.6rem; border-top: 1px solid rgba(15, 61, 54, 0.07); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; color: var(--accent); }
+.playlist .pl-group .ico { width: 0.95rem; height: 0.95rem; }
+.pl-locked { display: flex; gap: 0.7rem; align-items: center; padding: 0.55rem 0.6rem; font-size: 0.88rem; color: var(--muted); opacity: 0.75; }
+
+.res-label { display: block; font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+.campus-resource.is-locked { opacity: 0.7; }
+.campus-resource.is-locked .res-icon .ico { width: 1rem; height: 1rem; }
+.res-actions .badge .ico, .course-card-progress .badge .ico { width: 0.85rem; height: 0.85rem; vertical-align: -2px; }
+
+.course-card-progress { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; margin: 0.8rem 0 0.35rem; font-size: 0.88rem; color: var(--muted); }
+.course-card-progress b { color: var(--brand); font-weight: 600; }
+.course-card .ico { width: 1rem; height: 1rem; }
+
+.rec-admin-num { margin: 0 0 0.1rem !important; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+.rec-admin-actions { flex-wrap: wrap !important; justify-content: flex-end; gap: 0.3rem; }
+.rec-admin-actions form { margin: 0; }
+.rec-admin-actions .icon-btn:disabled { opacity: 0.3; cursor: default; }
+.rec-admin-actions .icon-btn:disabled:hover { background: transparent; }
+
+@media (max-width: 640px) {
+  .class-item { grid-template-columns: minmax(0, 1fr) auto; padding: 0.5rem; gap: 0.4rem; }
+  .class-thumb { width: 4.6rem; border-radius: 10px; }
+  .class-num { width: 1.8rem; height: 1.8rem; font-size: 1.1rem; }
+  .class-link { gap: 0.7rem; }
+  .class-body strong { font-size: 0.95rem; }
+  .class-desc { -webkit-line-clamp: 1; }
+  .seen-toggle { padding: 0; width: 2.75rem; min-height: 2.75rem; justify-content: center; }
+  .seen-toggle span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .seen-toggle .ico { width: 1.3rem; height: 1.3rem; }
+  .bonus-block { padding: 0.75rem; }
+  .class-nav { grid-template-columns: 1fr; }
+  .class-nav-next { grid-column: 1; }
+  .done-banner { padding: 1rem; gap: 0.8rem; }
+  .done-banner-ico { width: 2.5rem; height: 2.5rem; }
+  .done-banner strong { font-size: 1.45rem; }
+  .cc-progress { flex-basis: 100%; }
+}

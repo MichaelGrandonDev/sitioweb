@@ -25,10 +25,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if (($_POST['action'] ?? '') === 'toggle_resource') {
         $rid = (int) ($_POST['resource_id'] ?? 0);
-        $check = db()->prepare('SELECT id, track_completion FROM course_resources WHERE id = ? AND course_id = ?');
+        $check = db()->prepare('SELECT id, course_id, type, is_bonus, track_completion FROM course_resources WHERE id = ? AND course_id = ?');
         $check->execute([$rid, $courseId]);
         $res = $check->fetch();
-        if ($res && (int) $res['track_completion'] === 1) {
+        if ($res && (int) $res['track_completion'] === 1 && !recording_is_locked($res, $user)) {
             $exists = db()->prepare('SELECT 1 FROM resource_progress WHERE user_id = ? AND resource_id = ?');
             $exists->execute([(int) $user['id'], $rid]);
             if ($exists->fetch()) {
@@ -47,7 +47,7 @@ $sections = db()->prepare('SELECT * FROM course_sections WHERE course_id = ? ORD
 $sections->execute([$courseId]);
 $sections = $sections->fetchAll();
 
-$resources = db()->prepare('SELECT * FROM course_resources WHERE course_id = ? ORDER BY sort_order, id');
+$resources = db()->prepare('SELECT * FROM course_resources WHERE course_id = ? ORDER BY is_bonus, sort_order, id');
 $resources->execute([$courseId]);
 $bySection = [];
 foreach ($resources->fetchAll() as $r) {
@@ -58,11 +58,18 @@ $done = db()->prepare('SELECT resource_id FROM resource_progress WHERE user_id =
 $done->execute([(int) $user['id']]);
 $doneIds = array_map('intval', array_column($done->fetchAll(), 'resource_id'));
 
+// Numeración y bloqueo de las clases grabadas ("Clase 3", "Bonus 1").
+$plan = recording_plan(recordings_of_course($courseId), $doneIds, $user['role'] === 'admin');
+$planItems = [];
+foreach (array_merge($plan['classes'], $plan['bonus']) as $p) {
+    $planItems[(int) $p['id']] = $p;
+}
+
 $trackable = 0;
 $doneTrack = 0;
 foreach ($bySection as $list) {
     foreach ($list as $r) {
-        if ((int) $r['track_completion'] !== 1) {
+        if ((int) $r['track_completion'] !== 1 || (int) $r['is_bonus'] === 1) {
             continue;
         }
         $trackable++;
@@ -155,6 +162,10 @@ require __DIR__ . '/includes/header.php';
       </div>
     </header>
 
+    <?php if ($plan['complete']): ?>
+      <?= aca_course_done_banner((string) $course['title'], $courseId, count($plan['bonus'])) ?>
+    <?php endif; ?>
+
     <?php if (!$sections): ?>
       <div class="campus-section">
         <div class="campus-section-body">
@@ -170,7 +181,7 @@ require __DIR__ . '/includes/header.php';
         $secTotal = 0;
         $secDone = 0;
         foreach ($items as $r) {
-            if ((int) $r['track_completion'] !== 1) {
+            if ((int) $r['track_completion'] !== 1 || (int) $r['is_bonus'] === 1) {
                 continue;
             }
             $secTotal++;
@@ -200,20 +211,34 @@ require __DIR__ . '/includes/header.php';
               if ($r['type'] === 'meet' && trim((string) $r['url']) !== '') {
                   $href = (string) $r['url'];
               }
+              $pItem = $planItems[$rid] ?? null;
+              $locked = $pItem !== null && !empty($pItem['locked']);
             ?>
-            <article class="campus-resource <?= $isDone ? 'is-done' : '' ?>">
-              <span class="res-icon type-<?= h((string) $r['type']) ?>" title="<?= h($meta['label']) ?>"><?= h($meta['icon']) ?></span>
+            <article class="campus-resource <?= $isDone ? 'is-done' : '' ?><?= $locked ? ' is-locked' : '' ?>">
+              <span class="res-icon type-<?= h((string) $r['type']) ?>" title="<?= h($meta['label']) ?>"><?= $locked ? aca_icon('lock') : h($meta['icon']) ?></span>
               <div class="res-body">
+                <?php if ($pItem !== null): ?>
+                  <small class="res-label"><?= h(recording_label($pItem)) ?><?= (int) $pItem['is_bonus'] === 1 ? ' · no cuenta para el progreso' : '' ?></small>
+                <?php endif; ?>
                 <h3>
-                  <a href="<?= h($href) ?>" <?= $r['type'] === 'meet' ? 'target="_blank" rel="noopener"' : '' ?>>
+                  <?php if ($locked): ?>
                     <?= h($r['title']) ?>
-                  </a>
+                  <?php else: ?>
+                    <a href="<?= h($href) ?>" <?= $r['type'] === 'meet' ? 'target="_blank" rel="noopener"' : '' ?>>
+                      <?= h($r['title']) ?>
+                    </a>
+                  <?php endif; ?>
                 </h3>
-                <?php if (trim((string) $r['description']) !== ''): ?>
+                <?php if ($locked): ?>
+                  <p>Se desbloquea al completar todas las clases.</p>
+                <?php elseif (trim((string) $r['description']) !== ''): ?>
                   <p><?= h($r['description']) ?></p>
                 <?php endif; ?>
               </div>
               <div class="res-actions">
+                <?php if ($locked): ?>
+                  <span class="badge soft"><?= aca_icon('lock') ?> Bonus</span>
+                <?php else: ?>
                 <?php if ((int) $r['track_completion'] === 1): ?>
                   <form method="post">
                     <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
@@ -228,6 +253,7 @@ require __DIR__ . '/includes/header.php';
                 <a class="btn primary small-btn" href="<?= h($href) ?>" <?= $r['type'] === 'meet' ? 'target="_blank" rel="noopener"' : '' ?>>
                   Abrir
                 </a>
+                <?php endif; ?>
               </div>
             </article>
           <?php endforeach; ?>

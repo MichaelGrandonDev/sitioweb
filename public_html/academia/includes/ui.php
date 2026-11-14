@@ -35,6 +35,10 @@ function aca_icon(string $name, string $class = 'ico'): string
         'trash' => '<path d="M4 7h16M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13"/><path d="M9 7V4h6v3"/>',
         'arrow-left' => '<path d="M19 12H5M11 6l-6 6 6 6"/>',
         'arrow-right' => '<path d="M5 12h14M13 6l6 6-6 6"/>',
+        'arrow-up' => '<path d="M12 19V5M6 11l6-6 6 6"/>',
+        'arrow-down' => '<path d="M12 5v14M6 13l6 6 6-6"/>',
+        'gift' => '<rect x="3.5" y="8.5" width="17" height="4" rx="1"/><path d="M5 12.5V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7.5M12 8.5V21"/><path d="M12 8.5C10.5 5 7 4.5 7 6.5S10 8.5 12 8.5ZM12 8.5c1.5-3.5 5-4 5-2s-3 2-5 2Z"/>',
+        'award' => '<circle cx="12" cy="9" r="6"/><path d="m9.5 8.8 1.8 1.8 3.3-3.3"/><path d="M8.5 14 7 21.5l5-2.5 5 2.5-1.5-7.5"/>',
         'menu' => '<path d="M4 7h16M4 12h16M4 17h16"/>',
         'external' => '<path d="M14 4h6v6"/><path d="M20 4 10 14"/><path d="M18 14v5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 19V7.5A1.5 1.5 0 0 1 5.5 6H10"/>',
         'clock' => '<circle cx="12" cy="12" r="9.5"/><path d="M12 7v5l3 2"/>',
@@ -45,6 +49,23 @@ function aca_icon(string $name, string $class = 'ico'): string
     ];
     $d = $paths[$name] ?? $paths['spark'];
     return '<svg class="' . h($class) . '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' . $d . '</svg>';
+}
+
+/**
+ * Mensaje de felicitación al completar todas las clases de un curso.
+ * $bonusCount > 0 invita a ver las bonus (que quedan desbloqueadas).
+ */
+function aca_course_done_banner(string $courseTitle, int $courseId, int $bonusCount, bool $hidden = false, string $extraClass = ''): string
+{
+    $invite = $bonusCount > 0
+        ? '<p>Como regalo, se desbloquearon ' . ($bonusCount === 1 ? 'una clase bonus' : $bonusCount . ' clases bonus') . ' para que sigas practicando.</p>'
+          . '<a class="btn primary small-btn" href="clases.php?course_id=' . $courseId . '#bonus-' . $courseId . '">' . aca_icon('gift') . ' Ver clases bonus</a>'
+        : '<p>Podés volver a ver cualquier clase cuando quieras.</p>';
+    return '<div class="done-banner' . ($extraClass !== '' ? ' ' . h($extraClass) : '') . '" role="status"' . ($hidden ? ' hidden' : '') . '>'
+        . '<span class="done-banner-ico">' . aca_icon('award') . '</span>'
+        . '<div><strong>¡Buen trabajo!</strong>'
+        . '<p class="done-banner-lead">Completaste todas las clases de ' . h($courseTitle) . '.</p>'
+        . $invite . '</div></div>';
 }
 
 function aca_initial(string $name): string

@@ -27,10 +27,45 @@ if (!in_array($courseId, $courseIds, true)) {
     $courseId = 0;
 }
 
-$recordings = recordings_for_user($user, $courseId);
-$doneIds = recording_done_ids((int) $user['id']);
-$seen = count(array_filter($recordings, static fn ($r) => in_array((int) $r['id'], $doneIds, true)));
-$pct = $recordings ? (int) round($seen / count($recordings) * 100) : 0;
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $back = 'clases.php' . ($courseId > 0 ? '?course_id=' . $courseId : '');
+    if (!verify_csrf($_POST['csrf'] ?? null)) {
+        flash('error', 'La sesión expiró. Probá de nuevo.');
+        redirect($back);
+    }
+    $rid = (int) ($_POST['resource_id'] ?? 0);
+    $st = $pdo->prepare("SELECT id, course_id, type, is_bonus FROM course_resources WHERE id = ? AND type = 'video'");
+    $st->execute([$rid]);
+    $res = $st->fetch();
+    if (($_POST['action'] ?? '') === 'toggle_seen' && $res && in_array((int) $res['course_id'], $courseIds, true) && !recording_is_locked($res, $user)) {
+        $cid = (int) $res['course_id'];
+        $wasComplete = recording_course_plan($cid, $user)['complete'];
+        recording_set_seen((int) $user['id'], $rid, ($_POST['seen'] ?? '') === '1');
+        if (!$wasComplete && recording_course_plan($cid, $user)['complete']) {
+            $_SESSION['celebrate_course'] = $cid;
+        }
+    }
+    redirect($back . '#rec-' . $rid);
+}
+$celebrate = (int) ($_SESSION['celebrate_course'] ?? 0);
+unset($_SESSION['celebrate_course']);
+
+// Un bloque por curso: clases numeradas en orden + bonus aparte.
+$blocks = [];
+foreach ($courses as $c) {
+    if ($courseId > 0 && (int) $c['id'] !== $courseId) {
+        continue;
+    }
+    $plan = recording_course_plan((int) $c['id'], $user);
+    if ($plan['classes'] || $plan['bonus']) {
+        $blocks[] = ['course' => $c, 'plan' => $plan];
+    }
+}
+$total = array_sum(array_map(static fn ($b) => $b['plan']['total'], $blocks));
+$seen = array_sum(array_map(static fn ($b) => $b['plan']['seen'], $blocks));
+$pct = $total > 0 ? (int) round($seen / $total * 100) : 0;
+$itemCount = array_sum(array_map(static fn ($b) => count($b['plan']['classes']) + count($b['plan']['bonus']), $blocks));
+$isAdmin = $user['role'] === 'admin';
 
 $live = live_classes_for_user($user, $courseId);
 $liveLabels = ['live' => 'En vivo ahora', 'today' => 'Hoy', 'upcoming' => 'Próxima clase', 'weekly' => 'Clase semanal'];
@@ -46,9 +81,9 @@ require __DIR__ . '/includes/header.php';
     <h1>Clases</h1>
     <p class="lede">Todo en un lugar: entrá a la clase en vivo cuando empieza y mirá las grabadas cuando quieras.</p>
   </div>
-  <?php if ($recordings): ?>
+  <?php if (count($blocks) > 1 && $total > 0): ?>
     <div class="stat" style="min-width:210px;padding:.9rem 1.1rem">
-      <span class="stat-label">Viste <?= $seen ?> de <?= count($recordings) ?></span>
+      <span class="stat-label">Viste <?= $seen ?> de <?= $total ?> clases</span>
       <div class="mini-progress"><div class="progress"><span style="width:<?= $pct ?>%"></span></div><b><?= $pct ?>%</b></div>
     </div>
   <?php endif; ?>
@@ -56,7 +91,7 @@ require __DIR__ . '/includes/header.php';
 
 <?php if ($courses): ?>
   <div class="toolbar">
-    <?php if (count($recordings) > 3): ?>
+    <?php if ($itemCount > 5): ?>
       <label class="search">
         <?= aca_icon('search') ?>
         <input type="search" placeholder="Buscar una clase" aria-label="Buscar clase" data-filter="[data-rec]" data-filter-empty="#no-rec">
@@ -115,36 +150,107 @@ require __DIR__ . '/includes/header.php';
     <p class="muted">Cuando administración te asigne un curso, sus clases aparecen acá.</p>
     <a class="btn primary" href="tickets.php?nuevo=1&amp;to=admin#nueva">Escribir a administración</a>
   </div>
-<?php elseif (!$recordings): ?>
+<?php elseif (!$blocks): ?>
   <div class="panel empty-state">
     <strong>Todavía no hay clases grabadas</strong>
     <p class="muted" style="margin:0">Apenas se publique una clase de tus cursos, la vas a ver acá.</p>
   </div>
 <?php else: ?>
-  <div class="rec-grid">
-    <?php foreach ($recordings as $r): ?>
-      <?php
+  <?php
+    // Fila de una clase: número, título y botón de vista. Las bonus bloqueadas se muestran sin link.
+    $renderItem = static function (array $r, array $course) use ($courseId): void {
         $rid = (int) $r['id'];
-        $isSeen = in_array($rid, $doneIds, true);
         $thumb = recording_thumbnail($r);
-      ?>
-      <a class="rec-card<?= $isSeen ? ' is-seen' : '' ?>" href="resource.php?id=<?= $rid ?>" data-rec data-search="<?= h($r['title'] . ' ' . $r['description'] . ' ' . $r['course_title']) ?>">
-        <span class="rec-thumb"<?= $thumb !== '' ? ' style="background-image:url(\'' . h($thumb) . '\')"' : '' ?>>
-          <span class="rec-play"><?= aca_icon('play') ?></span>
-          <span class="rec-kind"><?= h(recording_kind($r)) ?></span>
-          <?php if ($isSeen): ?><span class="badge done rec-seen">✓ Vista</span><?php endif; ?>
-        </span>
-        <span class="rec-body">
-          <span class="rec-course"><?= h($r['course_title']) ?></span>
-          <strong><?= h($r['title']) ?></strong>
-          <?php if (trim((string) $r['description']) !== ''): ?>
-            <span class="rec-desc"><?= h(short_text((string) $r['description'], 110)) ?></span>
+        $locked = !empty($r['locked']);
+        $label = recording_label($r);
+        $tag = $locked ? 'div' : 'a';
+        ?>
+        <li class="class-item<?= $r['done'] ? ' is-seen' : '' ?><?= $locked ? ' is-locked' : '' ?>" id="rec-<?= $rid ?>" data-rec data-search="<?= h($r['title'] . ' ' . $r['description'] . ' ' . $course['title'] . ' ' . $label) ?>">
+          <<?= $tag ?> class="class-link"<?= $locked ? ' aria-disabled="true"' : ' href="resource.php?id=' . $rid . '"' ?>>
+            <span class="class-thumb"<?= $thumb !== '' ? ' style="background-image:url(\'' . h($thumb) . '\')"' : '' ?>>
+              <span class="class-num"><?= $locked ? aca_icon('lock') : ($r['done'] ? aca_icon('check') : (int) $r['num']) ?></span>
+            </span>
+            <span class="class-body">
+              <small><?= h($label) ?><?php if ($r['done'] && !$locked): ?> · <b class="class-seen-tag">Vista</b><?php endif; ?></small>
+              <strong><?= h($r['title']) ?></strong>
+              <?php if ($locked): ?>
+                <span class="class-desc">Se desbloquea al completar todas las clases.</span>
+              <?php elseif (trim((string) $r['description']) !== ''): ?>
+                <span class="class-desc"><?= h(short_text((string) $r['description'], 110)) ?></span>
+              <?php endif; ?>
+            </span>
+          </<?= $tag ?>>
+          <?php if (!$locked): ?>
+            <form method="post" class="class-check">
+              <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
+              <input type="hidden" name="action" value="toggle_seen">
+              <input type="hidden" name="resource_id" value="<?= $rid ?>">
+              <input type="hidden" name="seen" value="<?= $r['done'] ? '0' : '1' ?>">
+              <input type="hidden" name="course_id" value="<?= $courseId ?>">
+              <button class="seen-toggle<?= $r['done'] ? ' is-on' : '' ?>" type="submit" aria-pressed="<?= $r['done'] ? 'true' : 'false' ?>" title="<?= $r['done'] ? 'Vista. Tocá para desmarcarla' : 'Marcar como vista' ?>">
+                <?= aca_icon('check') ?><span><?= $r['done'] ? 'Vista' : 'Marcar como vista' ?></span>
+              </button>
+            </form>
           <?php endif; ?>
-          <em><?= h(format_db_time((string) $r['created_at'], 'd/m/Y')) ?></em>
-        </span>
-      </a>
-    <?php endforeach; ?>
-  </div>
+        </li>
+        <?php
+    };
+  ?>
+  <?php foreach ($blocks as $b): ?>
+    <?php
+      $c = $b['course'];
+      $p = $b['plan'];
+      $cid = (int) $c['id'];
+    ?>
+    <section class="course-classes" id="curso-<?= $cid ?>">
+      <header class="cc-head">
+        <div>
+          <p class="eyebrow" style="margin:0">Curso</p>
+          <h2><?= h($c['title']) ?></h2>
+        </div>
+        <?php if ($p['total'] > 0): ?>
+          <div class="cc-progress">
+            <span><b><?= $p['seen'] ?></b> de <?= $p['total'] ?> clases vistas</span>
+            <div class="mini-progress"><div class="progress"><span style="width:<?= $p['pct'] ?>%"></span></div><b><?= $p['pct'] ?>%</b></div>
+          </div>
+        <?php endif; ?>
+      </header>
+
+      <?php if ($p['complete']): ?>
+        <?= aca_course_done_banner((string) $c['title'], $cid, count($p['bonus']), false, $celebrate === $cid ? 'is-new' : '') ?>
+      <?php endif; ?>
+
+      <?php if ($p['classes']): ?>
+        <ol class="class-list">
+          <?php foreach ($p['classes'] as $r) { $renderItem($r, $c); } ?>
+        </ol>
+      <?php endif; ?>
+
+      <?php if ($p['bonus']): ?>
+        <div class="bonus-block<?= $p['bonus_unlocked'] ? '' : ' is-locked' ?>" id="bonus-<?= $cid ?>">
+          <div class="bonus-head">
+            <span class="bonus-ico"><?= aca_icon($p['bonus_unlocked'] ? 'gift' : 'lock') ?></span>
+            <div>
+              <h3>Bonus</h3>
+              <p>
+                <?php if (!$p['bonus_unlocked']): ?>
+                  <?php $left = $p['total'] - $p['seen']; ?>
+                  Se desbloquea al completar todas las clases<?= $left > 0 ? ' (te ' . ($left === 1 ? 'falta 1' : 'faltan ' . $left) . ')' : '' ?>.
+                <?php elseif ($isAdmin && RECORDING_BONUS_NEEDS_COMPLETION): ?>
+                  Los alumnos las ven al completar todas las clases. No cuentan para el progreso.
+                <?php else: ?>
+                  Clases extra de regalo. No cuentan para el progreso.
+                <?php endif; ?>
+              </p>
+            </div>
+          </div>
+          <ol class="class-list is-bonus">
+            <?php foreach ($p['bonus'] as $r) { $renderItem($r, $c); } ?>
+          </ol>
+        </div>
+      <?php endif; ?>
+    </section>
+  <?php endforeach; ?>
   <p class="panel empty-state" id="no-rec" hidden>No encontramos clases con ese nombre.</p>
 <?php endif; ?>
 

@@ -13,6 +13,15 @@ const RECORDING_SECTION = 'Grabación de clases';
 const RECORDING_CHUNK_BYTES = 8 * 1024 * 1024;
 const RECORDING_VIDEO_EXTS = ['mp4', 'm4v', 'mov', 'webm'];
 
+/** Máximo de clases bonus por curso. Las bonus no cuentan para el progreso del curso. */
+const RECORDING_MAX_BONUS = 3;
+
+/**
+ * true: el alumno ve las bonus bloqueadas (con candado) hasta completar todas las clases del curso.
+ * false: las bonus están siempre disponibles.
+ */
+const RECORDING_BONUS_NEEDS_COMPLETION = true;
+
 function recording_section_id(int $courseId): int
 {
     $pdo = db();
@@ -34,7 +43,7 @@ function recording_section_id(int $courseId): int
 function recording_move(int $resourceId, int $targetCourseId): bool
 {
     $pdo = db();
-    $st = $pdo->prepare("SELECT course_id, file_path FROM course_resources WHERE id = ? AND type = 'video'");
+    $st = $pdo->prepare("SELECT course_id, file_path, is_bonus FROM course_resources WHERE id = ? AND type = 'video'");
     $st->execute([$resourceId]);
     $row = $st->fetch();
     if (!$row || (int) $row['course_id'] === $targetCourseId) {
@@ -57,23 +66,227 @@ function recording_move(int $resourceId, int $targetCourseId): bool
         }
     }
 
-    $pdo->prepare('UPDATE course_resources SET course_id = ?, section_id = ?, file_path = ? WHERE id = ?')
-        ->execute([$targetCourseId, recording_section_id($targetCourseId), $path, $resourceId]);
+    // Si el curso nuevo ya tiene el máximo de bonus, llega como clase común.
+    $bonus = (int) ($row['is_bonus'] ?? 0) === 1 && recording_bonus_count($targetCourseId) < RECORDING_MAX_BONUS ? 1 : 0;
+    $sourceCourseId = (int) $row['course_id'];
+    $pdo->prepare('UPDATE course_resources SET course_id = ?, section_id = ?, file_path = ?, is_bonus = ?, sort_order = ? WHERE id = ?')
+        ->execute([$targetCourseId, recording_section_id($targetCourseId), $path, $bonus, recording_next_order($targetCourseId), $resourceId]);
+    recording_renumber($sourceCourseId);
+    recording_renumber($targetCourseId);
     return true;
 }
 
-function recording_add(int $courseId, string $title, string $description, string $url, string $filePath): int
+function recording_next_order(int $courseId): int
 {
+    $next = db()->prepare("SELECT COALESCE(MAX(sort_order), 0) + 1 FROM course_resources WHERE course_id = ? AND type = 'video'");
+    $next->execute([$courseId]);
+    return (int) $next->fetchColumn();
+}
+
+/** Publica una clase al final de la lista. Devuelve 0 si se pidió bonus y el curso ya tiene el máximo. */
+function recording_add(int $courseId, string $title, string $description, string $url, string $filePath, bool $bonus = false): int
+{
+    if ($bonus && recording_bonus_count($courseId) >= RECORDING_MAX_BONUS) {
+        return 0;
+    }
     $pdo = db();
     $sectionId = recording_section_id($courseId);
-    $next = $pdo->prepare('SELECT COALESCE(MAX(sort_order), 0) + 1 FROM course_resources WHERE section_id = ?');
-    $next->execute([$sectionId]);
     $pdo->prepare("
       INSERT INTO course_resources
-        (course_id, section_id, type, title, description, url, content, file_path, track_completion, sort_order)
-      VALUES (?, ?, 'video', ?, ?, ?, '', ?, 1, ?)
-    ")->execute([$courseId, $sectionId, $title, $description, $url, $filePath, (int) $next->fetchColumn()]);
-    return (int) $pdo->lastInsertId();
+        (course_id, section_id, type, title, description, url, content, file_path, track_completion, sort_order, is_bonus)
+      VALUES (?, ?, 'video', ?, ?, ?, '', ?, 1, ?, ?)
+    ")->execute([$courseId, $sectionId, $title, $description, $url, $filePath, recording_next_order($courseId), $bonus ? 1 : 0]);
+    $id = (int) $pdo->lastInsertId();
+    recording_renumber($courseId);
+    return $id;
+}
+
+function recording_bonus_count(int $courseId): int
+{
+    $st = db()->prepare("SELECT COUNT(*) FROM course_resources WHERE course_id = ? AND type = 'video' AND is_bonus = 1");
+    $st->execute([$courseId]);
+    return (int) $st->fetchColumn();
+}
+
+function recording_bonus_limit_message(): string
+{
+    return 'Este curso ya tiene ' . RECORDING_MAX_BONUS . ' clases bonus (es el máximo). Quitá una de bonus antes de agregar otra.';
+}
+
+/**
+ * Marca o desmarca una clase como bonus. La clase pasa al final de su nueva lista.
+ *
+ * @return array{ok:bool, error?:string}
+ */
+function recording_set_bonus(int $resourceId, bool $bonus): array
+{
+    $st = db()->prepare("SELECT course_id, is_bonus FROM course_resources WHERE id = ? AND type = 'video'");
+    $st->execute([$resourceId]);
+    $row = $st->fetch();
+    if (!$row) {
+        return ['ok' => false, 'error' => 'Clase no encontrada.'];
+    }
+    $courseId = (int) $row['course_id'];
+    if ((int) $row['is_bonus'] === ($bonus ? 1 : 0)) {
+        return ['ok' => true];
+    }
+    if ($bonus && recording_bonus_count($courseId) >= RECORDING_MAX_BONUS) {
+        return ['ok' => false, 'error' => recording_bonus_limit_message()];
+    }
+    db()->prepare('UPDATE course_resources SET is_bonus = ?, sort_order = ? WHERE id = ?')
+        ->execute([$bonus ? 1 : 0, recording_next_order($courseId), $resourceId]);
+    recording_renumber($courseId);
+    return ['ok' => true];
+}
+
+/**
+ * Lista de ids con $id movido a la posición $position (1 = primera). Posiciones fuera de rango se ajustan.
+ *
+ * @param int[] $ids
+ * @return int[]
+ */
+function recording_reorder_ids(array $ids, int $id, int $position): array
+{
+    $ids = array_values(array_map('intval', $ids));
+    $from = array_search($id, $ids, true);
+    if ($from === false) {
+        return $ids;
+    }
+    array_splice($ids, (int) $from, 1);
+    $position = max(1, min($position, count($ids) + 1));
+    array_splice($ids, $position - 1, 0, [$id]);
+    return $ids;
+}
+
+/** Ordena las clases y reescribe sort_order 1..n: primero las clases, después las bonus. */
+function recording_renumber(int $courseId, ?array $classIds = null, ?array $bonusIds = null): void
+{
+    if ($classIds === null || $bonusIds === null) {
+        $plan = recording_plan(recordings_of_course($courseId), [], true);
+        $classIds ??= array_map(static fn ($r) => (int) $r['id'], $plan['classes']);
+        $bonusIds ??= array_map(static fn ($r) => (int) $r['id'], $plan['bonus']);
+    }
+    $upd = db()->prepare('UPDATE course_resources SET sort_order = ? WHERE id = ? AND course_id = ?');
+    foreach (array_merge($classIds, $bonusIds) as $i => $id) {
+        $upd->execute([$i + 1, (int) $id, $courseId]);
+    }
+}
+
+/** Mueve una clase a la posición $position dentro de su lista (clases o bonus). */
+function recording_move_to(int $resourceId, int $position): bool
+{
+    $st = db()->prepare("SELECT course_id FROM course_resources WHERE id = ? AND type = 'video'");
+    $st->execute([$resourceId]);
+    $courseId = (int) $st->fetchColumn();
+    if ($courseId <= 0) {
+        return false;
+    }
+    $plan = recording_plan(recordings_of_course($courseId), [], true);
+    $classIds = array_map(static fn ($r) => (int) $r['id'], $plan['classes']);
+    $bonusIds = array_map(static fn ($r) => (int) $r['id'], $plan['bonus']);
+    if (in_array($resourceId, $bonusIds, true)) {
+        $bonusIds = recording_reorder_ids($bonusIds, $resourceId, $position);
+    } else {
+        $classIds = recording_reorder_ids($classIds, $resourceId, $position);
+    }
+    recording_renumber($courseId, $classIds, $bonusIds);
+    return true;
+}
+
+/**
+ * Arma la vista de un curso: clases numeradas en orden, bonus aparte y progreso.
+ * El progreso solo cuenta las clases (no las bonus). Función pura: no toca la base.
+ *
+ * @param array<int, array<string, mixed>> $rows clases del curso (filas de course_resources)
+ * @param int[] $doneIds ids que el alumno marcó como vistas
+ * @return array{classes: array, bonus: array, total: int, seen: int, pct: int, complete: bool, bonus_unlocked: bool}
+ */
+function recording_plan(array $rows, array $doneIds, bool $isAdmin = false, bool $bonusNeedsCompletion = RECORDING_BONUS_NEEDS_COMPLETION): array
+{
+    usort($rows, static fn ($a, $b) => [(int) $a['sort_order'], (int) $a['id']] <=> [(int) $b['sort_order'], (int) $b['id']]);
+    $done = array_flip(array_map('intval', $doneIds));
+    $classes = [];
+    $bonus = [];
+    foreach ($rows as $r) {
+        $r['done'] = isset($done[(int) $r['id']]);
+        if ((int) ($r['is_bonus'] ?? 0) === 1) {
+            $r['num'] = count($bonus) + 1;
+            $bonus[] = $r;
+        } else {
+            $r['num'] = count($classes) + 1;
+            $classes[] = $r;
+        }
+    }
+    $total = count($classes);
+    $seen = count(array_filter($classes, static fn ($r) => $r['done']));
+    $complete = $total > 0 && $seen === $total;
+    $unlocked = $isAdmin || !$bonusNeedsCompletion || $complete;
+    foreach ($bonus as $i => $r) {
+        $bonus[$i]['locked'] = !$unlocked;
+    }
+    return [
+        'classes' => $classes,
+        'bonus' => $bonus,
+        'total' => $total,
+        'seen' => $seen,
+        'pct' => $total > 0 ? (int) round($seen / $total * 100) : 0,
+        'complete' => $complete,
+        'bonus_unlocked' => $unlocked,
+    ];
+}
+
+/** Clases que se pueden abrir, en orden (las bonus solo si están desbloqueadas). */
+function recording_sequence(array $plan): array
+{
+    return array_merge($plan['classes'], $plan['bonus_unlocked'] ? $plan['bonus'] : []);
+}
+
+/** Etiqueta corta: "Clase 3" o "Bonus 1". */
+function recording_label(array $item): string
+{
+    return ((int) ($item['is_bonus'] ?? 0) === 1 ? 'Bonus ' : 'Clase ') . (int) ($item['num'] ?? 0);
+}
+
+/** @return array{item: ?array, prev: ?array, next: ?array} */
+function recording_neighbors(array $plan, int $resourceId): array
+{
+    $all = array_merge($plan['classes'], $plan['bonus']);
+    $item = null;
+    foreach ($all as $r) {
+        if ((int) $r['id'] === $resourceId) {
+            $item = $r;
+        }
+    }
+    $seq = recording_sequence($plan);
+    $pos = array_search($resourceId, array_map(static fn ($r) => (int) $r['id'], $seq), true);
+    return [
+        'item' => $item,
+        'prev' => $pos !== false ? ($seq[$pos - 1] ?? null) : null,
+        'next' => $pos !== false ? ($seq[$pos + 1] ?? null) : null,
+    ];
+}
+
+function recording_course_plan(int $courseId, array $user): array
+{
+    return recording_plan(recordings_of_course($courseId), recording_done_ids((int) $user['id']), $user['role'] === 'admin');
+}
+
+/** true si la clase es una bonus que el usuario todavía no desbloqueó. */
+function recording_is_locked(array $resource, array $user): bool
+{
+    if ((string) ($resource['type'] ?? '') !== 'video' || (int) ($resource['is_bonus'] ?? 0) !== 1 || $user['role'] === 'admin') {
+        return false;
+    }
+    return !recording_course_plan((int) $resource['course_id'], $user)['bonus_unlocked'];
+}
+
+function recording_set_seen(int $userId, int $resourceId, bool $seen): void
+{
+    if ($seen) {
+        db()->prepare('INSERT OR IGNORE INTO resource_progress (user_id, resource_id) VALUES (?, ?)')->execute([$userId, $resourceId]);
+    } else {
+        db()->prepare('DELETE FROM resource_progress WHERE user_id = ? AND resource_id = ?')->execute([$userId, $resourceId]);
+    }
 }
 
 function recording_url_supported(string $url): bool
@@ -224,10 +437,10 @@ function recording_kind(array $resource): string
     return str_contains((string) $resource['url'], 'drive.google') ? 'Drive' : 'YouTube';
 }
 
-/** Clases de un curso en orden de publicación (para la lista del reproductor). */
+/** Clases de un curso en el orden que eligió el admin (bonus incluidas; separarlas con recording_plan). */
 function recordings_of_course(int $courseId): array
 {
-    $stmt = db()->prepare("SELECT id, title, created_at FROM course_resources WHERE course_id = ? AND type = 'video' ORDER BY datetime(created_at), id");
+    $stmt = db()->prepare("SELECT * FROM course_resources WHERE course_id = ? AND type = 'video' ORDER BY sort_order, id");
     $stmt->execute([$courseId]);
     return $stmt->fetchAll();
 }

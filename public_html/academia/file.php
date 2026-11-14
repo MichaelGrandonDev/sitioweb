@@ -21,7 +21,7 @@ if (!$resource) {
     exit;
 }
 
-if (!user_can_access_course($user, (int) $resource['course_id'])) {
+if (!user_can_access_course($user, (int) $resource['course_id']) || recording_is_locked($resource, $user)) {
     http_response_code(403);
     echo 'Sin acceso.';
     exit;

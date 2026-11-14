@@ -25,6 +25,15 @@ if (!user_can_access_course($user, $courseId)) {
     flash('error', 'No tenés acceso a este recurso.');
     redirect('dashboard.php');
 }
+if (recording_is_locked($resource, $user)) {
+    if (($_POST['ajax'] ?? '') === '1') {
+        http_response_code(403);
+        header('Content-Type: application/json');
+        exit('{"ok":false}');
+    }
+    flash('error', 'Esta clase bonus se desbloquea cuando completás todas las clases del curso.');
+    redirect('clases.php?course_id=' . $courseId . '#bonus-' . $courseId);
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $ajax = ($_POST['ajax'] ?? '') === '1';
@@ -39,16 +48,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $action = (string) ($_POST['action'] ?? '');
     if ($action === 'uncomplete') {
-        db()->prepare('DELETE FROM resource_progress WHERE user_id = ? AND resource_id = ?')
-            ->execute([(int) $user['id'], $resourceId]);
+        recording_set_seen((int) $user['id'], $resourceId, false);
     }
     if ($action === 'complete' && $ajax) {
-        db()->prepare('INSERT OR IGNORE INTO resource_progress (user_id, resource_id) VALUES (?, ?)')
-            ->execute([(int) $user['id'], $resourceId]);
+        recording_set_seen((int) $user['id'], $resourceId, true);
     }
     if ($ajax) {
+        $plan = recording_course_plan($courseId, $user);
         header('Content-Type: application/json');
-        exit(json_encode(['ok' => true, 'done' => $action === 'complete']));
+        exit(json_encode([
+            'ok' => true,
+            'done' => $action === 'complete',
+            'seen' => $plan['seen'],
+            'total' => $plan['total'],
+            'pct' => $plan['pct'],
+            'complete' => $plan['complete'],
+        ]));
     }
     if ($action === 'complete' && (int) $resource['track_completion'] === 1) {
         db()->prepare('INSERT OR IGNORE INTO resource_progress (user_id, resource_id) VALUES (?, ?)')
@@ -75,15 +90,16 @@ $assetPrefix = '';
 require __DIR__ . '/includes/header.php';
 
 if ($type === 'video'):
-    $playlist = recordings_of_course($courseId);
-    $doneIds = recording_done_ids((int) $user['id']);
-    $pos = (int) array_search($resourceId, array_map('intval', array_column($playlist, 'id')), true);
-    $prev = $playlist[$pos - 1] ?? null;
-    $next = $playlist[$pos + 1] ?? null;
+    $plan = recording_course_plan($courseId, $user);
+    $nb = recording_neighbors($plan, $resourceId);
+    $current = $nb['item'] ?? ['num' => 1, 'is_bonus' => 0];
+    $isBonus = (int) ($current['is_bonus'] ?? 0) === 1;
+    $prev = $nb['prev'];
+    $next = $nb['next'];
     $hasFile = trim((string) ($resource['file_path'] ?? '')) !== '';
     $isAdmin = $user['role'] === 'admin';
 ?>
-<a class="btn ghost small-btn" href="clases.php?course_id=<?= $courseId ?>" style="margin:-.4rem 0 .6rem -.6rem"><?= aca_icon('arrow-left') ?> Clases de <?= h($resource['course_title']) ?></a>
+<a class="btn ghost small-btn" href="clases.php?course_id=<?= $courseId ?>#rec-<?= $resourceId ?>" style="margin:-.4rem 0 .6rem -.6rem"><?= aca_icon('arrow-left') ?> Clases de <?= h($resource['course_title']) ?></a>
 <div class="player-layout">
   <div>
     <div class="player" id="player-box">
@@ -97,25 +113,45 @@ if ($type === 'video'):
       <?php endif; ?>
     </div>
     <div class="player-meta">
-      <p class="eyebrow" style="margin:0"><?= h($resource['course_title']) ?> · Clase <?= $pos + 1 ?> de <?= count($playlist) ?></p>
+      <p class="eyebrow" style="margin:0">
+        <?= h($resource['course_title']) ?> ·
+        <?= $isBonus ? 'Bonus ' . (int) $current['num'] . ' · no cuenta para el progreso' : 'Clase ' . (int) $current['num'] . ' de ' . $plan['total'] ?>
+      </p>
       <h1><?= h($resource['title']) ?></h1>
       <?php if (trim((string) $resource['description']) !== ''): ?>
         <p class="lede" style="margin:0"><?= nl2br(h((string) $resource['description'])) ?></p>
       <?php endif; ?>
       <div class="player-bar">
-        <button class="btn <?= $isDone ? 'secondary is-done' : 'primary' ?> seen-btn" type="button" id="seen" data-done="<?= $isDone ? '1' : '0' ?>">
+        <button class="btn <?= $isDone ? 'secondary is-done' : 'primary' ?> seen-btn" type="button" id="seen" data-done="<?= $isDone ? '1' : '0' ?>" aria-pressed="<?= $isDone ? 'true' : 'false' ?>" title="<?= $isDone ? 'Tocá para desmarcarla' : '' ?>">
           <?= aca_icon('check') ?> <span><?= $isDone ? 'Vista' : 'Marcar como vista' ?></span>
         </button>
         <a class="btn secondary" href="tickets.php?nuevo=1&amp;to=teacher&amp;course_id=<?= $courseId ?>&amp;resource_id=<?= $resourceId ?>#nueva"><?= aca_icon('chat') ?> Consultar sobre esta clase</a>
         <?php if ($isAdmin && $hasFile): ?>
           <a class="btn ghost" href="<?= h(resource_file_url($resource)) ?>&download=1"><?= aca_icon('upload') ?> Descargar</a>
         <?php endif; ?>
-        <span class="spacer"></span>
-        <?php if ($prev): ?><a class="btn ghost" href="resource.php?id=<?= (int) $prev['id'] ?>"><?= aca_icon('arrow-left') ?> Anterior</a><?php endif; ?>
-        <?php if ($next): ?><a class="btn secondary" href="resource.php?id=<?= (int) $next['id'] ?>">Siguiente <?= aca_icon('arrow-right') ?></a><?php endif; ?>
       </div>
+      <nav class="class-nav" aria-label="Otras clases">
+        <?php if ($prev): ?>
+          <a class="class-nav-prev" href="resource.php?id=<?= (int) $prev['id'] ?>">
+            <?= aca_icon('arrow-left') ?>
+            <span><small><?= (int) $prev['is_bonus'] === 1 ? 'Bonus anterior' : 'Clase anterior' ?></small><?= h(recording_label($prev)) ?> · <?= h($prev['title']) ?></span>
+          </a>
+        <?php endif; ?>
+        <?php if ($next): ?>
+          <a class="class-nav-next" href="resource.php?id=<?= (int) $next['id'] ?>">
+            <span><small><?= (int) $next['is_bonus'] === 1 ? 'Siguiente: bonus' : 'Siguiente clase' ?></small><?= h(recording_label($next)) ?> · <?= h($next['title']) ?></span>
+            <?= aca_icon('arrow-right') ?>
+          </a>
+        <?php else: ?>
+          <a class="class-nav-next is-end" href="clases.php?course_id=<?= $courseId ?>">
+            <span><small>Última clase</small>Volver a la lista</span>
+            <?= aca_icon('grid') ?>
+          </a>
+        <?php endif; ?>
+      </nav>
+      <?= aca_course_done_banner((string) $resource['course_title'], $courseId, count($plan['bonus']), true, 'is-new') ?>
       <p class="hint" style="margin-top:.2rem">
-        <?= $hasFile ? 'Se marca como vista sola cuando llegás al final. Si se corta, retomás desde donde la dejaste.' : '¿No carga el video? Probá desde otro navegador o mandanos una consulta.' ?>
+        <?= $hasFile ? 'Se marca como vista sola cuando llegás casi al final. Si se corta, retomás desde donde la dejaste.' : 'Cuando la termines, tocá «Marcar como vista». ¿No carga el video? Probá desde otro navegador o mandanos una consulta.' ?>
       </p>
     </div>
   </div>
@@ -123,18 +159,36 @@ if ($type === 'video'):
   <aside class="panel playlist">
     <header>
       <h2><?= h($resource['course_title']) ?></h2>
-      <p><?= count(array_filter($playlist, static fn ($p) => in_array((int) $p['id'], $doneIds, true))) ?> de <?= count($playlist) ?> clases vistas</p>
+      <p><span id="pl-seen"><?= $plan['seen'] ?></span> de <?= $plan['total'] ?> clases vistas</p>
+      <div class="progress" style="margin:.5rem 0 0"><span id="pl-bar" style="width:<?= $plan['pct'] ?>%"></span></div>
     </header>
     <ol>
-      <?php foreach ($playlist as $i => $p): ?>
-        <?php $pDone = in_array((int) $p['id'], $doneIds, true); ?>
+      <?php foreach ($plan['classes'] as $p): ?>
         <li>
           <a class="<?= (int) $p['id'] === $resourceId ? 'is-current' : '' ?>" href="resource.php?id=<?= (int) $p['id'] ?>">
-            <span class="pl-num<?= $pDone ? ' is-done' : '' ?>"<?= (int) $p['id'] === $resourceId ? ' id="pl-current"' : '' ?>><?= $pDone ? aca_icon('check') : $i + 1 ?></span>
+            <span class="pl-num<?= $p['done'] ? ' is-done' : '' ?>"<?= (int) $p['id'] === $resourceId ? ' id="pl-current" data-num="' . (int) $p['num'] . '"' : '' ?>><?= $p['done'] ? aca_icon('check') : (int) $p['num'] ?></span>
             <span><?= h($p['title']) ?></span>
           </a>
         </li>
       <?php endforeach; ?>
+      <?php if ($plan['bonus']): ?>
+        <li class="pl-group"><?= aca_icon($plan['bonus_unlocked'] ? 'gift' : 'lock') ?> Bonus<?= $plan['bonus_unlocked'] ? '' : ' · al completar el curso' ?></li>
+        <?php foreach ($plan['bonus'] as $p): ?>
+          <li>
+            <?php if ($p['locked']): ?>
+              <span class="pl-locked">
+                <span class="pl-num"><?= aca_icon('lock') ?></span>
+                <span><?= h($p['title']) ?></span>
+              </span>
+            <?php else: ?>
+              <a class="<?= (int) $p['id'] === $resourceId ? 'is-current' : '' ?>" href="resource.php?id=<?= (int) $p['id'] ?>">
+                <span class="pl-num<?= $p['done'] ? ' is-done' : '' ?>"<?= (int) $p['id'] === $resourceId ? ' id="pl-current" data-num="B' . (int) $p['num'] . '"' : '' ?>><?= $p['done'] ? aca_icon('check') : 'B' . (int) $p['num'] ?></span>
+                <span><?= h($p['title']) ?></span>
+              </a>
+            <?php endif; ?>
+          </li>
+        <?php endforeach; ?>
+      <?php endif; ?>
     </ol>
   </aside>
 </div>
@@ -143,18 +197,39 @@ if ($type === 'video'):
 (function () {
   var csrf = <?= json_encode(csrf_token()) ?>;
   var btn = document.getElementById('seen');
-  var mark = function (done) {
+  var wasComplete = <?= $plan['complete'] ? 'true' : 'false' ?>;
+  var checkSvg = btn.querySelector('svg').outerHTML;
+  var mark = function (done, auto) {
     var fd = new FormData();
     fd.append('csrf', csrf);
     fd.append('ajax', '1');
     fd.append('action', done ? 'complete' : 'uncomplete');
     return fetch('resource.php?id=<?= $resourceId ?>', { method: 'POST', body: fd, credentials: 'same-origin' }).then(function (r) {
-      if (!r.ok) { return; }
+      if (!r.ok) { return null; }
+      return r.json();
+    }).then(function (res) {
+      if (!res || !res.ok) { return; }
       btn.setAttribute('data-done', done ? '1' : '0');
+      btn.setAttribute('aria-pressed', done ? 'true' : 'false');
+      btn.title = done ? 'Tocá para desmarcarla' : '';
       btn.className = 'btn ' + (done ? 'secondary is-done' : 'primary') + ' seen-btn';
       btn.querySelector('span').textContent = done ? 'Vista' : 'Marcar como vista';
       var cur = document.getElementById('pl-current');
-      if (cur) { cur.classList.toggle('is-done', done); }
+      if (cur) {
+        cur.classList.toggle('is-done', done);
+        cur.innerHTML = done ? checkSvg : cur.getAttribute('data-num');
+      }
+      var seenEl = document.getElementById('pl-seen');
+      var bar = document.getElementById('pl-bar');
+      if (seenEl) { seenEl.textContent = res.seen; }
+      if (bar) { bar.style.width = res.pct + '%'; }
+      var banner = document.querySelector('.done-banner');
+      if (banner && res.complete && !wasComplete) {
+        banner.hidden = false;
+        if (!auto) { banner.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+      }
+      if (banner && !res.complete) { banner.hidden = true; }
+      wasComplete = res.complete;
     });
   };
   btn.addEventListener('click', function () { mark(btn.getAttribute('data-done') !== '1'); });
@@ -182,7 +257,7 @@ if ($type === 'video'):
     }
     if (video.duration && video.currentTime / video.duration > 0.9 && btn.getAttribute('data-done') !== '1' && !btn.dataset.sent) {
       btn.dataset.sent = '1';
-      mark(true);
+      mark(true, true);
     }
   });
   video.addEventListener('ended', function () { localStorage.removeItem(key); });

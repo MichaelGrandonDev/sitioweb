@@ -327,6 +327,17 @@ function migrate_schema(): void
     if ($tableExists($pdo, 'course_resources') && !in_array('file_path', $resCols, true)) {
         $pdo->exec("ALTER TABLE course_resources ADD COLUMN file_path TEXT NOT NULL DEFAULT ''");
     }
+    if ($tableExists($pdo, 'course_resources') && !in_array('is_bonus', $resCols, true)) {
+        $pdo->exec('ALTER TABLE course_resources ADD COLUMN is_bonus INTEGER NOT NULL DEFAULT 0');
+        // Las clases ya publicadas quedan numeradas en el orden en que se subieron.
+        $videos = $pdo->query("SELECT id, course_id FROM course_resources WHERE type = 'video' ORDER BY course_id, datetime(created_at), id")->fetchAll();
+        $upd = $pdo->prepare('UPDATE course_resources SET sort_order = ? WHERE id = ?');
+        $n = [];
+        foreach ($videos as $v) {
+            $n[$v['course_id']] = ($n[$v['course_id']] ?? 0) + 1;
+            $upd->execute([$n[$v['course_id']], (int) $v['id']]);
+        }
+    }
 
     if (!$tableExists($pdo, 'shop_orders')) {
         $pdo->exec("

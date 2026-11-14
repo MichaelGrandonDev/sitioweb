@@ -10,24 +10,39 @@ $user = require_login();
 
 $pdo = db();
 $stmt = $pdo->prepare("
-  SELECT c.*,
-    (SELECT COUNT(*) FROM course_resources r WHERE r.course_id = c.id AND r.type = 'video') AS video_count,
-    (SELECT COUNT(*) FROM course_resources r WHERE r.course_id = c.id AND r.track_completion = 1) AS total_count,
-    (SELECT COUNT(*) FROM resource_progress rp
-      JOIN course_resources r2 ON r2.id = rp.resource_id
-      WHERE r2.course_id = c.id AND r2.track_completion = 1 AND rp.user_id = ?) AS done_count
+  SELECT c.*
   FROM courses c
   INNER JOIN enrollments e ON e.course_id = c.id
   WHERE e.user_id = ? AND c.published = 1
   ORDER BY c.sort_order, c.title
 ");
-$stmt->execute([(int) $user['id'], (int) $user['id']]);
+$stmt->execute([(int) $user['id']]);
 $courses = $stmt->fetchAll();
 
-$allRecordings = recordings_for_user($user);
+// Las bonus no cuentan como clases: quedan fuera del progreso, de "Seguir viendo" y de las últimas.
+$allRecordings = array_values(array_filter(recordings_for_user($user), static fn ($r) => (int) $r['is_bonus'] !== 1));
 $doneIds = recording_done_ids((int) $user['id']);
+$plans = [];
+$labels = [];
+foreach (array_unique(array_merge(array_map('intval', array_column($courses, 'id')), array_map('intval', array_column($allRecordings, 'course_id')))) as $cid) {
+    $plans[$cid] = recording_course_plan($cid, $user);
+    foreach ($plans[$cid]['classes'] as $p) {
+        $labels[(int) $p['id']] = recording_label($p);
+    }
+}
 $unseen = array_values(array_filter($allRecordings, static fn ($r) => !in_array((int) $r['id'], $doneIds, true)));
-$continue = $unseen[0] ?? ($allRecordings[0] ?? null);
+$courseTitles = array_column($allRecordings, 'course_title', 'course_id');
+// "Seguir viendo": la próxima clase sin ver, en orden, del primer curso que tenga pendientes.
+$continue = null;
+foreach ($plans as $cid => $plan) {
+    foreach ($plan['classes'] as $p) {
+        if (!$p['done']) {
+            $continue = $p + ['course_title' => (string) ($courseTitles[$cid] ?? '')];
+            break 2;
+        }
+    }
+}
+$continue ??= $allRecordings[0] ?? null;
 $latest = array_slice($allRecordings, 0, 3);
 $pendingTickets = tickets_pending_count($user);
 $seenCount = count($allRecordings) - count($unseen);
@@ -62,7 +77,7 @@ require __DIR__ . '/includes/header.php';
     <a class="continue-card" href="resource.php?id=<?= (int) $continue['id'] ?>">
       <span class="continue-thumb"<?= $thumb !== '' ? ' style="background-image:url(\'' . h($thumb) . '\')"' : '' ?>><?= aca_icon('play') ?></span>
       <span>
-        <small><?= $unseen ? 'Seguir viendo' : 'Volver a ver' ?> · <?= h($continue['course_title']) ?></small>
+        <small><?= $unseen ? 'Seguir viendo' : 'Volver a ver' ?> · <?= h($continue['course_title']) ?><?= isset($labels[(int) $continue['id']]) ? ' · ' . h($labels[(int) $continue['id']]) : '' ?></small>
         <strong><?= h($continue['title']) ?></strong>
       </span>
     </a>
@@ -111,7 +126,7 @@ require __DIR__ . '/includes/header.php';
           <?php if ($isSeen): ?><span class="badge done rec-seen">✓ Vista</span><?php endif; ?>
         </span>
         <span class="rec-body">
-          <span class="rec-course"><?= h($r['course_title']) ?></span>
+          <span class="rec-course"><?= h($r['course_title']) ?><?= isset($labels[(int) $r['id']]) ? ' · ' . h($labels[(int) $r['id']]) : '' ?></span>
           <strong><?= h($r['title']) ?></strong>
           <em><?= h(format_db_time((string) $r['created_at'], 'd/m/Y')) ?></em>
         </span>
@@ -131,9 +146,7 @@ require __DIR__ . '/includes/header.php';
   <div class="grid">
     <?php foreach ($courses as $course): ?>
       <?php
-        $total = (int) $course['total_count'];
-        $done = (int) $course['done_count'];
-        $pct = $total > 0 ? (int) round(($done / $total) * 100) : 0;
+        $plan = $plans[(int) $course['id']];
         $meetUrl = trim((string) ($course['meet_url'] ?? ''));
         $meetSchedule = trim((string) ($course['meet_schedule'] ?? ''));
         $coverUrl = course_cover_url($course);
@@ -150,8 +163,23 @@ require __DIR__ . '/includes/header.php';
           <?php if (trim((string) $course['description']) !== ''): ?>
             <p class="muted"><?= h(short_text((string) $course['description'], 160)) ?></p>
           <?php endif; ?>
-          <div class="mini-progress" style="margin-top:.8rem"><div class="progress"><span style="width:<?= $pct ?>%"></span></div><b><?= $pct ?>%</b></div>
-          <p class="muted small" style="margin:.4rem 0 0"><?= (int) $course['video_count'] ?> clases grabadas</p>
+          <?php if ($plan['total'] > 0): ?>
+            <p class="course-card-progress">
+              <?php if ($plan['complete']): ?>
+                <span class="badge done"><?= aca_icon('check') ?> Completado</span>
+              <?php endif; ?>
+              <span><b><?= $plan['seen'] ?></b> de <?= $plan['total'] ?> clases vistas</span>
+            </p>
+            <div class="mini-progress"><div class="progress"><span style="width:<?= $plan['pct'] ?>%"></span></div><b><?= $plan['pct'] ?>%</b></div>
+            <?php if ($plan['bonus']): ?>
+              <p class="muted small" style="margin:.4rem 0 0;display:flex;align-items:center;gap:.35rem">
+                <?= aca_icon($plan['bonus_unlocked'] ? 'gift' : 'lock') ?>
+                <?= count($plan['bonus']) ?> bonus <?= $plan['bonus_unlocked'] ? 'disponible' . (count($plan['bonus']) === 1 ? '' : 's') : '· se desbloquea' . (count($plan['bonus']) === 1 ? '' : 'n') . ' al completar' ?>
+              </p>
+            <?php endif; ?>
+          <?php else: ?>
+            <p class="muted small" style="margin:.8rem 0 0">Todavía no hay clases grabadas.</p>
+          <?php endif; ?>
         </a>
         <div class="actions">
           <a class="btn primary small-btn" href="clases.php?course_id=<?= (int) $course['id'] ?>"><?= aca_icon('play') ?> Ver clases</a>
