@@ -22,7 +22,7 @@ if ($useShell) {
         $navItems = [
             ['admin/index.php', 'Panel', 'grid', 0],
             ['admin/users.php', 'Alumnos', 'users', 0],
-            ['admin/grabaciones.php', 'Clases grabadas', 'video', 0],
+            ['admin/grabaciones.php', 'Clases', 'video', 0],
             ['admin/tickets.php', 'Consultas', 'chat', $openTickets],
             ['admin/courses.php', 'Cursos', 'book', 0],
             ['admin/campus.php', 'Materiales', 'layers', 0],
@@ -49,7 +49,7 @@ if ($useShell) {
     } else {
         $navItems = [
             ['dashboard.php', 'Inicio', 'home', 0],
-            ['clases.php', 'Clases grabadas', 'play', 0],
+            ['clases.php', 'Clases', 'play', 0],
             ['tickets.php', 'Consultas', 'chat', $openTickets],
             ['cuenta.php', 'Mi cuenta', 'user', 0],
         ];

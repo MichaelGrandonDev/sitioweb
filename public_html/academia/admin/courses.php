@@ -109,10 +109,10 @@ require __DIR__ . '/../includes/header.php';
 ?>
 <p class="eyebrow">Admin</p>
 <h1>Cursos y clases</h1>
-<p class="lede">Creá cursos, dalos de baja o eliminálos. Las clases grabadas se suben en Clases grabadas; PDFs y otros materiales, en Unidades y materiales.</p>
+<p class="lede">Creá cursos, dalos de baja o eliminálos. Las clases en vivo y grabadas se manejan en Clases; PDFs y otros materiales, en Unidades y materiales.</p>
 <nav class="admin-nav">
   <a class="btn secondary" href="index.php">← Panel</a>
-  <a class="btn secondary" href="grabaciones.php">Clases grabadas</a>
+  <a class="btn secondary" href="grabaciones.php">Clases</a>
   <a class="btn secondary" href="campus.php">Unidades y materiales</a>
   <a class="btn secondary" href="users.php">Alumnos</a>
 </nav>

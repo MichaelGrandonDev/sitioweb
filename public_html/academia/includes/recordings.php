@@ -27,6 +27,41 @@ function recording_section_id(int $courseId): int
     return (int) $pdo->lastInsertId();
 }
 
+/**
+ * Pasa una clase grabada a otro curso (el progreso de los alumnos se conserva).
+ * El video subido se mueve a la carpeta del curso nuevo; si no se puede, queda donde está y sigue funcionando.
+ */
+function recording_move(int $resourceId, int $targetCourseId): bool
+{
+    $pdo = db();
+    $st = $pdo->prepare("SELECT course_id, file_path FROM course_resources WHERE id = ? AND type = 'video'");
+    $st->execute([$resourceId]);
+    $row = $st->fetch();
+    if (!$row || (int) $row['course_id'] === $targetCourseId) {
+        return false;
+    }
+
+    $path = trim((string) $row['file_path']);
+    $full = $path !== '' ? resolve_upload_path($path) : null;
+    if ($full !== null) {
+        $dir = uploads_root() . '/course_' . $targetCourseId;
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+        $name = basename($full);
+        if (is_file($dir . '/' . $name)) {
+            $name = bin2hex(random_bytes(4)) . '-' . $name;
+        }
+        if (@rename($full, $dir . '/' . $name)) {
+            $path = 'course_' . $targetCourseId . '/' . $name;
+        }
+    }
+
+    $pdo->prepare('UPDATE course_resources SET course_id = ?, section_id = ?, file_path = ? WHERE id = ?')
+        ->execute([$targetCourseId, recording_section_id($targetCourseId), $path, $resourceId]);
+    return true;
+}
+
 function recording_add(int $courseId, string $title, string $description, string $url, string $filePath): int
 {
     $pdo = db();
@@ -219,4 +254,101 @@ function recordings_for_user(array $user, int $courseId = 0): array
     $stmt = db()->prepare($sql);
     $stmt->execute($params);
     return $stmt->fetchAll();
+}
+
+/** Una clase en vivo se considera "ahora" desde 15 min antes hasta 2 h después del inicio. */
+const LIVE_EARLY_SECONDS = 15 * 60;
+const LIVE_LENGTH_SECONDS = 2 * 3600;
+
+function live_url_ok(string $url): bool
+{
+    return $url === '' || (bool) preg_match('~^https://[^\s]+$~i', $url);
+}
+
+/** "Hoy · 19:00", "Mañana · 19:00" o "Jueves 20/11 · 19:00" (hora de Argentina). */
+function live_when(int $ts): string
+{
+    $days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    $day = date('Y-m-d', $ts);
+    if ($day === date('Y-m-d')) {
+        $label = 'Hoy';
+    } elseif ($day === date('Y-m-d', strtotime('+1 day'))) {
+        $label = 'Mañana';
+    } else {
+        $label = $days[(int) date('w', $ts)] . ' ' . date('d/m', $ts);
+    }
+    return $label . ' · ' . date('H:i', $ts) . ' hs';
+}
+
+/** Próximas fechas en vivo de un curso (las fechas se guardan como hora local "Y-m-d\TH:i"). */
+function live_sessions(int $courseId, bool $includePast = false): array
+{
+    $stmt = db()->prepare('SELECT * FROM course_events WHERE course_id = ?');
+    $stmt->execute([$courseId]);
+    $out = [];
+    foreach ($stmt->fetchAll() as $ev) {
+        $ts = strtotime((string) $ev['starts_at']);
+        if ($ts === false || (!$includePast && $ts + LIVE_LENGTH_SECONDS < time())) {
+            continue;
+        }
+        $ev['ts'] = $ts;
+        $out[] = $ev;
+    }
+    usort($out, static fn ($a, $b) => $a['ts'] <=> $b['ts']);
+    return $out;
+}
+
+/**
+ * Clases en vivo de los cursos del usuario: link de Meet + horario semanal + próxima fecha.
+ * status: live (ahora) · today · upcoming · weekly (sin fecha cargada, solo horario).
+ */
+function live_classes_for_user(array $user, int $courseId = 0): array
+{
+    $params = [];
+    $sql = 'SELECT c.id, c.title, c.meet_url, c.meet_schedule FROM courses c';
+    if ($user['role'] !== 'admin') {
+        $sql .= ' JOIN enrollments e ON e.course_id = c.id AND e.user_id = ? WHERE c.published = 1';
+        $params[] = (int) $user['id'];
+    } else {
+        $sql .= ' WHERE 1 = 1';
+    }
+    if ($courseId > 0) {
+        $sql .= ' AND c.id = ?';
+        $params[] = $courseId;
+    }
+    $stmt = db()->prepare($sql . ' ORDER BY c.sort_order, c.title');
+    $stmt->execute($params);
+
+    $out = [];
+    foreach ($stmt->fetchAll() as $c) {
+        $meet = trim((string) ($c['meet_url'] ?? ''));
+        $sessions = live_sessions((int) $c['id']);
+        if ($meet === '' && !$sessions) {
+            continue;
+        }
+        $next = $sessions[0] ?? null;
+        $status = 'weekly';
+        if ($next) {
+            $now = time();
+            if ($now >= $next['ts'] - LIVE_EARLY_SECONDS && $now <= $next['ts'] + LIVE_LENGTH_SECONDS) {
+                $status = 'live';
+            } elseif (date('Y-m-d', $next['ts']) === date('Y-m-d')) {
+                $status = 'today';
+            } else {
+                $status = 'upcoming';
+            }
+        }
+        $out[] = [
+            'course_id' => (int) $c['id'],
+            'course_title' => (string) $c['title'],
+            'schedule' => trim((string) ($c['meet_schedule'] ?? '')),
+            'url' => $next && trim((string) $next['url']) !== '' ? trim((string) $next['url']) : $meet,
+            'next' => $next,
+            'later' => array_slice($sessions, 1, 3),
+            'status' => $status,
+        ];
+    }
+    $rank = ['live' => 0, 'today' => 1, 'upcoming' => 2, 'weekly' => 3];
+    usort($out, static fn ($a, $b) => [$rank[$a['status']], $a['next']['ts'] ?? PHP_INT_MAX] <=> [$rank[$b['status']], $b['next']['ts'] ?? PHP_INT_MAX]);
+    return $out;
 }

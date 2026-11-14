@@ -31,6 +31,7 @@ $continue = $unseen[0] ?? ($allRecordings[0] ?? null);
 $latest = array_slice($allRecordings, 0, 3);
 $pendingTickets = tickets_pending_count($user);
 $seenCount = count($allRecordings) - count($unseen);
+$nextLive = live_classes_for_user($user)[0] ?? null;
 
 $hour = (int) date('G');
 $greeting = $hour < 12 ? 'Buen día' : ($hour < 20 ? 'Buenas tardes' : 'Buenas noches');
@@ -45,7 +46,17 @@ require __DIR__ . '/includes/header.php';
     <p class="eyebrow">Campus alumno</p>
     <h1><?= h($greeting) ?>, <?= h(aca_first_name((string) $user['name'])) ?></h1>
   </div>
-  <p>Tus clases grabadas, a tu ritmo. Cuando tengas una duda, escribile al profesor desde acá.</p>
+  <p>Tus clases en vivo y grabadas, en un solo lugar. Cuando tengas una duda, escribile al profesor desde acá.</p>
+  <?php if ($nextLive && ($nextLive['next'] || $nextLive['url'] !== '')): ?>
+    <a class="live-banner is-<?= h($nextLive['status']) ?>" href="<?= $nextLive['status'] === 'live' && $nextLive['url'] !== '' ? h($nextLive['url']) . '" target="_blank" rel="noopener' : 'clases.php' ?>">
+      <span class="live-pill"><?php if ($nextLive['status'] === 'live'): ?><i class="live-dot"></i>En vivo ahora<?php else: ?>Clase en vivo<?php endif; ?></span>
+      <span>
+        <small><?= h($nextLive['course_title']) ?></small>
+        <strong><?= h($nextLive['next'] ? live_when((int) $nextLive['next']['ts']) : ($nextLive['schedule'] !== '' ? $nextLive['schedule'] : 'Ver horario')) ?></strong>
+      </span>
+      <em><?= $nextLive['status'] === 'live' ? 'Entrar' : 'Ver clases' ?> →</em>
+    </a>
+  <?php endif; ?>
   <?php if ($continue): ?>
     <?php $thumb = recording_thumbnail($continue); ?>
     <a class="continue-card" href="resource.php?id=<?= (int) $continue['id'] ?>">

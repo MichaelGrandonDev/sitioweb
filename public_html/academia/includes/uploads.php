@@ -136,7 +136,34 @@ function resource_file_url(array $resource): string
 {
     $path = trim((string) ($resource['file_path'] ?? ''));
     if ($path !== '') {
-        return 'file.php?id=' . (int) ($resource['id'] ?? 0);
+        $id = (int) ($resource['id'] ?? 0);
+        if (($resource['type'] ?? '') === 'video') {
+            $exp = time() + VIDEO_LINK_TTL;
+            return 'file.php?id=' . $id . '&e=' . $exp . '&s=' . video_link_sig($id, $exp, true);
+        }
+        return 'file.php?id=' . $id;
     }
     return trim((string) ($resource['url'] ?? ''));
+}
+
+/** Los links de video vencen y van firmados con una clave de la sesión: copiados fuera de ella no sirven. */
+const VIDEO_LINK_TTL = 6 * 3600;
+
+function video_link_sig(int $resourceId, int $exp, bool $create = false): string
+{
+    if (empty($_SESSION['video_key'])) {
+        if (!$create) {
+            return '';
+        }
+        $_SESSION['video_key'] = bin2hex(random_bytes(16));
+    }
+    return substr(hash_hmac('sha256', $resourceId . '|' . $exp, (string) $_SESSION['video_key']), 0, 32);
+}
+
+function video_link_valid(int $resourceId): bool
+{
+    $exp = (int) ($_GET['e'] ?? 0);
+    $sig = (string) ($_GET['s'] ?? '');
+    $expected = video_link_sig($resourceId, $exp);
+    return $exp >= time() && $expected !== '' && hash_equals($expected, $sig);
 }

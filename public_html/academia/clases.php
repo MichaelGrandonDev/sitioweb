@@ -32,7 +32,10 @@ $doneIds = recording_done_ids((int) $user['id']);
 $seen = count(array_filter($recordings, static fn ($r) => in_array((int) $r['id'], $doneIds, true)));
 $pct = $recordings ? (int) round($seen / count($recordings) * 100) : 0;
 
-$pageTitle = 'Clases grabadas';
+$live = live_classes_for_user($user, $courseId);
+$liveLabels = ['live' => 'En vivo ahora', 'today' => 'Hoy', 'upcoming' => 'Próxima clase', 'weekly' => 'Clase semanal'];
+
+$pageTitle = 'Clases';
 $basePath = '';
 $assetPrefix = '';
 require __DIR__ . '/includes/header.php';
@@ -40,8 +43,8 @@ require __DIR__ . '/includes/header.php';
 <div class="page-head">
   <div>
     <p class="eyebrow">Campus alumno</p>
-    <h1>Clases grabadas</h1>
-    <p class="lede">Las clases de tus cursos, las más nuevas primero. Miralas cuando quieras y las veces que quieras.</p>
+    <h1>Clases</h1>
+    <p class="lede">Todo en un lugar: entrá a la clase en vivo cuando empieza y mirá las grabadas cuando quieras.</p>
   </div>
   <?php if ($recordings): ?>
     <div class="stat" style="min-width:210px;padding:.9rem 1.1rem">
@@ -68,6 +71,42 @@ require __DIR__ . '/includes/header.php';
       </nav>
     <?php endif; ?>
   </div>
+<?php endif; ?>
+
+<?php if ($courses): ?>
+  <div class="section-title"><h2>En vivo</h2></div>
+  <?php if (!$live): ?>
+    <p class="panel muted live-empty"><?= aca_icon('video') ?> Por ahora no hay clases en vivo programadas. Cuando haya, vas a ver acá el día, la hora y el botón para entrar.</p>
+  <?php else: ?>
+    <div class="live-grid">
+      <?php foreach ($live as $l): ?>
+        <article class="live-card is-<?= h($l['status']) ?>">
+          <div class="live-top">
+            <span class="live-pill"><?php if ($l['status'] === 'live'): ?><i class="live-dot"></i><?php endif; ?><?= h($liveLabels[$l['status']]) ?></span>
+            <span class="rec-course"><?= h($l['course_title']) ?></span>
+          </div>
+          <?php if ($l['next']): ?>
+            <strong class="live-when"><?= h(live_when((int) $l['next']['ts'])) ?></strong>
+            <span class="live-title"><?= h($l['next']['title']) ?></span>
+          <?php else: ?>
+            <strong class="live-when"><?= h($l['schedule'] !== '' ? $l['schedule'] : 'Horario a confirmar') ?></strong>
+          <?php endif; ?>
+          <?php if ($l['next'] && $l['schedule'] !== ''): ?>
+            <span class="muted small"><?= aca_icon('clock') ?> Todas las semanas: <?= h($l['schedule']) ?></span>
+          <?php endif; ?>
+          <?php if ($l['later']): ?>
+            <span class="muted small">Después: <?= h(implode(' · ', array_map(static fn ($s) => live_when((int) $s['ts']), $l['later']))) ?></span>
+          <?php endif; ?>
+          <?php if ($l['url'] !== ''): ?>
+            <a class="btn <?= $l['status'] === 'live' ? 'primary' : 'secondary' ?>" href="<?= h($l['url']) ?>" target="_blank" rel="noopener"><?= aca_icon('video') ?> <?= $l['status'] === 'live' ? 'Entrar a la clase' : 'Link de la clase' ?></a>
+          <?php else: ?>
+            <span class="muted small">El link para entrar aparece acá antes de la clase.</span>
+          <?php endif; ?>
+        </article>
+      <?php endforeach; ?>
+    </div>
+  <?php endif; ?>
+  <div class="section-title" style="margin-top:1.8rem"><h2>Grabadas</h2></div>
 <?php endif; ?>
 
 <?php if (!$courses): ?>

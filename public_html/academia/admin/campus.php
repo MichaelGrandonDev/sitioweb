@@ -191,12 +191,12 @@ require __DIR__ . '/../includes/header.php';
 <h1>Unidades programáticas y materiales</h1>
 <p class="lede">
   Armá las unidades del curso y subí PDFs, videos, documentos o enlaces.
-  Para clases grabadas en video usá <a href="grabaciones.php">Clases grabadas</a>, que acepta archivos grandes.
+  Para clases grabadas en video usá <a href="grabaciones.php">Clases</a>, que acepta archivos grandes.
 </p>
 <nav class="admin-nav">
   <a class="btn secondary" href="index.php">← Panel</a>
   <a class="btn secondary" href="courses.php">Cursos</a>
-  <a class="btn secondary" href="grabaciones.php">Clases grabadas</a>
+  <a class="btn secondary" href="grabaciones.php">Clases</a>
   <a class="btn secondary" href="users.php">Alumnos</a>
   <?php if ($course): ?>
     <a class="btn primary" href="../course.php?id=<?= $courseId ?>" target="_blank">Ver campus alumno</a>

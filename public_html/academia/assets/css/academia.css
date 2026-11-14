@@ -1494,3 +1494,76 @@ a.stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-lift); }
 .sitio-sample-title { margin: 0 0 0.6rem; font-family: var(--s-display); font-size: calc(clamp(2rem, 4vw, 2.8rem) * var(--s-title)); font-weight: 600; line-height: 1.1; color: var(--brand); }
 .sitio-sample-text { margin: 0 0 1rem; max-width: 40rem; font-size: calc(1rem * var(--s-text)); line-height: 1.65; color: var(--muted); }
 .sitio-sample-btn { display: inline-block; padding: 0.75rem 1.4rem; border-radius: 999px; background: var(--s-accent); color: #fff; font-size: calc(0.95rem * var(--s-text)); font-weight: 600; }
+
+/* Clases en vivo */
+.live-grid { display: grid; gap: 0.9rem; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.live-card {
+  display: flex; flex-direction: column; gap: 0.45rem; padding: 1.1rem 1.15rem 1.15rem;
+  background: #fff; border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 1px 2px rgba(15, 61, 54, 0.05);
+}
+.live-card .btn { margin-top: auto; align-self: flex-start; }
+.live-card .live-when { font-family: var(--font-display); font-size: 1.55rem; line-height: 1.1; color: var(--brand-deep); }
+.live-card .live-title { color: var(--muted); font-size: 0.92rem; }
+.live-card .small { display: inline-flex; align-items: center; gap: 0.35rem; }
+.live-card .small svg { width: 14px; height: 14px; }
+.live-top { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; }
+.live-pill {
+  display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.22rem 0.65rem; border-radius: 999px;
+  font-size: 0.75rem; font-weight: 600; letter-spacing: 0.02em; background: var(--sage, #e3eee8); color: var(--brand);
+}
+.live-card.is-live { border-color: rgba(200, 50, 50, 0.35); box-shadow: 0 8px 28px rgba(200, 50, 50, 0.12); }
+.is-live .live-pill { background: #fde7e7; color: #b42318; }
+.is-today .live-pill { background: #fbe9c8; color: #8a5a0b; }
+.live-dot { width: 8px; height: 8px; border-radius: 50%; background: #e5372b; animation: live-pulse 1.4s ease-in-out infinite; }
+@keyframes live-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(229, 55, 43, 0.55); } 50% { box-shadow: 0 0 0 6px rgba(229, 55, 43, 0); } }
+@media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
+.live-empty { display: flex; align-items: center; gap: 0.6rem; margin: 0; }
+.live-empty svg { flex: none; color: var(--accent); }
+
+.live-banner {
+  position: relative; z-index: 1; display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap;
+  padding: 0.75rem 1rem; border-radius: 16px; background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff; transition: background 0.2s;
+}
+.live-banner:hover { background: rgba(255, 255, 255, 0.2); }
+.live-banner small { display: block; opacity: 0.8; font-size: 0.78rem; }
+.live-banner strong { font-size: 1.05rem; }
+.live-banner em { margin-left: auto; font-style: normal; font-weight: 600; font-size: 0.88rem; }
+.live-banner .live-pill { background: rgba(255, 255, 255, 0.92); }
+
+.live-admin-grid { display: grid; gap: 1.4rem; grid-template-columns: 1fr; }
+@media (min-width: 900px) { .live-admin-grid { grid-template-columns: 1fr 1fr; } }
+.panel-title svg { width: 18px; height: 18px; vertical-align: -3px; margin-right: 0.3rem; color: var(--accent); }
+.live-sessions { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
+.live-sessions li { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; padding: 0.5rem 0.4rem 0.5rem 0.8rem; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
+.live-sessions form { margin: 0; }
+.live-add { display: grid; gap: 0.6rem; grid-template-columns: 1fr 1fr; align-items: end; padding-top: 0.6rem; border-top: 1px dashed var(--line); }
+.live-add .btn { grid-column: 1 / -1; justify-self: start; }
+@media (max-width: 520px) { .live-add { grid-template-columns: 1fr; } }
+
+/* Portal del estudiante */
+.student-portal {
+  display: grid; gap: 1.6rem; align-items: center; max-width: 1040px; margin: clamp(1rem, 5vw, 3.5rem) auto; padding: 0 1rem;
+}
+@media (min-width: 880px) { .student-portal { grid-template-columns: 1.15fr 0.85fr; gap: 3rem; } }
+.sp-intro h1 { font-size: clamp(2.2rem, 5vw, 3.4rem); line-height: 1.02; margin: 0.3rem 0 0.8rem; color: var(--brand-deep); }
+.sp-intro .lede { max-width: 34rem; }
+.sp-features { list-style: none; padding: 0; margin: 1.4rem 0 0; display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+.sp-features li { display: flex; gap: 0.7rem; align-items: flex-start; }
+.sp-features li > span { flex: none; display: grid; place-items: center; width: 2.3rem; height: 2.3rem; border-radius: 12px; background: #fff; color: var(--accent); border: 1px solid var(--line); }
+.sp-features strong { display: block; font-size: 0.95rem; }
+.sp-features small { color: var(--muted); font-size: 0.82rem; }
+.sp-login { margin: 0; max-width: none; }
+.sp-login h2 { margin: 0 0 1rem; font-size: 1.6rem; color: var(--brand-deep); }
+.sp-join { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; flex-wrap: wrap; margin-top: 1.1rem; padding-top: 1rem; border-top: 1px solid var(--line); font-size: 0.9rem; color: var(--muted); }
+.sp-links { grid-column: 1 / -1; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.8rem; }
+.sp-links a { display: inline-flex; align-items: center; gap: 0.35rem; }
+.sp-links svg { width: 14px; height: 14px; }
+@media (min-width: 880px) {
+  .student-portal { grid-template-areas: "intro login" "features login" "links links"; row-gap: 0; }
+  .sp-intro { grid-area: intro; align-self: end; }
+  .sp-login { grid-area: login; }
+  .student-portal .sp-features { grid-area: features; align-self: start; }
+  .sp-links { grid-area: links; margin-top: 2.4rem; }
+}
+.live-admin form.stack > .btn { justify-self: start; align-self: flex-start; }

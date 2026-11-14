@@ -113,7 +113,7 @@ require __DIR__ . '/includes/header.php';
   <aside class="campus-nav" id="campus-nav">
     <p class="campus-nav-label">Este curso</p>
     <a class="campus-nav-item active" href="course.php?id=<?= $courseId ?>"><?= h($course['title']) ?></a>
-    <a class="campus-nav-item" href="clases.php?course_id=<?= $courseId ?>">Clases grabadas</a>
+    <a class="campus-nav-item" href="clases.php?course_id=<?= $courseId ?>">Clases</a>
     <a class="campus-nav-item" href="tickets.php?nuevo=1&amp;to=teacher&amp;course_id=<?= $courseId ?>#nueva">Consultar al profesor</a>
     <a class="campus-nav-item" href="#avisos">Avisos</a>
     <a class="campus-nav-item" href="#eventos">Próximos eventos</a>

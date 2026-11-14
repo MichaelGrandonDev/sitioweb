@@ -27,6 +27,20 @@ if (!user_can_access_course($user, (int) $resource['course_id'])) {
     exit;
 }
 
+$isVideo = (string) $resource['type'] === 'video';
+$isAdmin = $user['role'] === 'admin';
+if ($isVideo && !$isAdmin) {
+    // Solo se sirve al reproductor: abrir el link en una pestaña o "guardar enlace" pide un documento.
+    // Safari/iOS viejos no mandan Sec-Fetch-Dest, por eso la ausencia del header se permite.
+    $dest = strtolower((string) ($_SERVER['HTTP_SEC_FETCH_DEST'] ?? ''));
+    if ($dest === 'document' || $dest === 'iframe' || $dest === 'embed' || $dest === 'object' || !video_link_valid($resourceId)) {
+        http_response_code(403);
+        header('Cache-Control: no-store');
+        echo 'Este video solo se puede ver desde el campus.';
+        exit;
+    }
+}
+
 $relative = trim((string) ($resource['file_path'] ?? ''));
 $full = resolve_upload_path($relative);
 if ($full === null) {
@@ -47,14 +61,18 @@ $mime = match ($ext) {
     default => (string) ((new finfo(FILEINFO_MIME_TYPE))->file($full) ?: 'application/octet-stream'),
 };
 $name = basename($full);
-$download = isset($_GET['download']);
+$download = isset($_GET['download']) && (!$isVideo || $isAdmin);
 $size = (int) filesize($full);
 $start = 0;
 $end = $size - 1;
 
 header('Accept-Ranges: bytes');
 header('X-Content-Type-Options: nosniff');
-header('Cache-Control: private, max-age=3600');
+header($isVideo ? 'Cache-Control: private, no-store' : 'Cache-Control: private, max-age=3600');
+if ($isVideo) {
+    header('X-Robots-Tag: noindex, nofollow');
+    header('Cross-Origin-Resource-Policy: same-origin');
+}
 header(
     ($download ? 'Content-Disposition: attachment' : 'Content-Disposition: inline')
     . '; filename="' . rawurlencode($name) . '"'

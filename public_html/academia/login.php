@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($found && password_verify($password, $found['password_hash'])) {
             $role = (string) $found['role'];
             if ($expect === 'admin' && $role !== 'admin') {
-                $error = 'Esta cuenta no es de administrador. Entrá por “Alumno / Paciente”.';
+                $error = 'Esta cuenta es de alumno. Entrá desde el portal del estudiante.';
             } elseif ($expect === 'alumno' && $role === 'admin') {
                 $error = 'Esta es una cuenta de administrador. Entrá por “Administrador”.';
             } else {
@@ -67,37 +67,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$pageTitle = $as === 'admin' ? 'Acceso administrador' : ($as === 'alumno' ? 'Acceso alumno' : 'Ingresar');
+$pageTitle = $as === 'admin' ? 'Acceso administrador' : 'Portal del estudiante';
 $minimalShell = true;
 require __DIR__ . '/includes/header.php';
 ?>
 
-<?php if ($as === ''): ?>
-<section class="portal">
-  <div class="portal-hero">
-    <p class="eyebrow">AcademiaFluxus</p>
-    <h1>Ingresá</h1>
-    <p class="lede">Elegí cómo querés continuar.</p>
+<?php if ($as !== 'admin'): ?>
+<section class="student-portal">
+  <div class="sp-intro">
+    <p class="eyebrow">AcademiaFluxus · Portal del estudiante</p>
+    <h1>Tus clases, en vivo y grabadas</h1>
+    <p class="lede">Entrá con tu email y contraseña para sumarte a la clase en vivo o mirar las grabadas cuando quieras.</p>
   </div>
 
-  <div class="portal-grid">
-    <a class="portal-card admin" href="login.php?as=admin">
-      <span class="portal-kicker">Gestión</span>
-      <h2>Administrador</h2>
-      <p>Alumnos, clases grabadas, consultas y todo el sitio.</p>
-      <span class="portal-go">Entrar →</span>
-    </a>
-    <a class="portal-card student" href="login.php?as=alumno">
-      <span class="portal-kicker">Campus</span>
-      <h2>Alumno</h2>
-      <p>Tus cursos, clases grabadas y consultas al profesor.</p>
-      <span class="portal-go">Entrar →</span>
-    </a>
+  <div class="auth-card sp-login">
+    <h2>Ingresar al campus</h2>
+    <?php if ($error): ?><div class="alert error"><?= h($error) ?></div><?php endif; ?>
+    <form method="post" class="stack">
+      <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
+      <label>Email
+        <input type="text" name="username" required autocomplete="username" autocapitalize="none" spellcheck="false" inputmode="email" autofocus>
+      </label>
+      <label>Contraseña
+        <input type="password" name="password" required autocomplete="current-password">
+      </label>
+      <button class="btn primary" type="submit">Entrar al campus</button>
+    </form>
+    <p class="muted small" style="margin:.9rem 0 0">¿Olvidaste la contraseña? Escribinos por WhatsApp y te mandamos una nueva.</p>
+    <div class="sp-join">
+      <span>¿Todavía no sos alumno?</span>
+      <a class="btn secondary" href="inscripcion.php">Inscribirme</a>
+    </div>
   </div>
 
-  <nav class="portal-links" aria-label="Otras opciones">
-    <a href="inscripcion.php">Inscribirme</a>
-    <a href="../">FluxusTerapia</a>
+  <ul class="sp-features">
+    <li><span><?= aca_icon('video') ?></span><div><strong>Clases en vivo</strong><small>Día, horario y botón para entrar a Meet.</small></div></li>
+    <li><span><?= aca_icon('play') ?></span><div><strong>Clases grabadas</strong><small>Miralas a tu ritmo, retomá donde dejaste.</small></div></li>
+    <li><span><?= aca_icon('chat') ?></span><div><strong>Consultas</strong><small>Escribile al profesor y te avisamos por email.</small></div></li>
+    <li><span><?= aca_icon('book') ?></span><div><strong>Materiales</strong><small>PDFs y recursos de cada curso.</small></div></li>
+  </ul>
+
+  <nav class="portal-links sp-links" aria-label="Otras opciones">
+    <a href="../">← FluxusTerapia</a>
+    <a href="login.php?as=admin"><?= aca_icon('lock') ?> Acceso administración</a>
   </nav>
 </section>
 <?php else: ?>

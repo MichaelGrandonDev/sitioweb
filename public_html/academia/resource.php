@@ -86,9 +86,9 @@ if ($type === 'video'):
 <a class="btn ghost small-btn" href="clases.php?course_id=<?= $courseId ?>" style="margin:-.4rem 0 .6rem -.6rem"><?= aca_icon('arrow-left') ?> Clases de <?= h($resource['course_title']) ?></a>
 <div class="player-layout">
   <div>
-    <div class="player">
+    <div class="player" id="player-box">
       <?php if ($hasFile): ?>
-        <video id="player" controls playsinline preload="metadata" <?= $isAdmin ? '' : 'controlsList="nodownload" oncontextmenu="return false"' ?>>
+        <video id="player" controls playsinline preload="metadata" controlsList="nodownload" disablePictureInPicture disableRemotePlayback x-webkit-airplay="deny">
           <source src="<?= h(resource_file_url($resource)) ?>" type="video/mp4">
         </video>
         <button class="resume-pill" type="button" id="resume" hidden><?= aca_icon('play') ?> <span></span></button>
@@ -161,6 +161,9 @@ if ($type === 'video'):
 
   var video = document.getElementById('player');
   if (!video) { return; }
+  var box = document.getElementById('player-box');
+  box.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  video.addEventListener('dragstart', function (e) { e.preventDefault(); });
   var key = 'aca-pos-<?= (int) $user['id'] ?>-<?= $resourceId ?>';
   var saved = Number(localStorage.getItem(key) || 0);
   var pill = document.getElementById('resume');
@@ -207,7 +210,7 @@ endif;
   ?>
   <?php if ($type === 'video'): ?>
     <?php if ($hasFile): ?>
-      <video controls playsinline preload="metadata" <?= $user['role'] === 'admin' ? '' : 'controlsList="nodownload" oncontextmenu="return false"' ?> style="width:100%;max-height:70vh;background:#000;border-radius:8px">
+      <video controls playsinline preload="metadata" controlsList="nodownload" disablePictureInPicture disableRemotePlayback oncontextmenu="return false" style="width:100%;max-height:70vh;background:#000;border-radius:8px">
         <source src="<?= h($fileUrl) ?>" type="video/mp4">
       </video>
       <p class="muted small" style="margin-top:.5rem">¿No se ve el video? Probá desde Safari o avisanos con una consulta.</p>

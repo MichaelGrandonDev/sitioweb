@@ -78,11 +78,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    if ($action === 'save_live' && $courseId > 0) {
+        $meetUrl = trim((string) ($_POST['meet_url'] ?? ''));
+        $schedule = trim((string) ($_POST['meet_schedule'] ?? ''));
+        if (!live_url_ok($meetUrl)) {
+            flash('error', 'El link tiene que empezar con https:// (por ejemplo https://meet.google.com/abc-defg-hij).');
+        } else {
+            $pdo->prepare('UPDATE courses SET meet_url = ?, meet_schedule = ? WHERE id = ?')
+                ->execute([$meetUrl, mb_substr($schedule, 0, 120), $courseId]);
+            flash('success', 'Clase en vivo guardada.');
+        }
+    }
+
+    if ($action === 'add_session' && $courseId > 0) {
+        $startsAt = trim((string) ($_POST['starts_at'] ?? ''));
+        $url = trim((string) ($_POST['url'] ?? ''));
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/', $startsAt) || strtotime($startsAt) === false) {
+            flash('error', 'Elegí el día y la hora de la clase.');
+        } elseif (!live_url_ok($url)) {
+            flash('error', 'El link tiene que empezar con https://');
+        } else {
+            $pdo->prepare('INSERT INTO course_events (course_id, title, starts_at, location, url) VALUES (?, ?, ?, ?, ?)')
+                ->execute([$courseId, $title !== '' ? mb_substr($title, 0, 120) : 'Clase en vivo', $startsAt, '', $url]);
+            flash('success', 'Fecha agregada: ' . live_when((int) strtotime($startsAt)) . '.');
+        }
+    }
+
+    if ($action === 'delete_session') {
+        $pdo->prepare('DELETE FROM course_events WHERE id = ? AND course_id = ?')
+            ->execute([(int) ($_POST['event_id'] ?? 0), $courseId]);
+        flash('success', 'Fecha eliminada.');
+    }
+
     if ($action === 'update') {
         $rid = (int) ($_POST['resource_id'] ?? 0);
+        $target = (int) ($_POST['target_course_id'] ?? 0);
         if ($rid > 0 && $title !== '') {
             $pdo->prepare("UPDATE course_resources SET title = ?, description = ? WHERE id = ? AND type = 'video'")
                 ->execute([$title, $description, $rid]);
+            $moved = $target > 0 && in_array($target, $courseIds, true) ? recording_move($rid, $target) : false;
+            if ($moved) {
+                $targetTitle = (string) array_column($courses, 'title', 'id')[$target];
+                flash('success', 'Clase movida a ' . $targetTitle . '. Ya la ven los alumnos de ese curso.');
+                redirect('grabaciones.php?course_id=' . $target);
+            }
             flash('success', 'Clase actualizada.');
         }
     }
@@ -109,8 +148,16 @@ if ($courseId > 0) {
     $st->execute([$courseId]);
     $students = (int) $st->fetchColumn();
 }
+$liveCourse = ['meet_url' => '', 'meet_schedule' => ''];
+$sessions = [];
+if ($courseId > 0) {
+    $st = $pdo->prepare('SELECT meet_url, meet_schedule FROM courses WHERE id = ?');
+    $st->execute([$courseId]);
+    $liveCourse = $st->fetch() ?: $liveCourse;
+    $sessions = live_sessions($courseId);
+}
 
-$pageTitle = 'Clases grabadas';
+$pageTitle = 'Clases';
 $basePath = '../';
 $assetPrefix = '../';
 require __DIR__ . '/../includes/header.php';
@@ -118,8 +165,8 @@ require __DIR__ . '/../includes/header.php';
 <div class="page-head">
   <div>
     <p class="eyebrow">Administración</p>
-    <h1>Clases grabadas</h1>
-    <p class="lede">Subí el video de la clase o pegá el link de YouTube o Drive. Lo ven al instante los alumnos que tienen asignado ese curso.</p>
+    <h1>Clases</h1>
+    <p class="lede">En vivo y grabadas, por curso. Lo que cargues acá lo ven al instante los alumnos que tienen asignado ese curso.</p>
   </div>
   <a class="btn secondary" href="../clases.php<?= $courseId ? '?course_id=' . $courseId : '' ?>"><?= aca_icon('eye') ?> Ver como alumno</a>
 </div>
@@ -150,8 +197,56 @@ require __DIR__ . '/../includes/header.php';
   </p>
 </section>
 
+<section class="panel live-admin" style="margin-bottom:1rem">
+  <h2 class="panel-title"><?= aca_icon('video') ?> Clase en vivo</h2>
+  <div class="live-admin-grid">
+    <form method="post" class="stack">
+      <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="action" value="save_live">
+      <input type="hidden" name="course_id" value="<?= $courseId ?>">
+      <label>Link de Google Meet (o Zoom)
+        <input name="meet_url" type="url" value="<?= h((string) $liveCourse['meet_url']) ?>" placeholder="https://meet.google.com/abc-defg-hij">
+      </label>
+      <label>Día y horario habitual
+        <input name="meet_schedule" value="<?= h((string) $liveCourse['meet_schedule']) ?>" maxlength="120" placeholder="Ej: Jueves 19:00 hs">
+      </label>
+      <p class="hint" style="margin:0">Usá el mismo link de Meet todas las semanas. Los alumnos lo ven en "Clases" con el botón para entrar.</p>
+      <button class="btn primary" type="submit"><?= aca_icon('check') ?> Guardar</button>
+    </form>
+    <div class="stack">
+      <strong class="small">Próximas fechas</strong>
+      <?php if (!$sessions): ?>
+        <p class="muted small" style="margin:0">Sin fechas cargadas. Opcional: si cargás el día, el alumno ve "Hoy" o "En vivo ahora" con cuenta exacta.</p>
+      <?php else: ?>
+        <ul class="live-sessions">
+          <?php foreach ($sessions as $s): ?>
+            <li>
+              <span><strong><?= h(live_when((int) $s['ts'])) ?></strong> <span class="muted small"><?= h($s['title']) ?></span></span>
+              <form method="post" onsubmit="return confirm('¿Borrar esta fecha?')">
+                <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="action" value="delete_session">
+                <input type="hidden" name="course_id" value="<?= $courseId ?>">
+                <input type="hidden" name="event_id" value="<?= (int) $s['id'] ?>">
+                <button class="icon-btn" type="submit" aria-label="Borrar fecha"><?= aca_icon('trash') ?></button>
+              </form>
+            </li>
+          <?php endforeach; ?>
+        </ul>
+      <?php endif; ?>
+      <form method="post" class="live-add">
+        <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
+        <input type="hidden" name="action" value="add_session">
+        <input type="hidden" name="course_id" value="<?= $courseId ?>">
+        <label>Día y hora <input name="starts_at" type="datetime-local" required></label>
+        <label>Tema (opcional) <input name="title" maxlength="120" placeholder="Clase en vivo"></label>
+        <button class="btn secondary" type="submit"><?= aca_icon('plus') ?> Agregar fecha</button>
+      </form>
+    </div>
+  </div>
+</section>
+
 <section class="panel" style="margin-bottom:1rem">
-  <h2 class="panel-title">Nueva clase grabada</h2>
+  <h2 class="panel-title"><?= aca_icon('play') ?> Nueva clase grabada</h2>
   <div class="tabs" role="tablist" style="margin-bottom:1rem">
     <button type="button" data-rec-tab="file" aria-selected="true"><?= aca_icon('upload') ?> Subir video</button>
     <button type="button" data-rec-tab="link" aria-selected="false"><?= aca_icon('link') ?> Link de YouTube o Drive</button>
@@ -192,6 +287,7 @@ require __DIR__ . '/../includes/header.php';
       <input name="url" type="url" required placeholder="https://youtu.be/… o https://drive.google.com/file/d/…">
     </label>
     <p class="muted small" style="margin:0">YouTube: subilo como "No listado". Drive: en Compartir elegí "Cualquier persona con el enlace".</p>
+    <p class="hint" style="margin:0"><strong>Para que no se puedan descargar:</strong> subí el archivo (pestaña "Subir video") o usá YouTube "No listado". Los videos de Google Drive muestran un botón de descarga que no se puede ocultar desde acá.</p>
     <button class="btn primary" type="submit"><?= aca_icon('check') ?> Publicar clase</button>
   </form>
 </section>
@@ -225,7 +321,7 @@ require __DIR__ . '/../includes/header.php';
           · Publicada el <?= h(format_db_time((string) $r['created_at'], 'd/m/Y')) ?>
         </p>
         <details style="margin-top:.5rem">
-          <summary class="muted small">Editar título o descripción</summary>
+          <summary class="muted small">Editar o mover a otro curso</summary>
           <form method="post" class="stack" style="margin-top:.5rem">
             <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
             <input type="hidden" name="action" value="update">
@@ -233,6 +329,16 @@ require __DIR__ . '/../includes/header.php';
             <input type="hidden" name="resource_id" value="<?= $rid ?>">
             <label>Título <input name="title" required value="<?= h($r['title']) ?>"></label>
             <label>Descripción <textarea name="description"><?= h((string) $r['description']) ?></textarea></label>
+            <label>Curso
+              <select name="target_course_id">
+                <?php foreach ($courses as $c): ?>
+                  <option value="<?= (int) $c['id'] ?>" <?= (int) $c['id'] === (int) $r['course_id'] ? 'selected' : '' ?>>
+                    <?= h($c['title']) ?><?= (int) $c['published'] ? '' : ' (dado de baja)' ?>
+                  </option>
+                <?php endforeach; ?>
+              </select>
+            </label>
+            <p class="hint" style="margin:0">Si elegís otro curso, la clase pasa a ese curso y la ven sus alumnos (deja de verse en este).</p>
             <button class="btn secondary small-btn" type="submit">Guardar</button>
           </form>
         </details>

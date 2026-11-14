@@ -52,7 +52,7 @@ require __DIR__ . '/../includes/header.php';
 <nav class="admin-nav">
   <a class="btn secondary" href="index.php">← Panel</a>
   <a class="btn secondary" href="users.php">Alumnos</a>
-  <a class="btn secondary" href="grabaciones.php">Clases grabadas</a>
+  <a class="btn secondary" href="grabaciones.php">Clases</a>
 </nav>
 
 <nav class="rec-filter" aria-label="Estado">

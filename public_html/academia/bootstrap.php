@@ -155,7 +155,7 @@ function embed_video(string $url): string
     // YouTube
     if (preg_match('~(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/embed/|youtube\.com/live/)([A-Za-z0-9_-]{6,})~', $url, $m)) {
         $id = h($m[1]);
-        return '<div class="video-frame"><iframe src="https://www.youtube.com/embed/' . $id . '" title="Clase" allowfullscreen loading="lazy"></iframe></div>';
+        return '<div class="video-frame"><iframe src="https://www.youtube-nocookie.com/embed/' . $id . '?rel=0&amp;modestbranding=1" title="Clase" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" loading="lazy"></iframe></div>';
     }
 
     // Google Drive file
