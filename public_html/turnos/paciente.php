@@ -58,7 +58,19 @@ $startPreview = static function (array $input, int $targetEval, string $notas) u
  * Entradas del diagnóstico: glosodiagnosis estructurada (t[…]), motivo + interrogatorio (q[…]), pulso opcional y foto.
  * Desde el editor de una evaluación llegan como texto libre (lengua / interrogatorio).
  */
-$genInput = static function () use ($id): array {
+/** Campos de la lengua que vinieron de «Analizar foto»: {campo: 'cursor'|'color', editado: bool}. Solo registro. */
+$sugerido = static function (array $t): array {
+    $in = json_decode(is_string($_POST['sugerido_foto'] ?? null) ? $_POST['sugerido_foto'] : '', true);
+    $out = [];
+    foreach (is_array($in) ? $in : [] as $k => $v) {
+        if (isset(PAC_TONGUE[$k]) && is_array($v) && in_array($v['motor'] ?? '', ['cursor', 'color'], true) && pac_tongue_filled([$t[$k] ?? ''])) {
+            $out[$k] = ['motor' => $v['motor'], 'editado' => !empty($v['editado'])];
+        }
+    }
+    return $out;
+};
+
+$genInput = static function () use ($id, $sugerido): array {
     $t = pac_tongue_from($_POST['t'] ?? null);
     $q = pac_interrog_from($_POST['q'] ?? null);
     $motivo = pac_post_str('motivo', 4000);
@@ -72,7 +84,8 @@ $genInput = static function () use ($id): array {
         'foto' => $foto !== null,
         'foto_id' => $foto ? (int) $foto['id'] : 0,
         'foto_cursor' => $foto !== null && ($_POST['foto_cursor'] ?? '') === '1',
-        'entrada' => $structured ? ['lengua' => $t, 'interrog' => $q, 'motivo' => $motivo, 'foto_id' => $foto ? (int) $foto['id'] : 0] : null,
+        'entrada' => $structured ? ['lengua' => $t, 'interrog' => $q, 'motivo' => $motivo, 'foto_id' => $foto ? (int) $foto['id'] : 0,
+            'sugerido' => $sugerido($t)] : null,
     ];
 };
 
@@ -796,7 +809,7 @@ pac_page_start($p['nombre'], 'pacientes');
                     <label><?= h($label) ?>
                       <select name="t[<?= h($k) ?>]">
                         <option value="">—</option>
-                        <?php foreach ($opts as $o): ?><option<?= $prefill['t'][$k] === $o ? ' selected' : '' ?>><?= h($o) ?></option><?php endforeach; ?>
+                        <?php foreach ($opts as $o): ?><option value="<?= h($o) ?>"<?= $prefill['t'][$k] === $o ? ' selected' : '' ?>><?= h(pac_tongue_label($o)) ?></option><?php endforeach; ?>
                       </select>
                     </label>
                   <?php elseif ($type === 'multi'): ?>
@@ -815,25 +828,46 @@ pac_page_start($p['nombre'], 'pacientes');
               </div>
             </div>
           <?php endforeach; ?>
-          <div class="pac-tongue-photo">
+          <div class="pac-tongue-photo" data-tongue-photos data-pid="<?= (int) $id ?>">
             <span class="pac-checks-label">Foto de la lengua para esta evaluación (opcional)</span>
-            <?php if (!$tonguePhotos): ?>
-              <p class="muted small">Todavía no hay fotos. Podés subirlas en <a href="#lengua-fotos">Fotos de la lengua</a>.</p>
-            <?php else: ?>
-              <div class="pac-photo-pick">
-                <label class="check"><input type="radio" name="foto_id" value="0"<?= $prefill['foto_id'] === 0 ? ' checked' : '' ?>><span>Sin foto</span></label>
-                <?php foreach (array_slice($tonguePhotos, 0, 8) as $ph): ?>
-                  <label class="pac-photo-opt">
-                    <input type="radio" name="foto_id" value="<?= (int) $ph['id'] ?>"<?= $prefill['foto_id'] === (int) $ph['id'] ? ' checked' : '' ?>>
-                    <img src="pacientes_archivo.php?id=<?= (int) $ph['id'] ?>" alt="" loading="lazy">
-                    <span class="small"><?= h(date('d/m/Y', strtotime((string) $ph['fecha']))) ?></span>
-                  </label>
-                <?php endforeach; ?>
-              </div>
-              <label class="check"><input type="checkbox" name="foto_cursor" value="1"<?= $prefill['foto_cursor'] ? ' checked' : '' ?>>
-                <span>Mandar la foto a Cursor en tu Mac para que la mire (solo la imagen, sin nombre ni datos; usá una foto donde se vea solo la lengua)</span></label>
-            <?php endif; ?>
+            <p class="pac-actions">
+              <button type="button" class="btn ghost" data-tongue-camera data-upload="pacientes_api.php?action=tongue_photo"
+                data-fields='<?= h((string) json_encode(['pid' => (string) $id])) ?>'>Subir foto de la lengua</button>
+              <span class="muted small">En el celular o la tablet abre la cámara; en la compu elegís o arrastrás la foto.</span>
+            </p>
+            <p class="muted small" data-no-photos<?= $tonguePhotos ? ' hidden' : '' ?>>Todavía no hay fotos de esta paciente.</p>
+            <div class="pac-photo-pick"<?= $tonguePhotos ? '' : ' hidden' ?>>
+              <label class="check"><input type="radio" name="foto_id" value="0"<?= $prefill['foto_id'] === 0 ? ' checked' : '' ?>><span>Sin foto</span></label>
+              <?php foreach (array_slice(array_values(array_filter($tonguePhotos, static fn ($ph) => $ph['vista'] !== 'sublingual')), 0, 8) as $ph): ?>
+                <label class="pac-photo-opt">
+                  <input type="radio" name="foto_id" value="<?= (int) $ph['id'] ?>"<?= $prefill['foto_id'] === (int) $ph['id'] ? ' checked' : '' ?>>
+                  <img src="pacientes_archivo.php?id=<?= (int) $ph['id'] ?>" alt="" loading="lazy">
+                  <span class="small"><?= h(date('d/m/Y', strtotime((string) $ph['fecha']))) ?></span>
+                </label>
+              <?php endforeach; ?>
+            </div>
+            <div class="pac-analyze"<?= $tonguePhotos ? '' : ' hidden' ?>>
+              <?php $subPhotos = array_values(array_filter($tonguePhotos, static fn ($ph) => $ph['vista'] === 'sublingual')); ?>
+              <label>Cara inferior (venas sublinguales, opcional)
+                <select name="foto2_id" data-foto2>
+                  <option value="0">Sin foto de la cara inferior</option>
+                  <?php foreach (array_slice($subPhotos, 0, 8) as $ph): ?>
+                    <option value="<?= (int) $ph['id'] ?>"><?= h(date('d/m/Y', strtotime((string) $ph['fecha'])) . ((string) $ph['caption'] !== '' ? ' · ' . $ph['caption'] : '')) ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </label>
+              <label class="check"><input type="checkbox" data-analyze-ai value="1"<?= $bridgeSet ? ' checked' : '' ?>>
+                <span>Usar Cursor en tu Mac para mirar la foto <span class="tag <?= $bridgeOn ? 'ok' : 'warn' ?>"><?= $bridgeOn ? 'conectado' : 'desconectado' ?></span>
+                  (si no, estimación aproximada por color)</span></label>
+              <button type="button" class="btn primary" data-tongue-analyze>Analizar foto</button>
+              <span class="muted small">Sugiere los datos de la lengua según «<?= h(PAC_TONGUE_BOOK_TITLE) ?>». Nada se guarda: revisás y aplicás campo por campo.</span>
+            </div>
+            <div data-tongue-suggest aria-live="polite"></div>
+            <input type="hidden" name="sugerido_foto" value="" data-sugerido>
+            <label class="check" data-foto-cursor<?= $tonguePhotos ? '' : ' hidden' ?>><input type="checkbox" name="foto_cursor" value="1"<?= $prefill['foto_cursor'] ? ' checked' : '' ?>>
+              <span>Al generar, mandar también la foto a Cursor en tu Mac (solo la imagen, sin nombre ni datos; usá una foto donde se vea solo la lengua)</span></label>
           </div>
+          <script type="application/json" id="pac-tongue-def"><?= json_encode(array_map(static fn ($d) => ['label' => $d[0], 'type' => $d[1], 'group' => PAC_TONGUE_GROUPS[$d[3]]], PAC_TONGUE) + ['_labels' => PAC_TONGUE_DISPLAY], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?></script>
         </fieldset>
 
         <fieldset class="pac-block">
@@ -894,6 +928,8 @@ pac_page_start($p['nombre'], 'pacientes');
       <p class="hint">Una o más por consulta, para comparar la evolución. Se guardan privadas (solo con tu sesión de admin) y al subirlas se les quitan
         los datos del teléfono y la ubicación. JPG, PNG o WEBP, hasta <?= PAC_PHOTO_MAX / 1048576 ?> MB (se achican a <?= PAC_PHOTO_SIDE ?> px).
         Consejo: luz natural, lengua afuera relajada, sin comer ni cepillar la lengua antes.</p>
+      <p><button type="button" class="btn primary" data-tongue-camera data-upload="pacientes_api.php?action=tongue_photo" data-reload="#lengua-fotos"
+        data-fields='<?= h((string) json_encode(['pid' => (string) $id])) ?>'>Subir foto de la lengua</button></p>
       <form method="post" enctype="multipart/form-data" class="pac-search">
         <?= pac_csrf_field() ?>
         <input type="hidden" name="action" value="tongue_upload">
@@ -922,7 +958,7 @@ pac_page_start($p['nombre'], 'pacientes');
               <a href="pacientes_archivo.php?id=<?= (int) $ph['id'] ?>" target="_blank" rel="noopener"><img src="pacientes_archivo.php?id=<?= (int) $ph['id'] ?>" alt="Lengua del <?= h(date('d/m/Y', strtotime((string) $ph['fecha']))) ?>" loading="lazy"></a>
               <figcaption>
                 <label class="check"><input type="checkbox" name="cmp[]" value="<?= (int) $ph['id'] ?>"<?= in_array((int) $ph['id'], $cmpIds, true) ? ' checked' : '' ?>>
-                  <span><?= h(date('d/m/Y', strtotime((string) $ph['fecha']))) ?><?= (string) $ph['caption'] !== '' ? ' · ' . h((string) $ph['caption']) : '' ?></span></label>
+                  <span><?= h(date('d/m/Y', strtotime((string) $ph['fecha']))) ?><?= $ph['vista'] === 'sublingual' ? ' · cara inferior' : '' ?><?= (string) $ph['caption'] !== '' ? ' · ' . h((string) $ph['caption']) : '' ?></span></label>
                 <button class="pac-link-btn" type="submit" form="del-photo-<?= (int) $ph['id'] ?>">Borrar</button>
               </figcaption>
             </figure>
@@ -1084,4 +1120,4 @@ pac_page_start($p['nombre'], 'pacientes');
       </details>
     </details>
 <?php
-pac_page_end(['assets/pacientes.js?v=20260929c']);
+pac_page_end(['assets/pacientes.js', 'assets/tongue_camera.js', 'assets/tongue_analyze.js']);

@@ -9,19 +9,23 @@ declare(strict_types=1);
  * Requiere includes/pacientes.php.
  */
 
-/** [etiqueta, tipo (one|multi|text), opciones, grupo]. Claves y valores iguales a los del Plan MTC (MTC_OPTIONS / MTC_MULTI). */
+/**
+ * [etiqueta, tipo (one|multi|text), opciones, grupo]. Categorías del libro de referencia (pac_tongue_book.php).
+ * Los valores que ya existían son los del Plan MTC (MTC_OPTIONS / MTC_MULTI): no renombrarlos, solo agregar.
+ */
 const PAC_TONGUE = [
     'lengua_color' => ['Color del cuerpo', 'one', ['Rosada (normal)', 'Pálida', 'Roja', 'Roja en la punta', 'Bordes rojos', 'Violácea', 'Rojo oscuro / carmesí', 'Azulada'], 'cuerpo'],
-    'lengua_forma' => ['Forma y signos', 'multi', ['Hinchada', 'Fina', 'Marcas dentales', 'Grietas', 'Puntos rojos / petequias', 'Manchas violáceas'], 'cuerpo'],
+    'lengua_forma' => ['Forma y signos', 'multi', ['Hinchada', 'Fina', 'Marcas dentales', 'Grietas', 'Puntos rojos / petequias', 'Manchas violáceas', 'Corta / contraída'], 'cuerpo'],
     'lengua_tamano' => ['Tamaño', 'one', ['Normal', 'Grande / ancha', 'Pequeña / delgada'], 'cuerpo'],
     'lengua_movilidad' => ['Movilidad', 'one', ['Normal', 'Temblorosa', 'Desviada', 'Rígida', 'Flácida'], 'cuerpo'],
     'lengua_humedad' => ['Humedad del cuerpo', 'one', ['Normal', 'Seca', 'Muy húmeda'], 'cuerpo'],
     'lengua_venas' => ['Venas sublinguales', 'one', ['Normales', 'Dilatadas / oscuras', 'Pálidas / poco visibles'], 'cuerpo'],
+    'grietas_zona' => ['Grietas: ubicación', 'multi', ['Central (línea media)', 'Central hasta la punta', 'Transversales a los lados', 'En la punta', 'Dispersas / irregulares'], 'cuerpo'],
     'grietas' => ['Grietas: dónde y cómo', 'text', [], 'cuerpo'],
     'saburra_color' => ['Color', 'one', ['Blanca', 'Amarilla', 'Gris / oscura', 'Sin saburra (pelada)'], 'saburra'],
-    'saburra_espesor' => ['Espesor', 'one', ['Fina', 'Gruesa'], 'saburra'],
-    'saburra_humedad' => ['Humedad', 'one', ['Normal', 'Seca', 'Húmeda', 'Pegajosa / grasosa'], 'saburra'],
-    'saburra_distribucion' => ['Distribución', 'one', ['Pareja', 'Más en la raíz', 'Más en el centro', 'A parches (geográfica)'], 'saburra'],
+    'saburra_espesor' => ['Espesor', 'one', ['Fina', 'Gruesa', 'Escasa (poca saburra)'], 'saburra'],
+    'saburra_humedad' => ['Humedad', 'one', ['Normal', 'Seca', 'Húmeda', 'Pegajosa / grasosa', 'Resbaladiza'], 'saburra'],
+    'saburra_distribucion' => ['Distribución', 'one', ['Pareja', 'Más en la raíz', 'Más en el centro', 'Más en la punta', 'De un solo lado', 'A parches (geográfica)'], 'saburra'],
     'saburra_raiz' => ['Raíz', 'one', ['Con raíz (firme)', 'Sin raíz (se desprende)'], 'saburra'],
     'zonas' => ['Zonas por órgano alteradas', 'multi', ['Punta (Corazón / Pulmón)', 'Centro (Bazo / Estómago)', 'Laterales (Hígado / Vesícula)', 'Raíz (Riñón)'], 'zonas'],
     'zonas_detalle' => ['Qué se ve en esas zonas', 'text', [], 'zonas'],
@@ -63,6 +67,8 @@ const PAC_INTERROG_DEFAULTS = [
 const PAC_PHOTO_MAX = 15 * 1024 * 1024;
 const PAC_PHOTO_SIDE = 1600;
 const PAC_PHOTO_CURSOR_MAX = 4 * 1024 * 1024;
+/** Cara de la lengua en la foto. */
+const PAC_PHOTO_VIEWS = ['dorso' => 'Cara superior', 'sublingual' => 'Cara inferior (venas sublinguales)'];
 
 /** Precauciones de moxa (siempre al pie de «Puntos para moxar»). */
 const PAC_MOXA_CAUTIONS = 'Precauciones de moxa: no moxar con fiebre, calor o calor por vacío de Yin; evitar cara y ojos, mucosas, heridas, várices y zonas con pérdida de sensibilidad; embarazo: nada en abdomen ni zona lumbosacra, ni en los puntos prohibidos en el embarazo; diabetes o neuropatía: más distancia, menos tiempo y revisar la piel.';
@@ -122,7 +128,7 @@ function pac_tongue_text(array $t): string
                 continue;
             }
             $v = $t[$k] ?? ($type === 'multi' ? [] : '');
-            $v = is_array($v) ? implode(', ', $v) : (string) $v;
+            $v = is_array($v) ? implode(', ', array_map('pac_tongue_label', $v)) : ($type === 'one' ? pac_tongue_label((string) $v) : (string) $v);
             if ($v === '') {
                 continue;
             }
@@ -305,8 +311,9 @@ function pac_tongue_photo(int $patientId, int $id): ?array
 /**
  * Guarda una foto de lengua: se vuelve a codificar (sin EXIF ni GPS), se endereza y se achica a 1600 px.
  */
-function pac_tongue_photo_store(int $patientId, array $file, string $fecha, string $caption): int
+function pac_tongue_photo_store(int $patientId, array $file, string $fecha, string $caption, string $vista = 'dorso'): int
 {
+    $vista = isset(PAC_PHOTO_VIEWS[$vista]) ? $vista : 'dorso';
     $error = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
     if ($error === UPLOAD_ERR_NO_FILE) {
         return 0;
@@ -338,8 +345,8 @@ function pac_tongue_photo_store(int $patientId, array $file, string $fecha, stri
         throw new RuntimeException('No se pudo guardar la foto.');
     }
     @chmod($dir . '/' . $name, 0640);
-    db()->prepare("INSERT INTO pac_files (patient_id, original_name, stored, mime, size, kind, fecha, caption) VALUES (?, ?, ?, 'image/jpeg', ?, 'lengua', ?, ?)")
-        ->execute([$patientId, 'lengua-' . $fecha . '.jpg', 'archivos/p' . $patientId . '/' . $name, strlen($bytes), $fecha, mb_substr(trim($caption), 0, 200)]);
+    db()->prepare("INSERT INTO pac_files (patient_id, original_name, stored, mime, size, kind, fecha, caption, vista) VALUES (?, ?, ?, 'image/jpeg', ?, 'lengua', ?, ?, ?)")
+        ->execute([$patientId, 'lengua-' . $fecha . '.jpg', 'archivos/p' . $patientId . '/' . $name, strlen($bytes), $fecha, mb_substr(trim($caption), 0, 200), $vista]);
     pac_touch($patientId);
     return (int) db()->lastInsertId();
 }
@@ -358,7 +365,6 @@ function pac_image_clean(string $path, string $mime): string
         $exif = @exif_read_data($path);
         $rot = match ((int) ($exif['Orientation'] ?? 1)) { 3 => 180, 6 => -90, 8 => 90, default => 0 };
         if ($rot !== 0 && ($r = imagerotate($img, $rot, 0))) {
-            imagedestroy($img);
             $img = $r;
         }
     }
@@ -370,14 +376,12 @@ function pac_image_clean(string $path, string $mime): string
         $nh = max(1, (int) round($h * $scale));
         $dst = imagecreatetruecolor($nw, $nh);
         imagecopyresampled($dst, $img, 0, 0, 0, 0, $nw, $nh, $w, $h);
-        imagedestroy($img);
         $img = $dst;
     } elseif (!imageistruecolor($img)) {
         imagepalettetotruecolor($img);
     }
     ob_start();
     imagejpeg($img, null, 86);
-    imagedestroy($img);
     return (string) ob_get_clean();
 }
 

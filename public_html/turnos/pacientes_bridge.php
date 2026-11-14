@@ -57,7 +57,7 @@ try {
             pac_bridge_heartbeat((string) ($in['info'] ?? ''));
             json_response(['ok' => true, 'job' => pac_job_claim()]);
         case 'photo':
-            $photo = pac_job_photo((int) ($in['id'] ?? 0), (string) ($in['claim'] ?? ''));
+            $photo = pac_job_photo((int) ($in['id'] ?? 0), (string) ($in['claim'] ?? ''), (int) ($in['which'] ?? 1));
             json_response(['ok' => $photo !== null, 'photo' => $photo], $photo !== null ? 200 : 404);
         case 'result':
             pac_bridge_heartbeat((string) ($in['info'] ?? ''));

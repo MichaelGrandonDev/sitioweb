@@ -222,7 +222,8 @@ function mtc_photo_field(int $apptId, ?array $row, int $n): string
         $html .= '<a href="' . h($src) . '" target="_blank" rel="noopener"><img src="' . h($src) . '" alt="Lengua, consulta ' . $n . '" loading="lazy"></a>';
     }
     $html .= '<label>' . ($has ? 'Reemplazar foto de la lengua' : 'Foto de la lengua (opcional)')
-        . '<input type="file" name="foto[' . $n . ']" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" data-mtc-photo></label>';
+        . '<input type="file" id="mtc-foto-' . $n . '" name="foto[' . $n . ']" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" data-mtc-photo></label>'
+        . '<button type="button" class="btn ghost" data-tongue-camera data-target-input="#mtc-foto-' . $n . '" data-done-text="Foto lista: se guarda con el plan · cambiarla">Subir foto de la lengua</button>';
     if ($has) {
         $html .= '<label class="check"><input type="checkbox" name="foto_borrar[' . $n . ']" value="1"><span>Borrar esta foto</span></label>';
     }
@@ -247,6 +248,7 @@ $done = mtc_done($plan);
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Outfit:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/turnos.css?v=20260929d">
   <link rel="stylesheet" href="assets/plan_mtc.css?v=20260929e">
+  <link rel="stylesheet" href="assets/tongue_camera.css?v=20260929g">
 </head>
 <body class="mtc-page">
   <header class="top">
@@ -955,5 +957,6 @@ $done = mtc_done($plan);
 <?php endif; ?>
 <?php endif; ?>
   </main>
+  <script src="assets/tongue_camera.js?v=20260929g"></script>
 </body>
 </html>

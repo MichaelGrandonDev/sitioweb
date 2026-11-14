@@ -259,6 +259,7 @@ function pac_case(array $p, array $history, array $input): array
         'pulso' => trim((string) ($input['pulso'] ?? '')),
         'indicaciones' => trim((string) ($input['indicaciones'] ?? '')),
         'foto' => !empty($input['foto']),
+        'lectura' => is_array($input['entrada']['lengua'] ?? null) ? pac_tongue_reading(pac_tongue_from($input['entrada']['lengua'])) : [],
     ];
 }
 
@@ -285,6 +286,9 @@ function pac_case_text(array $case, bool $withHistory = true): string
     $out = "GLOSODIAGNOSIS (base del diagnóstico):\n" . ($case['lengua'] !== '' ? $case['lengua'] : '(sin registrar)') . "\n";
     if (!empty($case['foto'])) {
         $out .= "(Hay una foto de la lengua adjunta.)\n";
+    }
+    if (!empty($case['lectura'])) {
+        $out .= pac_tongue_reading_text($case['lectura']) . "\n";
     }
     $out .= "\nINFORMACIÓN DEL PACIENTE:\n";
     $out .= 'Edad: ' . $case['edad'] . '. Sexo: ' . $case['sexo'] . ($case['ocupacion'] !== '' ? '. Ocupación: ' . $case['ocupacion'] : '') . ".\n";
@@ -399,7 +403,11 @@ function pac_rank_protocols(array $case): array
                 }
             }
         }
-        $score = (count($hits['lengua']) - $zones) * 3 + $zones + count($hits['signos']) * 2 + count($hits['pulso']) - 4 * count($against);
+        $book = array_values(array_diff(pac_tongue_reading_supports($case['lectura'] ?? [], (string) $proto['nombre']), $hits['lengua']));
+        foreach ($book as $sign) {
+            $hits['lengua'][] = $sign . ' (libro)';
+        }
+        $score = (count($hits['lengua']) - count($book) - $zones) * 3 + $zones + 2 * min(3, count($book)) + count($hits['signos']) * 2 + count($hits['pulso']) - 4 * count($against);
         if ($hits['lengua'] || $hits['signos'] || $hits['pulso']) {
             $out[] = ['protocol' => $proto, 'score' => $score, 'hits' => $hits, 'missing' => array_merge(array_map(static fn ($a) => 'contradice: ' . $a, $against), $missing)];
         }
@@ -460,7 +468,12 @@ function pac_gather_sources(array $case, array $matches, int $perPattern = 2, in
         }
     };
     if ($case['lengua'] !== '') {
-        $add(pac_search(array_merge(['lengua', 'saburra'], pac_terms($case['lengua'], 12)), 8), 'glosodiagnosis', 2);
+        $tongueHits = pac_search(array_merge(['lengua', 'saburra'], pac_terms($case['lengua'], 12)), 40);
+        $bookDoc = pac_tongue_book_doc();
+        if ($bookDoc) {
+            usort($tongueHits, static fn ($a, $b) => ((int) $b['doc_id'] === (int) $bookDoc['id']) <=> ((int) $a['doc_id'] === (int) $bookDoc['id']));
+        }
+        $add(array_slice($tongueHits, 0, 8), 'glosodiagnosis', 2);
     }
     foreach ($matches as $m) {
         $p = $m['protocol'];
@@ -868,6 +881,7 @@ function pac_generate_rules(array $p, array $case, array $matches, array $source
     }
     $diag[] = $case['lengua'] !== ''
         ? "Glosodiagnosis (base del diagnóstico):\n" . $case['lengua'] . pac_refs(pac_sources_for($sources, 'glosodiagnosis'))
+            . (!empty($case['lectura']) ? "\n" . pac_tongue_reading_text($case['lectura'], true) : '')
         : 'Falta la glosodiagnosis (cuerpo, saburra y zonas): el diagnóstico queda sin su base. Completala y volvé a generar.';
     foreach ($matches as $m) {
         $proto = $m['protocol'];
@@ -1121,6 +1135,7 @@ function pac_result_rules(array $p): string
 {
     $rules = [
         'La GLOSODIAGNOSIS es la base: justificá cada patrón primero con signos concretos de la lengua de este caso (cuerpo, saburra, zonas) y después con los datos del paciente. El pulso es opcional: usalo solo si está cargado y con menos peso.',
+        'La referencia de la glosodiagnosis es el libro «' . PAC_TONGUE_BOOK_TITLE . '»: leé cada signo con sus categorías (la «Lectura según…» del caso ya trae su significado y patrones) y citá sus páginas cuando estén en las fuentes; no inventes páginas.',
         'El diagnóstico suele combinar varios patrones: escribilos juntos en una sola frase («diagnostico_mtc.texto») y justificá cada uno por separado.',
         'Incluí el diagnóstico diferencial: qué otros patrones consideraste y qué signo de lengua o dato falta o los contradice.',
         'Citá cada afirmación con la fuente: documento + página. Si algo no surge de las fuentes, marcalo «(sugerencia general)».',

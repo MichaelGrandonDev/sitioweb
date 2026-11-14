@@ -25,7 +25,7 @@ from pathlib import Path
 
 from common import BridgeHTTPError, iter_library_docs, library_dir, load_env, pages_of, server_from_env
 
-VERSION = "1.1"
+VERSION = "1.3"
 POLL_SECONDS = 5
 HEARTBEAT_SECONDS = 20
 RUN_LIMIT_SECONDS = 200
@@ -273,7 +273,8 @@ class RunFailed(Exception):
     pass
 
 
-def run_cursor(payload: dict, env: dict[str, str], lib: Path, photo: dict | None) -> dict:
+def run_agent(prompt: str, photos: list[dict], env: dict[str, str], lib: Path) -> dict:
+    """Agente local de solo lectura sobre la biblioteca; las fotos van como imágenes adjuntas del mensaje."""
     from cursor_sdk import Agent, AgentOptions, CursorAgentError, LocalAgentOptions, SDKImage, UserMessage
 
     api_key = env.get("CURSOR_API_KEY", "").strip()
@@ -281,8 +282,8 @@ def run_cursor(payload: dict, env: dict[str, str], lib: Path, photo: dict | None
         raise RunFailed("falta CURSOR_API_KEY en .env")
     ws = ensure_workspace(lib)
     model = env.get("CURSOR_MODEL") or "composer-2.5"
-    prompt = build_prompt(payload, photo is not None)
-    message = UserMessage(text=prompt, images=[SDKImage.data_image(photo["data"], photo["mime"])]) if photo else prompt
+    images = [SDKImage.data_image(p["data"], p["mime"]) for p in photos]
+    message = UserMessage(text=prompt, images=images) if images else prompt
     try:
         with Agent.create(
             AgentOptions(
@@ -294,7 +295,7 @@ def run_cursor(payload: dict, env: dict[str, str], lib: Path, photo: dict | None
             )
         ) as agent:
             run = agent.send(message)
-            log.info("cursor: agente %s run %s%s", agent.agent_id, run.id, " (con foto)" if photo else "")
+            log.info("cursor: agente %s run %s%s", agent.agent_id, run.id, f" ({len(images)} foto/s)" if images else "")
             timer = threading.Timer(RUN_LIMIT_SECONDS, lambda: run.cancel() if run.supports("cancel") else None)
             timer.start()
             try:
@@ -309,10 +310,112 @@ def run_cursor(payload: dict, env: dict[str, str], lib: Path, photo: dict | None
         raise RunFailed("Cursor no arrancó (" + type(err).__name__ + ")") from None
 
 
-def fetch_photo(server, job_id, claim) -> dict | None:
+def run_cursor(payload: dict, env: dict[str, str], lib: Path, photo: dict | None) -> dict:
+    return run_agent(build_prompt(payload, photo is not None), [photo] if photo else [], env, lib)
+
+
+# ---------- Glosodiagnosis por foto (solo la imagen, sin datos del paciente) ----------
+
+CONFIDENCE = ("baja", "media", "alta")
+
+
+BOOK_NAME = re.compile(r"diagn[oó]stico por la lengua|lengua en medicina china|glosodiagn|tongue diagnosis|\blengua\b", re.I)
+
+
+def tongue_book_file(payload: dict, docs: dict[str, dict]) -> tuple[str, str] | None:
+    """textos/<archivo>.txt del libro de referencia de la lengua (por sha256 o por el nombre)."""
+    book = payload.get("libro") if isinstance(payload.get("libro"), dict) else {}
+    sha = str(book.get("sha256") or "")
+    for name, doc in docs.items():
+        if sha and doc.get("sha256") == sha:
+            return name, doc.get("title") or name
+    for name, doc in docs.items():
+        if BOOK_NAME.search(f"{doc.get('title', '')} {doc.get('source_file', '')}"):
+            return name, doc.get("title") or name
+    return None
+
+
+def build_tongue_prompt(payload: dict, n_photos: int, docs: dict[str, dict] | None = None) -> str:
+    if "opciones" not in payload or "reglas" not in payload:
+        raise RunFailed("el servidor no mandó las opciones de la lengua (actualizá el servidor)")
+    fotos = "una foto (cara superior de la lengua)" if n_photos == 1 else "dos fotos: la primera es la cara superior y la segunda la cara inferior (venas sublinguales)"
+    book = payload.get("libro") if isinstance(payload.get("libro"), dict) else {}
+    title = str(book.get("titulo") or "Diagnóstico por la lengua en medicina china")
+    found = tongue_book_file(payload, docs or {})
+    if found:
+        where = (f"LIBRO DE REFERENCIA: «{found[1]}» está en {found[0]} (cada línea empieza con su página «[p. N]»). "
+                 "Clasificá con sus categorías: buscá con grep cada signo que veas (color, forma, grietas, saburra, venas, zonas) "
+                 f"y citá esas páginas con archivo = {found[0]}.")
+    else:
+        where = (f"LIBRO DE REFERENCIA: «{title}». Todavía no está en la biblioteca local: clasificá con las categorías de las opciones "
+                 "(son las del libro) y dejá «citas» vacío.")
+    return "\n\n".join([
+        "Sos un asistente de glosodiagnosis de Medicina Tradicional China. Trabajás en modo SOLO LECTURA: no modifiques ni crees archivos.",
+        f"Te adjunto {fotos}. No hay datos de la persona: describí únicamente lo que se ve en la lengua.",
+        where,
+        "Reglas:\n" + str(payload["reglas"]),
+        "Campos y opciones permitidas (JSON):\n" + json.dumps(payload["opciones"], ensure_ascii=False),
+        "Esquema de la respuesta:\n" + str(payload.get("esquema", "")),
+    ])
+
+
+def validate_tongue(result: dict, payload: dict, docs: dict[str, dict] | None = None) -> dict:
+    """Solo campos conocidos y valores de las listas; si no queda nada, es un error."""
+    if not isinstance(result, dict) or not isinstance(result.get("campos"), dict):
+        raise ValueError("la respuesta no trae «campos»")
+    options = payload.get("opciones") or {}
+    campos = {}
+    for key, item in result["campos"].items():
+        spec = options.get(key)
+        if not spec or not isinstance(item, dict):
+            continue
+        value = item.get("valor")
+        allowed = spec.get("opciones") or []
+        if spec.get("tipo") == "multi":
+            values = value if isinstance(value, list) else [value]
+            value = [v for v in allowed if v in values]
+            if not value:
+                continue
+        elif spec.get("tipo") == "one":
+            if value not in allowed:
+                continue
+        else:
+            value = str(value or "").strip()[:300]
+            if not value:
+                continue
+        conf = item.get("confianza") if item.get("confianza") in CONFIDENCE else "baja"
+        campos[key] = {"valor": value, "confianza": conf, "porque": str(item.get("porque") or "")[:300]}
+    if not campos:
+        raise ValueError("ningún campo con valores válidos")
+    citas = []
+    for c in result.get("citas") or []:
+        if isinstance(c, dict) and c.get("documento"):
+            cita = {k: str(c.get(k) or "")[:240] for k in ("documento", "pagina", "archivo", "cita")}
+            doc = (docs or {}).get(cita["archivo"]) or next((d for d in (docs or {}).values() if d.get("title") == cita["documento"]), None)
+            if doc:
+                cita["sha256"], cita["source_file"] = doc.get("sha256", ""), doc.get("source_file", "")
+            citas.append(cita)
+    return {"campos": campos, "calidad_foto": str(result.get("calidad_foto") or "")[:400], "notas": str(result.get("notas") or "")[:600], "citas": citas[:8]}
+
+
+def fake_tongue(payload: dict) -> dict:
+    return {
+        "campos": {
+            "lengua_color": {"valor": "Pálida", "confianza": "media", "porque": "[PRUEBA sin Cursor] color de prueba"},
+            "lengua_forma": {"valor": ["Hinchada", "Marcas dentales", "Inventada"], "confianza": "baja", "porque": "modo prueba"},
+            "saburra_color": {"valor": "Blanca", "confianza": "alta", "porque": "modo prueba"},
+            "lengua_tamano": {"valor": "Enorme", "confianza": "alta", "porque": "valor fuera de la lista: se descarta"},
+        },
+        "calidad_foto": "modo prueba",
+        "notas": "",
+        "citas": [],
+    }
+
+
+def fetch_photo(server, job_id, claim, which: int = 1) -> dict | None:
     """Foto de la lengua del trabajo (solo mientras está tomado). Si no se puede, se sigue sin foto."""
     try:
-        resp = server.post({"action": "photo", "id": job_id, "claim": claim}, timeout=60)
+        resp = server.post({"action": "photo", "id": job_id, "claim": claim, "which": which}, timeout=60)
     except Exception as err:
         log.info("trabajo %s: sin foto (%s)", job_id, type(err).__name__)
         return None
@@ -339,9 +442,17 @@ def handle(job: dict, server, env: dict[str, str], lib: Path, mock: bool, info: 
     started = time.time()
     log.info("trabajo %s: tomado", job_id)
     try:
-        photo = fetch_photo(server, job_id, claim) if payload.get("foto") and not mock else None
-        result = fake_result(payload) if mock else run_cursor(payload, env, lib, photo)
-        result = validate(result, payload, library_map(lib))
+        if job.get("kind") == "lengua":
+            photos = [] if mock else [p for p in (fetch_photo(server, job_id, claim, 1), fetch_photo(server, job_id, claim, 2) if payload.get("foto2") else None) if p]
+            if not mock and not photos:
+                raise RunFailed("no se pudo bajar la foto")
+            docs = library_map(lib)
+            result = fake_tongue(payload) if mock else run_agent(build_tongue_prompt(payload, len(photos), docs), photos, env, lib)
+            result = validate_tongue(result, payload, docs)
+        else:
+            photo = fetch_photo(server, job_id, claim) if payload.get("foto") and not mock else None
+            result = fake_result(payload) if mock else run_cursor(payload, env, lib, photo)
+            result = validate(result, payload, library_map(lib))
         server.post({"action": "result", "id": job_id, "claim": claim, "result": result, "info": info}, timeout=60)
         log.info("trabajo %s: listo en %.0f s", job_id, time.time() - started)
     except (RunFailed, ValueError, json.JSONDecodeError) as err:

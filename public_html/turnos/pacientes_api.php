@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-/** API JSON de la Biblioteca MTC: subida por partes, texto de los PDF (leído con pdf.js) y procesamiento en el servidor. */
+/** API JSON de Pacientes: Biblioteca MTC (subida por partes, texto de los PDF), estado de trabajos, fotos de la lengua y su análisis. */
 
 require __DIR__ . '/bootstrap.php';
 
@@ -84,6 +84,33 @@ try {
                 'elapsed' => time() - (int) $prev['created'],
                 'limit' => PAC_JOB_WAIT,
             ]);
+        case 'tongue_photo':
+            $pid = (int) ($_POST['pid'] ?? 0);
+            if (!pac_patient($pid)) {
+                json_response(['ok' => false, 'error' => 'Paciente no encontrado.'], 404);
+            }
+            $vista = (string) ($_POST['vista'] ?? 'dorso');
+            $fid = pac_tongue_photo_store($pid, $_FILES['foto'] ?? [], (string) ($_POST['fecha'] ?? ''), mb_substr((string) ($_POST['caption'] ?? ''), 0, 200), $vista);
+            if ($fid <= 0) {
+                json_response(['ok' => false, 'error' => 'No llegó ninguna foto.'], 400);
+            }
+            $f = pac_tongue_photo($pid, $fid);
+            json_response(['ok' => true, 'id' => $fid, 'url' => 'pacientes_archivo.php?id=' . $fid, 'fecha' => $f['fecha'],
+                'fecha_txt' => date('d/m/Y', strtotime((string) $f['fecha'])), 'vista' => $f['vista'], 'vista_txt' => PAC_PHOTO_VIEWS[$f['vista']] ?? '']);
+        case 'tongue_analyze':
+            $pid = (int) ($in['pid'] ?? 0);
+            $photo = pac_patient($pid) ? pac_tongue_photo($pid, (int) ($in['foto_id'] ?? 0)) : null;
+            if (!$photo) {
+                json_response(['ok' => false, 'error' => 'Elegí una foto de la lengua.'], 404);
+            }
+            $photo2 = (int) ($in['foto2_id'] ?? 0) > 0 && (int) $in['foto2_id'] !== (int) $photo['id'] ? pac_tongue_photo($pid, (int) $in['foto2_id']) : null;
+            json_response(['ok' => true] + pac_tongue_with_reading(pac_tongue_analyze($pid, $photo, $photo2, !empty($in['ai']))));
+        case 'tongue_status':
+            $res = pac_tongue_status((string) ($in['token'] ?? ''), (int) ($in['pid'] ?? 0));
+            if ($res === null) {
+                json_response(['ok' => false, 'error' => 'Ese análisis ya no existe: volvé a tocar «Analizar foto».'], 404);
+            }
+            json_response(['ok' => true] + pac_tongue_with_reading($res));
         case 'doc_fail':
             $doc = $docFrom($in['id'] ?? 0);
             db()->prepare("UPDATE pac_docs SET status = 'error', note = ? WHERE id = ? AND status IN ('subiendo', 'procesando')")
@@ -95,5 +122,5 @@ try {
     json_response(['ok' => false, 'error' => $e->getMessage()], 400);
 } catch (Throwable $e) {
     error_log('Pacientes API (' . $action . '): ' . get_class($e) . ' en la línea ' . $e->getLine());
-    json_response(['ok' => false, 'error' => 'Error del servidor al procesar el documento.'], 500);
+    json_response(['ok' => false, 'error' => 'Error del servidor.'], 500);
 }

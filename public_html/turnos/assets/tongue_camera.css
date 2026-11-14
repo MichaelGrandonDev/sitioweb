@@ -1,0 +1,32 @@
+.tcam {
+  box-sizing: border-box;
+  width: min(640px, calc(100vw - 1.2rem));
+  max-width: calc(100vw - 1.2rem);
+  max-height: calc(100dvh - 1.2rem);
+  padding: 1rem 1.1rem 1.1rem;
+  border: 0;
+  border-radius: 12px;
+  background: var(--paper, #f8fbf8);
+  color: var(--ink, #12201c);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+  overflow: auto;
+}
+.tcam::backdrop { background: rgba(8, 20, 17, 0.7); }
+.tcam.tcam--fallback[open] { position: fixed; inset: 0.6rem; margin: auto; z-index: 1000; display: block; }
+.tcam h2 { margin: 0 0 0.6rem; font-size: 1.35rem; }
+.tcam-tips { margin: 0 0 0.9rem; padding-left: 1.2rem; line-height: 1.5; }
+.tcam-tips li + li { margin-top: 0.25rem; }
+.tcam-vista { display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; margin: 0 0 0.9rem; padding: 0.6rem 0.8rem; border: 1px solid var(--line, #d8e2dd); border-radius: 8px; }
+.tcam-vista legend { padding: 0 0.3rem; font-weight: 600; }
+.tcam-vista label { display: flex; align-items: center; gap: 0.45rem; min-height: 44px; cursor: pointer; }
+.tcam-vista input { width: auto; margin: 0; padding: 0; flex: none; }
+.tcam-drop { padding: 1.4rem 1rem; border: 2px dashed var(--line, #c9d6d0); border-radius: 10px; text-align: center; color: var(--muted, #4f635a); cursor: pointer; }
+.tcam-drop.is-over { border-color: var(--accent, #2f8f6b); background: #eef7f2; }
+.tcam-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.8rem; }
+.tcam-actions .btn { min-height: 44px; }
+.tcam-preview { display: block; width: 100%; max-height: 60dvh; object-fit: contain; border-radius: 10px; background: #0b1512; }
+.tcam-status { min-height: 1.4em; margin: 0.6rem 0 0; font-size: 0.92rem; }
+@media (max-width: 560px) {
+  .tcam { padding: 0.8rem; }
+  .tcam-actions .btn { flex: 1 1 auto; }
+}

@@ -4,11 +4,10 @@
 .pac-page .alert.ok { background: #d9f0e4; color: #164b36; }
 .pac-page .alert.warn { background: #fbefd9; color: #7a4b0f; }
 .pac-page .alert ul { margin: 0.3rem 0 0; padding-left: 1.2rem; }
-.pac-page .top nav { flex-wrap: wrap; justify-content: flex-end; }
-.pac-page .top nav a { opacity: 0.85; }
-.pac-page .top nav a.is-current { opacity: 1; border-bottom: 2px solid #fff; }
-.pac-page a:not(.btn):not(.pac-row):not(.brand):not(.tag) { color: var(--brand); text-decoration: underline; text-underline-offset: 2px; }
-.pac-page .top nav a { color: #fff !important; text-decoration: none !important; }
+.pac-page main a:not(.btn):not(.pac-row):not(.tag) { color: var(--brand); text-decoration: underline; text-underline-offset: 2px; }
+.pac-tabs { display: flex; flex-wrap: wrap; gap: 0.3rem 1rem; margin: 0 0 0.8rem; font-size: 0.92rem; }
+.pac-page .pac-tabs a { padding: 0.35rem 0; text-decoration: none; color: var(--muted); }
+.pac-page .pac-tabs a[aria-current="page"] { color: var(--brand); font-weight: 600; box-shadow: inset 0 -2px 0 var(--accent); }
 .pac-page .btn.small { padding: 0.35rem 0.7rem; font-size: 0.85rem; }
 
 .pac-back { margin: 0 0 0.5rem; font-size: 0.9rem; }
@@ -145,3 +144,23 @@ a.pac-row:hover, a.pac-row.is-current { background: #f2faf6; }
 @media (max-width: 640px) {
   .pac-photo--inline { float: none; width: 100%; margin: 0 0 0.6rem; }
 }
+
+/* Foto de la lengua: analizar y sugerencias */
+.pac-analyze { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: end; margin: 0.4rem 0 0.6rem; }
+.pac-analyze > label:first-child { flex: 1 1 16rem; }
+.pac-suggest { margin: 0.6rem 0; padding: 0.8rem 0.9rem; border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 8px; background: #fff; }
+.pac-suggest-head { margin: 0 0 0.3rem; }
+.pac-suggest-wait { margin: 0 0 0.4rem; color: var(--muted); }
+.pac-suggest-table { overflow-x: auto; }
+.pac-suggest table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.pac-suggest th, .pac-suggest td { padding: 0.4rem 0.45rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.pac-suggest th { font-size: 0.8rem; color: var(--muted); font-weight: 600; }
+.pac-conf { display: inline-block; padding: 0.1rem 0.45rem; border-radius: 999px; font-size: 0.78rem; font-weight: 600; }
+.pac-conf--baja { background: #fbefd9; color: #7a4b0f; }
+.pac-conf--media { background: #e5eef9; color: #1d4677; }
+.pac-conf--alta { background: #d9f0e4; color: #164b36; }
+.pac-suggest-book { margin-top: 0.6rem; }
+.pac-suggest-book ul { margin: 0.4rem 0 0; padding-left: 1.1rem; line-height: 1.5; }
+.pac-sug-badge { display: inline-block; margin-left: 0.4rem; padding: 0.05rem 0.4rem; border-radius: 999px; background: #e7f3ee; color: var(--brand); font-size: 0.72rem; font-weight: 600; vertical-align: middle; }
+.pac-rule > summary { cursor: pointer; line-height: 1.5; }
+.pac-rule .form-grid { margin-top: 0.6rem; }

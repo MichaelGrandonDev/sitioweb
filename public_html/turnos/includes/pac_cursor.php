@@ -47,8 +47,11 @@ function pac_cursor_schema(PDO $pdo): void
       )
     ");
     $pdo->exec('CREATE TABLE IF NOT EXISTS pac_bridge_rl (ip_hash TEXT PRIMARY KEY, window INTEGER NOT NULL, hits INTEGER NOT NULL DEFAULT 0, fails INTEGER NOT NULL DEFAULT 0, fail_window INTEGER NOT NULL DEFAULT 0)');
-    if (!in_array('photo_id', array_column($pdo->query('PRAGMA table_info(pac_ai_jobs)')->fetchAll(), 'name'), true)) {
-        $pdo->exec('ALTER TABLE pac_ai_jobs ADD COLUMN photo_id INTEGER NOT NULL DEFAULT 0');
+    $jobCols = array_column($pdo->query('PRAGMA table_info(pac_ai_jobs)')->fetchAll(), 'name');
+    foreach (['photo_id', 'photo2_id'] as $col) {
+        if (!in_array($col, $jobCols, true)) {
+            $pdo->exec("ALTER TABLE pac_ai_jobs ADD COLUMN $col INTEGER NOT NULL DEFAULT 0");
+        }
     }
     $cols = array_column($pdo->query('PRAGMA table_info(pac_docs)')->fetchAll(), 'name');
     if (!in_array('sha256', $cols, true)) {
@@ -157,9 +160,9 @@ function pac_jobs_expire(): void
 {
     $now = time();
     $pdo = db();
-    $pdo->prepare("UPDATE pac_ai_jobs SET status = 'expired', payload = '{}', photo_id = 0, finished_at = ? WHERE status = 'pending' AND created_at < ?")
+    $pdo->prepare("UPDATE pac_ai_jobs SET status = 'expired', payload = '{}', photo_id = 0, photo2_id = 0, finished_at = ? WHERE status = 'pending' AND created_at < ?")
         ->execute([$now, $now - PAC_JOB_WAIT]);
-    $pdo->prepare("UPDATE pac_ai_jobs SET status = 'expired', payload = '{}', photo_id = 0, finished_at = ? WHERE status = 'claimed' AND claimed_at < ?")
+    $pdo->prepare("UPDATE pac_ai_jobs SET status = 'expired', payload = '{}', photo_id = 0, photo2_id = 0, finished_at = ? WHERE status = 'claimed' AND claimed_at < ?")
         ->execute([$now, $now - PAC_JOB_WAIT - 60]);
     $pdo->prepare('DELETE FROM pac_ai_jobs WHERE created_at < ?')->execute([$now - PAC_JOB_KEEP]);
 }
@@ -174,13 +177,14 @@ function pac_job_create(int $patientId, array $payload, int $photoId = 0): int
 }
 
 /** Foto de lengua del trabajo tomado (solo con su claim, mientras está en curso): [mime, base64] o null. */
-function pac_job_photo(int $id, string $claim): ?array
+function pac_job_photo(int $id, string $claim, int $which = 1): ?array
 {
     $job = pac_job($id);
-    if (!$job || $job['status'] !== 'claimed' || $claim === '' || !hash_equals((string) $job['claim_token'], $claim) || (int) $job['photo_id'] <= 0) {
+    $col = $which === 2 ? 'photo2_id' : 'photo_id';
+    if (!$job || $job['status'] !== 'claimed' || $claim === '' || !hash_equals((string) $job['claim_token'], $claim) || (int) $job[$col] <= 0) {
         return null;
     }
-    $f = pac_tongue_photo((int) $job['patient_id'], (int) $job['photo_id']);
+    $f = pac_tongue_photo((int) $job['patient_id'], (int) $job[$col]);
     $path = $f && !str_contains((string) $f['stored'], '..') ? pac_storage_path((string) $f['stored']) : '';
     if ($path === '' || !is_file($path) || filesize($path) > PAC_PHOTO_CURSOR_MAX) {
         return null;
@@ -226,13 +230,13 @@ function pac_job_finish(int $id, string $claim, ?array $result, string $error): 
         return false;
     }
     if ($result !== null) {
-        $problem = pac_cursor_result_problem($result);
+        $problem = $job['kind'] === 'lengua' ? pac_tongue_ai_problem($result) : pac_cursor_result_problem($result);
         if ($problem !== '') {
             $result = null;
             $error = 'Respuesta inválida: ' . $problem;
         }
     }
-    db()->prepare("UPDATE pac_ai_jobs SET status = ?, result = ?, error = ?, payload = '{}', claim_token = '', photo_id = 0, finished_at = ? WHERE id = ?")
+    db()->prepare("UPDATE pac_ai_jobs SET status = ?, result = ?, error = ?, payload = '{}', claim_token = '', photo_id = 0, photo2_id = 0, finished_at = ? WHERE id = ?")
         ->execute([
             $result !== null ? 'done' : 'error',
             $result !== null ? json_encode($result, JSON_UNESCAPED_UNICODE) : '',
@@ -578,7 +582,7 @@ function pac_preview_resolve(string $token, array $prev, array $p, bool $giveUp 
     } elseif (!$job || in_array($job['status'], ['error', 'expired'], true)) {
         $fallback($job && $job['status'] === 'error' ? 'no pudo responder' : 'no respondió a tiempo');
     } elseif ($late || $giveUp) {
-        db()->prepare("UPDATE pac_ai_jobs SET status = 'expired', payload = '{}', photo_id = 0, finished_at = ? WHERE id = ? AND status IN ('pending', 'claimed')")
+        db()->prepare("UPDATE pac_ai_jobs SET status = 'expired', payload = '{}', photo_id = 0, photo2_id = 0, finished_at = ? WHERE id = ? AND status IN ('pending', 'claimed')")
             ->execute([time(), (int) $prev['job']]);
         $fallback($giveUp ? 'elegiste no esperar' : 'tardó más de ' . intdiv(PAC_JOB_WAIT, 60) . ' minutos');
     }

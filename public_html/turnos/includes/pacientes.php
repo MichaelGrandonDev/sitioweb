@@ -11,6 +11,8 @@ declare(strict_types=1);
 require_once __DIR__ . '/pac_library.php';
 require_once __DIR__ . '/pac_cursor.php';
 require_once __DIR__ . '/pac_diagnosis.php';
+require_once __DIR__ . '/pac_tongue_book.php';
+require_once __DIR__ . '/pac_tongue_ai.php';
 
 const PAC_TEXT_MAX = 20000;
 const PAC_FILE_MAX = 20 * 1024 * 1024;
@@ -152,9 +154,10 @@ function pac_schema(): void
         }
     };
     $add('pac_evals', array_fill_keys(pac_eval_fields(), "TEXT NOT NULL DEFAULT ''") + ['entrada' => "TEXT NOT NULL DEFAULT ''"]);
-    $add('pac_files', ['kind' => "TEXT NOT NULL DEFAULT ''", 'fecha' => "TEXT NOT NULL DEFAULT ''", 'caption' => "TEXT NOT NULL DEFAULT ''"]);
+    $add('pac_files', ['kind' => "TEXT NOT NULL DEFAULT ''", 'fecha' => "TEXT NOT NULL DEFAULT ''", 'caption' => "TEXT NOT NULL DEFAULT ''", 'vista' => "TEXT NOT NULL DEFAULT ''"]);
     pac_library_schema($pdo);
     pac_cursor_schema($pdo);
+    pac_tongue_book_schema($pdo);
 }
 
 /* ---------- Página ---------- */
@@ -168,57 +171,46 @@ function pac_private_headers(): void
     header('Referrer-Policy: same-origin');
 }
 
+/** Páginas de Pacientes con la cabecera y la barra de pestañas comunes del admin (includes/admin_ui.php). */
 function pac_page_start(string $title, string $section): void
 {
+    require_once __DIR__ . '/admin_ui.php';
     pac_private_headers();
     $flash = take_flash();
-    $nav = [
+    $tabs = [
         'pacientes' => ['pacientes.php', 'Pacientes'],
-        'biblioteca' => ['biblioteca.php', 'Biblioteca MTC'],
-        'planes' => ['plan_mtc.php', 'Planes MTC'],
-        'admin' => ['admin.php', 'Admin turnos'],
+        'biblioteca' => ['biblioteca.php', 'Textos de la biblioteca'],
+        'lengua' => ['lengua_libro.php', 'Lengua: libro de referencia'],
     ];
-    if (is_file(__DIR__ . '/../biblioteca_lector.php')) {
-        $nav = array_slice($nav, 0, 2, true) + ['lector' => ['biblioteca_lector.php', 'Lector PDF']] + array_slice($nav, 2, null, true);
-    }
     ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="robots" content="noindex, nofollow">
+  <?= admin_head($title, ['pacientes.css', 'tongue_camera.css']) ?>
   <meta name="csrf-token" content="<?= h(csrf_token()) ?>">
-  <title><?= h($title) ?> · FluxusTerapia</title>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Outfit:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/turnos.css?v=20260929e">
-  <link rel="stylesheet" href="assets/pacientes.css?v=20260929c">
 </head>
-<body class="pac-page">
-  <header class="top">
-    <a class="brand brand--home" href="pacientes.php" title="Pacientes">
-      <img class="brand-logo" src="../img/logo-circle.png" alt="FluxusTerapia" width="44" height="44">
-      <span>Turnos · Pacientes</span>
-    </a>
-    <nav>
-      <?php foreach ($nav as $key => [$href, $label]): ?>
-        <a href="<?= h($href) ?>"<?= $key === $section ? ' aria-current="page" class="is-current"' : '' ?>><?= h($label) ?></a>
+<body class="pac-page has-tabbar">
+  <?= admin_header('pacientes', 'Pacientes') ?>
+  <main class="wrap">
+    <nav class="pac-tabs" aria-label="Secciones de Pacientes">
+      <?php foreach ($tabs as $key => [$href, $label]): ?>
+        <a href="<?= h($href) ?>"<?= $key === $section ? ' aria-current="page"' : '' ?>><?= h($label) ?></a>
       <?php endforeach; ?>
     </nav>
-  </header>
-  <main class="wrap">
     <?php if ($flash): ?>
-      <div class="alert <?= $flash['type'] === 'error' ? 'error' : 'ok' ?>"><?= h($flash['message']) ?></div>
+      <div class="alert <?= $flash['type'] === 'error' ? 'error' : 'ok' ?>" role="status"><?= h($flash['message']) ?></div>
     <?php endif; ?>
     <?php
 }
 
+/** $scripts: rutas de assets/ (la versión se pone sola según el contenido) u otras URLs. */
 function pac_page_end(array $scripts = []): void
 {
     ?>
   </main>
   <?php foreach ($scripts as $src): ?>
-    <script src="<?= h($src) ?>"></script>
+    <?php $file = preg_replace('/\?.*$/', '', (string) $src); ?>
+    <script src="<?= h(str_starts_with($file, 'assets/') ? ui_asset(substr($file, 7)) : $src) ?>"></script>
   <?php endforeach; ?>
 </body>
 </html>
