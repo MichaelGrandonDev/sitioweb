@@ -51,3 +51,12 @@ Configurá el remitente en `academia/config.php` (`mail_from`, `mail_from_name`)
 ## Clase en vivo (Google Meet)
 
 En Admin → Cursos y clases → **Clase en vivo (Meet) por curso**, cargá el link de Meet y el horario semanal. El alumno ve el botón **Unirme a clase en vivo** en el dashboard y dentro de cada curso.
+
+## Foto y descripción del curso
+
+En Admin → Cursos, al crear o editar un curso se puede subir una **foto del curso** (JPG, PNG o WebP, hasta 15 MB) y escribir la **descripción (la ve el alumno)**. En la edición también se puede cambiar la foto o tildar **Quitar la foto**.
+
+- La foto se convierte a **WebP** de hasta 1600 px de lado (las chicas no se agrandan) y se endereza según el EXIF.
+- Es **privada**: se guarda en `data/uploads/` y se sirve por `cover.php` solo a quien tiene sesión y acceso al curso (sin sesión manda al login; sin acceso, 403).
+- El alumno ve la foto en la tarjeta de **Mis cursos** y como cabecera del curso, con la descripción completa (respeta los saltos de línea).
+- Test: `php qa/test_course_cover.php`.

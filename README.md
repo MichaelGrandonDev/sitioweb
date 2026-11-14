@@ -13,11 +13,11 @@ Autor: [Michael Grandon](https://github.com/MichaelGrandonDev) — desarrollo + 
 | Módulo | Descripción |
 |--------|-------------|
 | Landing | Página pública de servicios, contacto e Instagram |
-| AcademiaFluxus | Campus online: cursos, lecciones, alumnos, cuotas, multi-admin |
+| AcademiaFluxus | Campus online: cursos con foto y descripción para el alumno, lecciones, alumnos, cuotas, multi-admin |
 | Cursos grabados | Tienda pública con carrito, pago invitado y acceso por email |
 | Galería | CMS de fotos con panel admin |
 | Blogs | CMS de artículos con panel admin |
-| Turnos | Reservas y seña / depósito (Mercado Pago) |
+| Turnos | Reservas y seña / depósito (Mercado Pago), pacientes con historia clínica, plan MTC con PDF, biblioteca privada y consentimientos informados |
 | QA | Smoke tests y reportes automatizados contra el sitio live |
 | Deploy | Publicación por FTP a HostGator |
 
