@@ -36,3 +36,13 @@ public_html/error_log
 public_html/turnos/data/biblioteca/*
 !public_html/turnos/data/biblioteca/.htaccess
 public_html/turnos/data/pacientes/
+public_html/academia/data/uploads/*
+!public_html/academia/data/uploads/.htaccess
+public_html/academia/fluxus/data/
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+*.zip
+zip fluxus/
+capturas-fluxus/
