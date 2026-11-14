@@ -88,7 +88,7 @@ if (!$post) {
         <summary class="nav-academia" aria-label="AcademiaFluxus: clases en vivo y cursos grabados">AcademiaFluxus<svg class="nav-caret" viewBox="0 0 12 12" width="10" height="10" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></summary>
         <div class="nav-drop-menu">
           <div class="nav-drop-panel">
-            <a href="../academia/login.php?as=alumno">Campus alumno<small>Clases grabadas, en vivo y consultas</small></a>
+            <a href="../academia/login.php?as=alumno">Portal del estudiante<small>Clases en vivo, grabadas y consultas</small></a>
             <a href="../academia/inscripcion.php">Inscribirme<small>Pedí tu cupo en la academia</small></a>
           </div>
         </div>
