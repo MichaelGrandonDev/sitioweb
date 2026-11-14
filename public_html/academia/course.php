@@ -134,13 +134,17 @@ require __DIR__ . '/includes/header.php';
   </aside>
 
   <div class="campus-main">
-    <header class="campus-course-head">
+    <?php $coverUrl = course_cover_url($course); ?>
+    <header class="campus-course-head<?= $coverUrl !== '' ? ' has-cover' : '' ?>">
+      <?php if ($coverUrl !== ''): ?>
+        <img class="campus-cover" src="<?= h($coverUrl) ?>" alt="<?= h($course['title']) ?>" width="1200" height="480" decoding="async" fetchpriority="high">
+      <?php endif; ?>
       <button type="button" class="campus-toggle" id="campus-toggle" aria-label="Menú del curso">☰</button>
       <div>
         <p class="eyebrow"><?= h($course['category'] ?: 'Curso') ?></p>
         <h1><?= h($course['title']) ?></h1>
         <?php if (trim((string) $course['description']) !== ''): ?>
-          <p class="lede"><?= h($course['description']) ?></p>
+          <div class="course-description"><?= nl2br(h(trim((string) $course['description']))) ?></div>
         <?php endif; ?>
       </div>
       <div class="campus-progress-box" aria-label="Progreso del curso">

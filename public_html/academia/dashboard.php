@@ -136,13 +136,19 @@ require __DIR__ . '/includes/header.php';
         $pct = $total > 0 ? (int) round(($done / $total) * 100) : 0;
         $meetUrl = trim((string) ($course['meet_url'] ?? ''));
         $meetSchedule = trim((string) ($course['meet_schedule'] ?? ''));
+        $coverUrl = course_cover_url($course);
       ?>
-      <article class="course-card">
+      <article class="course-card<?= $coverUrl !== '' ? ' has-cover' : '' ?>">
+        <?php if ($coverUrl !== ''): ?>
+          <a href="course.php?id=<?= (int) $course['id'] ?>" class="course-cover" tabindex="-1" aria-hidden="true">
+            <img src="<?= h($coverUrl) ?>" alt="" width="640" height="360" loading="lazy" decoding="async">
+          </a>
+        <?php endif; ?>
         <a href="clases.php?course_id=<?= (int) $course['id'] ?>" class="course-card-link">
           <span class="cat"><?= h($course['category'] ?: 'Curso') ?></span>
           <h2><?= h($course['title']) ?></h2>
           <?php if (trim((string) $course['description']) !== ''): ?>
-            <p class="muted"><?= h(short_text((string) $course['description'], 120)) ?></p>
+            <p class="muted"><?= h(short_text((string) $course['description'], 160)) ?></p>
           <?php endif; ?>
           <div class="mini-progress" style="margin-top:.8rem"><div class="progress"><span style="width:<?= $pct ?>%"></span></div><b><?= $pct ?>%</b></div>
           <p class="muted small" style="margin:.4rem 0 0"><?= (int) $course['video_count'] ?> clases grabadas</p>

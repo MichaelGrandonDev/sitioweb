@@ -89,6 +89,134 @@ function store_course_upload(int $courseId, array $file): array
     ];
 }
 
+const COURSE_COVER_MAX_SIDE = 1600;
+const COURSE_COVER_MAX_BYTES = 15 * 1024 * 1024;
+
+/**
+ * Foto de portada del curso subida desde el panel.
+ *
+ * @return array{ok:bool, path?:string, error?:string}
+ */
+function store_course_cover(int $courseId, array $file): array
+{
+    $error = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
+    if ($error === UPLOAD_ERR_NO_FILE) {
+        return ['ok' => false, 'error' => ''];
+    }
+    if ($error === UPLOAD_ERR_INI_SIZE || $error === UPLOAD_ERR_FORM_SIZE) {
+        return ['ok' => false, 'error' => 'La foto supera el límite de subida del hosting.'];
+    }
+    if ($error !== UPLOAD_ERR_OK) {
+        return ['ok' => false, 'error' => 'La foto no se pudo subir (código ' . $error . ').'];
+    }
+    $tmp = (string) ($file['tmp_name'] ?? '');
+    if ($tmp === '' || !is_uploaded_file($tmp)) {
+        return ['ok' => false, 'error' => 'Foto inválida.'];
+    }
+    if ((int) ($file['size'] ?? 0) > COURSE_COVER_MAX_BYTES) {
+        return ['ok' => false, 'error' => 'La foto pesa más de 15 MB.'];
+    }
+    return save_course_cover($courseId, $tmp);
+}
+
+/**
+ * Guarda la portada como WebP de hasta COURSE_COVER_MAX_SIDE px (sin agrandar fotos chicas),
+ * enderezada según el EXIF de la cámara. Sin GD en el hosting se guarda el original.
+ *
+ * @return array{ok:bool, path?:string, error?:string}
+ */
+function save_course_cover(int $courseId, string $source): array
+{
+    $info = @getimagesize($source);
+    $types = [IMAGETYPE_JPEG => 'jpg', IMAGETYPE_PNG => 'png', IMAGETYPE_WEBP => 'webp'];
+    if ($info === false || !isset($types[$info[2]])) {
+        return ['ok' => false, 'error' => 'Usá una foto JPG, PNG o WebP.'];
+    }
+
+    $dir = uploads_root() . '/course_' . $courseId;
+    if (!is_dir($dir)) {
+        mkdir($dir, 0755, true);
+    }
+    $base = 'portada-' . bin2hex(random_bytes(4));
+
+    $image = course_cover_load($source, (int) $info[2]);
+    if ($image === null || !function_exists('imagewebp')) {
+        $name = $base . '.' . $types[$info[2]];
+        if (!copy($source, $dir . '/' . $name)) {
+            return ['ok' => false, 'error' => 'No se pudo guardar la foto en el servidor.'];
+        }
+        @chmod($dir . '/' . $name, 0644);
+        return ['ok' => true, 'path' => 'course_' . $courseId . '/' . $name];
+    }
+
+    $width = imagesx($image);
+    $height = imagesy($image);
+    $scale = min(1, COURSE_COVER_MAX_SIDE / max($width, $height));
+    if ($scale < 1) {
+        $newWidth = max(1, (int) round($width * $scale));
+        $newHeight = max(1, (int) round($height * $scale));
+        $resized = imagecreatetruecolor($newWidth, $newHeight);
+        imagealphablending($resized, false);
+        imagesavealpha($resized, true);
+        imagecopyresampled($resized, $image, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height);
+        $image = $resized;
+    }
+    imagealphablending($image, false);
+    imagesavealpha($image, true);
+
+    $name = $base . '.webp';
+    if (!imagewebp($image, $dir . '/' . $name, 82)) {
+        return ['ok' => false, 'error' => 'No se pudo convertir la foto.'];
+    }
+    @chmod($dir . '/' . $name, 0644);
+    return ['ok' => true, 'path' => 'course_' . $courseId . '/' . $name];
+}
+
+function course_cover_load(string $source, int $type): ?GdImage
+{
+    $loader = match ($type) {
+        IMAGETYPE_JPEG => 'imagecreatefromjpeg',
+        IMAGETYPE_PNG => 'imagecreatefrompng',
+        IMAGETYPE_WEBP => 'imagecreatefromwebp',
+        default => '',
+    };
+    if ($loader === '' || !function_exists($loader)) {
+        return null;
+    }
+    $image = @$loader($source);
+    if (!$image instanceof GdImage) {
+        return null;
+    }
+    if ($type === IMAGETYPE_PNG) {
+        imagepalettetotruecolor($image);
+    }
+    if ($type === IMAGETYPE_JPEG && function_exists('exif_read_data')) {
+        $angle = match ((int) (@exif_read_data($source)['Orientation'] ?? 1)) {
+            3 => 180,
+            6 => -90,
+            8 => 90,
+            default => 0,
+        };
+        if ($angle !== 0) {
+            $rotated = imagerotate($image, $angle, 0);
+            if ($rotated !== false) {
+                $image = $rotated;
+            }
+        }
+    }
+    return $image;
+}
+
+/** URL de la portada para el campus ('' si el curso no tiene). Cambia con cada foto nueva, así se puede cachear. */
+function course_cover_url(array $course): string
+{
+    $path = trim((string) ($course['cover_path'] ?? ''));
+    if ($path === '') {
+        return '';
+    }
+    return academia_path('cover.php') . '?id=' . (int) $course['id'] . '&v=' . substr(md5($path), 0, 10);
+}
+
 function guess_resource_type_from_upload(string $path, string $fallback = 'pdf'): string
 {
     $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));

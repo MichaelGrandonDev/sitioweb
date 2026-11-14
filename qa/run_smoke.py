@@ -261,6 +261,15 @@ def run_suite(base: str) -> list[Check]:
             ok = ("ingresar" in text or "login" in text or "password" in text) and "crear alumno" not in text
             add("privacidad", f"Admin gate {path}", ok or r["status"] in (401, 403), "high", f"status={r['status']} url={r['url']}")
 
+    # La foto del curso solo se entrega con sesión: sin login debe terminar en el login, nunca en una imagen.
+    for course_id in (1, 2):
+        path = f"/academia/cover.php?id={course_id}"
+        r = curl(f"{base}{path}")
+        body = r["body"]
+        is_image = body[:4] == b"RIFF" or body[:3] == b"\xff\xd8\xff" or body[:8] == b"\x89PNG\r\n\x1a\n"
+        on_login = "login.php" in r["url"] or r["status"] in (401, 403)
+        add("privacidad", f"Foto de curso privada {path}", on_login and not is_image, "high", f"status={r['status']} url={r['url']}")
+
     # API must not expose appointments list
     for action in ["appointments", "bookings", "list", "export", "admin"]:
         r = curl(f"{base}/turnos/api.php?action={action}")

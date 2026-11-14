@@ -26,7 +26,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $newId = (int) $pdo->lastInsertId();
             $pdo->prepare('INSERT INTO course_sections (course_id, title, sort_order) VALUES (?, ?, ?)')
                 ->execute([$newId, 'Unidad 1', 10]);
-            flash('success', 'Curso creado. Cargá las unidades y materiales en Campus virtual.');
+            $cover = store_course_cover($newId, $_FILES['cover'] ?? []);
+            if ($cover['ok']) {
+                $pdo->prepare('UPDATE courses SET cover_path = ? WHERE id = ?')->execute([$cover['path'], $newId]);
+            }
+            if (($cover['error'] ?? '') !== '') {
+                flash('error', 'Curso creado, pero la foto no se guardó: ' . $cover['error']);
+            } else {
+                flash('success', 'Curso creado. Cargá las unidades y materiales en Campus virtual.');
+            }
             redirect('campus.php?course_id=' . $newId);
         }
     }
@@ -41,7 +49,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($courseId > 0 && $title !== '') {
             $pdo->prepare('UPDATE courses SET title = ?, category = ?, description = ?, meet_url = ?, meet_schedule = ? WHERE id = ?')
                 ->execute([$title, $category, $description, $meetUrl, $meetSchedule, $courseId]);
-            flash('success', 'Curso actualizado.');
+
+            $old = $pdo->prepare('SELECT cover_path FROM courses WHERE id = ?');
+            $old->execute([$courseId]);
+            $oldCover = (string) ($old->fetchColumn() ?: '');
+            $cover = store_course_cover($courseId, $_FILES['cover'] ?? []);
+            if ($cover['ok']) {
+                $pdo->prepare('UPDATE courses SET cover_path = ? WHERE id = ?')->execute([$cover['path'], $courseId]);
+                delete_upload($oldCover);
+            } elseif (!empty($_POST['remove_cover']) && $oldCover !== '') {
+                $pdo->prepare("UPDATE courses SET cover_path = '' WHERE id = ?")->execute([$courseId]);
+                delete_upload($oldCover);
+            }
+            if (($cover['error'] ?? '') !== '') {
+                flash('error', 'Datos guardados, pero la foto no se cambió: ' . $cover['error']);
+            } else {
+                flash('success', 'Curso actualizado.');
+            }
         }
     }
 
@@ -62,6 +86,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach ($files->fetchAll() as $row) {
                 delete_upload((string) ($row['file_path'] ?? ''));
             }
+            $cover = $pdo->prepare('SELECT cover_path FROM courses WHERE id = ?');
+            $cover->execute([$courseId]);
+            delete_upload((string) ($cover->fetchColumn() ?: ''));
             $pdo->prepare('DELETE FROM courses WHERE id = ?')->execute([$courseId]);
             flash('success', 'Curso eliminado.');
         }
@@ -119,12 +146,13 @@ require __DIR__ . '/../includes/header.php';
 
 <section class="panel" style="margin-bottom:1rem">
   <h2>Nuevo curso</h2>
-  <form method="post" class="stack">
+  <form method="post" class="stack" enctype="multipart/form-data">
     <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
     <input type="hidden" name="action" value="create_course">
     <label>Título <input name="title" required placeholder="Ej: Chikung nivel 1"></label>
     <label>Categoría <input name="category" placeholder="Chikung / Hipopresivos / Taichi / Grabado..."></label>
-    <label>Descripción <textarea name="description"></textarea></label>
+    <label>Descripción (la ve el alumno) <textarea name="description" rows="5" placeholder="De qué trata el curso, a quién está dirigido, qué va a aprender…"></textarea></label>
+    <label>Foto del curso <input type="file" name="cover" accept="image/jpeg,image/png,image/webp"></label>
     <label>Link Google Meet semanal <input name="meet_url" type="url" placeholder="https://meet.google.com/xxx-xxxx-xxx"></label>
     <label>Horario de la clase en vivo <input name="meet_schedule" placeholder="Ej: Jueves 19:00 hs"></label>
     <button class="btn primary" type="submit">Crear curso</button>
@@ -153,7 +181,7 @@ require __DIR__ . '/../includes/header.php';
             <a class="btn secondary small-btn" href="../course.php?id=<?= $cid ?>" target="_blank">Ver campus</a>
           </div>
         </div>
-        <form method="post" class="stack">
+        <form method="post" class="stack" enctype="multipart/form-data">
           <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
           <input type="hidden" name="action" value="update_course">
           <input type="hidden" name="course_id" value="<?= $cid ?>">
@@ -161,7 +189,19 @@ require __DIR__ . '/../includes/header.php';
             <label>Título <input name="title" required value="<?= h($c['title']) ?>"></label>
             <label>Categoría <input name="category" value="<?= h($c['category']) ?>"></label>
           </div>
-          <label>Descripción <textarea name="description"><?= h($c['description']) ?></textarea></label>
+          <label>Descripción (la ve el alumno) <textarea name="description" rows="5"><?= h($c['description']) ?></textarea></label>
+          <?php $coverUrl = course_cover_url($c); ?>
+          <div class="cover-field">
+            <?php if ($coverUrl !== ''): ?>
+              <img class="cover-preview" src="<?= h($coverUrl) ?>" alt="Foto actual de <?= h($c['title']) ?>" width="160" height="90" loading="lazy">
+            <?php endif; ?>
+            <div class="stack">
+              <label><?= $coverUrl !== '' ? 'Cambiar foto del curso' : 'Foto del curso' ?> <input type="file" name="cover" accept="image/jpeg,image/png,image/webp"></label>
+              <?php if ($coverUrl !== ''): ?>
+                <label class="check"><input type="checkbox" name="remove_cover" value="1"> Quitar la foto</label>
+              <?php endif; ?>
+            </div>
+          </div>
           <div class="form-grid two">
             <label>Link Google Meet <input name="meet_url" type="url" value="<?= h((string) ($c['meet_url'] ?? '')) ?>"></label>
             <label>Horario semanal <input name="meet_schedule" value="<?= h((string) ($c['meet_schedule'] ?? '')) ?>"></label>
