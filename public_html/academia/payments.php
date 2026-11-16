@@ -91,7 +91,7 @@ require __DIR__ . '/includes/header.php';
 <p class="eyebrow">Pagos</p>
 <h1>Mis cuotas</h1>
 <p class="lede">Consultá tu estado de cuenta, informá transferencias o pagá con tarjeta (Mercado Pago).</p>
-<p><a class="btn secondary" href="dashboard.php">← Mis cursos</a></p>
+<p><a class="btn secondary" href="cursos.php">← Mis cursos</a></p>
 
 <?php if (!$feeActive && $user['role'] === 'student'): ?>
   <div class="panel" style="margin-top:1rem">

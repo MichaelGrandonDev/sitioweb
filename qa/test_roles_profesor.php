@@ -188,8 +188,9 @@ $t2 = ['id' => 4, 'role' => 'teacher', 'name' => 'Beto'];
 $nav = admin_nav_items($t2, 2);
 $hrefs = array_column($nav, 0);
 check('menú incluye Panel', in_array('admin/index.php', $hrefs, true));
-check('menú incluye Mi perfil', in_array('admin/perfil.php', $hrefs, true));
 check('menú incluye Mis cursos', in_array('admin/courses.php', $hrefs, true));
+check('menú incluye Consultas antes que perfil', array_search('admin/tickets.php', $hrefs, true) < array_search('admin/perfil.php', $hrefs, true));
+check('menú incluye Mi perfil', in_array('admin/perfil.php', $hrefs, true));
 check('menú NO incluye Clases directas', !in_array('admin/grabaciones.php', $hrefs, true));
 check('menú incluye Alumnos (solo lectura)', in_array('admin/estudiantes.php', $hrefs, true));
 check('menú NO incluye Inscripciones', !in_array('admin/inscriptions.php', $hrefs, true));
@@ -201,6 +202,7 @@ $navProfe = admin_nav_items($t2, 0);
 $hrefsProfe = array_column($navProfe, 0);
 check('en portal profesor el menú usa prefijo profesor/', in_array('profesor/index.php', $hrefsProfe, true));
 check('en portal profesor aparece Mi perfil', in_array('profesor/perfil.php', $hrefsProfe, true));
+check('bottom-nav profesor prioriza Consultas', array_search('profesor/tickets.php', $hrefsProfe, true) !== false && array_search('profesor/tickets.php', $hrefsProfe, true) < 4);
 unset($_SERVER['SCRIPT_NAME']);
 
 $adminNav = admin_nav_items($admin, 0);

@@ -61,7 +61,7 @@ require __DIR__ . '/includes/header.php';
     <p class="eyebrow">Campus alumno</p>
     <h1><?= h($greeting) ?>, <?= h(aca_first_name((string) $user['name'])) ?></h1>
   </div>
-  <p>Tus clases en vivo y grabadas, en un solo lugar. Cuando tengas una duda, escribile al profesor desde acá.</p>
+  <p>Empezá por <a href="cursos.php">Mis cursos</a>: elegí el curso con su foto y ahí están las clases, los materiales y el Meet.</p>
   <?php if ($nextLive && ($nextLive['next'] || $nextLive['url'] !== '')): ?>
     <a class="live-banner is-<?= h($nextLive['status']) ?>" href="<?= $nextLive['status'] === 'live' && $nextLive['url'] !== '' ? h($nextLive['url']) . '" target="_blank" rel="noopener' : 'clases.php' ?>">
       <span class="live-pill"><?php if ($nextLive['status'] === 'live'): ?><i class="live-dot"></i>En vivo ahora<?php else: ?>Clase en vivo<?php endif; ?></span>
@@ -89,7 +89,13 @@ require __DIR__ . '/includes/header.php';
 </section>
 
 <div class="stat-grid">
-  <a class="stat" href="clases.php">
+  <a class="stat" href="cursos.php">
+    <span class="stat-ico"><?= aca_icon('book') ?></span>
+    <span class="stat-label">Mis cursos</span>
+    <strong><?= count($courses) ?></strong>
+    <em>Abrí uno con su foto</em>
+  </a>
+  <a class="stat" href="cursos.php">
     <span class="stat-ico"><?= aca_icon('play') ?></span>
     <span class="stat-label">Clases grabadas</span>
     <strong><?= count($allRecordings) ?></strong>
@@ -97,22 +103,58 @@ require __DIR__ . '/includes/header.php';
   </a>
   <a class="stat<?= $pendingTickets > 0 ? ' is-alert' : '' ?>" href="tickets.php">
     <span class="stat-ico"><?= aca_icon('chat') ?></span>
-    <span class="stat-label">Respuestas nuevas</span>
+    <span class="stat-label">Consultas</span>
     <strong><?= $pendingTickets ?></strong>
-    <em>Ver mis consultas</em>
-  </a>
-  <a class="stat" href="tickets.php?nuevo=1&amp;to=teacher#nueva">
-    <span class="stat-ico"><?= aca_icon('spark') ?></span>
-    <span class="stat-label">¿Tenés una duda?</span>
-    <strong style="font-size:1.5rem">Consultar</strong>
-    <em>al profesor o a administración</em>
+    <em><?= $pendingTickets > 0 ? 'Respuestas nuevas' : 'Escribile al profesor' ?></em>
   </a>
 </div>
+
+<?php if ($courses): ?>
+  <div class="section-title">
+    <h2>Mis cursos</h2>
+    <a href="cursos.php">Ver todos →</a>
+  </div>
+  <div class="staff-course-grid" style="margin-bottom:1.8rem">
+    <?php foreach (array_slice($courses, 0, 4) as $course): ?>
+      <?php
+        $cid = (int) $course['id'];
+        $coverUrl = course_cover_url($course);
+        $plan = $plans[$cid];
+      ?>
+      <a class="staff-course-tile<?= $coverUrl !== '' ? ' has-cover' : '' ?>" href="mi-curso.php?id=<?= $cid ?>">
+        <span class="staff-course-tile-media">
+          <?php if ($coverUrl !== ''): ?>
+            <img src="<?= h($coverUrl) ?>" alt="" width="640" height="360" loading="lazy" decoding="async">
+          <?php else: ?>
+            <span class="staff-course-tile-placeholder"><?= aca_icon('book') ?></span>
+          <?php endif; ?>
+        </span>
+        <span class="staff-course-tile-body">
+          <span class="cat"><?= h((string) ($course['category'] ?: 'Curso')) ?></span>
+          <strong><?= h((string) $course['title']) ?></strong>
+          <span class="staff-course-tile-foot">
+            <?php if ($plan['total'] > 0): ?>
+              <span class="badge soft"><?= $plan['seen'] ?>/<?= $plan['total'] ?></span>
+            <?php else: ?>
+              <span class="badge soft">Sin clases</span>
+            <?php endif; ?>
+            <em>Abrir →</em>
+          </span>
+        </span>
+      </a>
+    <?php endforeach; ?>
+  </div>
+<?php else: ?>
+  <div class="panel empty-state">
+    <strong>Todavía no tenés cursos asignados</strong>
+    <p class="muted">Cuando administración te asigne uno, aparece en Mis cursos.</p>
+    <a class="btn primary" href="tickets.php?nuevo=1&amp;to=admin#nueva">Escribir a administración</a>
+  </div>
+<?php endif; ?>
 
 <?php if ($latest): ?>
   <div class="section-title">
     <h2>Últimas clases</h2>
-    <a href="clases.php">Ver todas →</a>
   </div>
   <div class="rec-grid" style="margin-bottom:1.8rem">
     <?php foreach ($latest as $r): ?>
@@ -131,70 +173,6 @@ require __DIR__ . '/includes/header.php';
           <em><?= h(format_db_time((string) $r['created_at'], 'd/m/Y')) ?></em>
         </span>
       </a>
-    <?php endforeach; ?>
-  </div>
-<?php endif; ?>
-
-<div class="section-title"><h2>Mis cursos</h2></div>
-<?php if (!$courses): ?>
-  <div class="panel empty-state">
-    <strong>Todavía no tenés cursos asignados</strong>
-    <p class="muted">Cuando administración te asigne un curso, aparece acá con sus clases.</p>
-    <a class="btn primary" href="tickets.php?nuevo=1&amp;to=admin#nueva">Escribir a administración</a>
-  </div>
-<?php else: ?>
-  <div class="grid">
-    <?php foreach ($courses as $course): ?>
-      <?php
-        $plan = $plans[(int) $course['id']];
-        $meetUrl = trim((string) ($course['meet_url'] ?? ''));
-        $meetSchedule = trim((string) ($course['meet_schedule'] ?? ''));
-        $coverUrl = course_cover_url($course);
-      ?>
-      <article class="course-card<?= $coverUrl !== '' ? ' has-cover' : '' ?>">
-        <?php if ($coverUrl !== ''): ?>
-          <a href="course.php?id=<?= (int) $course['id'] ?>" class="course-cover" tabindex="-1" aria-hidden="true">
-            <img src="<?= h($coverUrl) ?>" alt="" width="640" height="360" loading="lazy" decoding="async">
-          </a>
-        <?php endif; ?>
-        <a href="clases.php?course_id=<?= (int) $course['id'] ?>" class="course-card-link">
-          <span class="cat"><?= h($course['category'] ?: 'Curso') ?></span>
-          <h2><?= h($course['title']) ?></h2>
-          <?php if (trim((string) $course['description']) !== ''): ?>
-            <p class="muted"><?= h(short_text((string) $course['description'], 160)) ?></p>
-          <?php endif; ?>
-          <?php if ($plan['total'] > 0): ?>
-            <p class="course-card-progress">
-              <?php if ($plan['complete']): ?>
-                <span class="badge done"><?= aca_icon('check') ?> Completado</span>
-              <?php endif; ?>
-              <span><b><?= $plan['seen'] ?></b> de <?= $plan['total'] ?> clases vistas</span>
-            </p>
-            <div class="mini-progress"><div class="progress"><span style="width:<?= $plan['pct'] ?>%"></span></div><b><?= $plan['pct'] ?>%</b></div>
-            <?php if ($plan['bonus']): ?>
-              <p class="muted small" style="margin:.4rem 0 0;display:flex;align-items:center;gap:.35rem">
-                <?= aca_icon($plan['bonus_unlocked'] ? 'gift' : 'lock') ?>
-                <?= count($plan['bonus']) ?> bonus <?= $plan['bonus_unlocked'] ? 'disponible' . (count($plan['bonus']) === 1 ? '' : 's') : '· se desbloquea' . (count($plan['bonus']) === 1 ? '' : 'n') . ' al completar' ?>
-              </p>
-            <?php endif; ?>
-          <?php else: ?>
-            <p class="muted small" style="margin:.8rem 0 0">Todavía no hay clases grabadas.</p>
-          <?php endif; ?>
-        </a>
-        <?= aca_teacher_block($course, 'compact') ?>
-        <div class="actions">
-          <a class="btn primary small-btn" href="clases.php?course_id=<?= (int) $course['id'] ?>"><?= aca_icon('play') ?> Ver clases</a>
-          <a class="btn secondary small-btn" href="course.php?id=<?= (int) $course['id'] ?>">Materiales</a>
-        </div>
-        <?php if ($meetUrl !== ''): ?>
-          <div class="meet-box">
-            <?php if ($meetSchedule !== ''): ?>
-              <p class="muted small" style="margin:0 0 .45rem"><?= h($meetSchedule) ?></p>
-            <?php endif; ?>
-            <a class="btn meet" href="<?= h($meetUrl) ?>" target="_blank" rel="noopener noreferrer">Unirme a clase en vivo (Meet)</a>
-          </div>
-        <?php endif; ?>
-      </article>
     <?php endforeach; ?>
   </div>
 <?php endif; ?>

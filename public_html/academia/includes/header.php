@@ -16,8 +16,10 @@ if ($useShell) {
     $portalPrefix = in_profesor_dir() ? 'profesor/' : (in_admin_dir() ? 'admin/' : '');
     $current = $portalPrefix . basename((string) ($_SERVER['SCRIPT_NAME'] ?? ''));
     $aliases = [
-        'resource.php' => 'clases.php',
-        'course.php' => 'dashboard.php',
+        'resource.php' => 'cursos.php',
+        'course.php' => 'cursos.php',
+        'mi-curso.php' => 'cursos.php',
+        'clases.php' => 'cursos.php',
         'ticket.php' => 'tickets.php',
         'admin/estudiantes.php' => 'admin/estudiantes.php',
         'profesor/estudiantes.php' => 'profesor/estudiantes.php',
@@ -58,7 +60,7 @@ if ($useShell) {
     } else {
         $navItems = [
             ['dashboard.php', 'Inicio', 'home', 0],
-            ['clases.php', 'Clases', 'play', 0],
+            ['cursos.php', 'Mis cursos', 'book', 0],
             ['tickets.php', 'Consultas', 'chat', $openTickets],
             ['cuenta.php', 'Mi cuenta', 'user', 0],
         ];

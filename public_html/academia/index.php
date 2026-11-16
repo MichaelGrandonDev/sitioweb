@@ -8,6 +8,6 @@ if (!db_ready()) {
 }
 $user = current_user();
 if ($user) {
-    redirect($user['role'] === 'admin' ? 'admin/index.php' : 'dashboard.php');
+    redirect(is_staff($user) ? staff_home_for_role($user) : 'dashboard.php');
 }
 redirect('login.php');

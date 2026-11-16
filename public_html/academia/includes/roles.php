@@ -375,18 +375,18 @@ function admin_nav_items(array $user, int $openTickets = 0): array
         ];
     }
 
-    // Profesor: primero los cursos (con foto); clases/materiales se abren desde cada curso.
+    // Profesor: Panel → Cursos → Consultas → Alumnos → Perfil (bottom-nav toma los 4 primeros).
     $items = [
         [$p . 'index.php', 'Panel', 'grid', 0],
         [$p . 'courses.php', 'Mis cursos', 'book', 0],
-        [$p . 'perfil.php', 'Mi perfil', 'user', 0],
     ];
-    if (user_has_permission($user, 'view_students')) {
-        $items[] = [$p . 'estudiantes.php', 'Alumnos', 'users', 0];
-    }
     if (user_has_permission($user, 'reply_tickets')) {
         $items[] = [$p . 'tickets.php', 'Consultas', 'chat', $openTickets];
     }
+    if (user_has_permission($user, 'view_students')) {
+        $items[] = [$p . 'estudiantes.php', 'Alumnos', 'users', 0];
+    }
+    $items[] = [$p . 'perfil.php', 'Mi perfil', 'user', 0];
     return $items;
 }
 

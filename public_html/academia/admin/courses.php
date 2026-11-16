@@ -50,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($photoErrors) {
                 flash('error', 'Curso creado, pero alguna foto no se guardó (' . implode('; ', $photoErrors) . ').');
             } else {
-                flash('success', 'Curso creado. Cargá las unidades y materiales en Campus virtual.');
+                flash('success', 'Curso creado. Entrá al hub y cargá clases y materiales.');
             }
             redirect('curso.php?id=' . $newId);
         }

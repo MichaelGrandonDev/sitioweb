@@ -79,11 +79,28 @@ $basePath = '';
 $assetPrefix = '';
 require __DIR__ . '/includes/header.php';
 ?>
+<?php
+  $courseTitle = '';
+  if ($courseId > 0) {
+      foreach ($courses as $c) {
+          if ((int) $c['id'] === $courseId) {
+              $courseTitle = (string) $c['title'];
+              break;
+          }
+      }
+  }
+?>
+<nav class="admin-nav" style="margin-bottom:1rem">
+  <?php if ($courseId > 0): ?>
+    <a class="btn secondary" href="mi-curso.php?id=<?= $courseId ?>">← <?= h($courseTitle !== '' ? $courseTitle : 'Curso') ?></a>
+  <?php endif; ?>
+  <a class="btn secondary" href="cursos.php">Mis cursos</a>
+</nav>
 <div class="page-head">
   <div>
-    <p class="eyebrow">Campus alumno</p>
+    <p class="eyebrow"><?= $courseTitle !== '' ? h($courseTitle) : 'Campus alumno' ?></p>
     <h1>Clases</h1>
-    <p class="lede">Todo en un lugar: entrá a la clase en vivo cuando empieza y mirá las grabadas cuando quieras.</p>
+    <p class="lede">En vivo cuando toca, y grabadas cuando quieras. Volvé al curso para ver materiales y Meet.</p>
   </div>
   <?php if (count($blocks) > 1 && $total > 0): ?>
     <div class="stat" style="min-width:210px;padding:.9rem 1.1rem">

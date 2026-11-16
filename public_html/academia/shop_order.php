@@ -48,7 +48,7 @@ require __DIR__ . '/includes/header.php';
     <?php endforeach; ?>
   </ul>
   <?php if ($order['status'] === 'paid'): ?>
-    <p><a class="btn primary" href="dashboard.php">Ir a mis cursos</a></p>
+    <p><a class="btn primary" href="cursos.php">Ir a mis cursos</a></p>
   <?php else: ?>
     <p class="muted">Cuando el administrador confirme el pago, vas a ver los cursos en tu campus.</p>
   <?php endif; ?>

@@ -11,11 +11,11 @@ $stmt->execute([$courseId]);
 $course = $stmt->fetch();
 if (!$course) {
     flash('error', 'Curso no encontrado.');
-    redirect('dashboard.php');
+    redirect('cursos.php');
 }
 if (!user_can_access_course($user, $courseId)) {
     flash('error', 'No tenés acceso a este curso.');
-    redirect('dashboard.php');
+    redirect('cursos.php');
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -119,24 +119,24 @@ require __DIR__ . '/includes/header.php';
 <div class="campus">
   <aside class="campus-nav" id="campus-nav">
     <p class="campus-nav-label">Este curso</p>
-    <a class="campus-nav-item active" href="course.php?id=<?= $courseId ?>"><?= h($course['title']) ?></a>
+    <a class="campus-nav-item" href="mi-curso.php?id=<?= $courseId ?>">← Hub del curso</a>
     <a class="campus-nav-item" href="clases.php?course_id=<?= $courseId ?>">Clases</a>
-    <a class="campus-nav-item" href="tickets.php?nuevo=1&amp;to=teacher&amp;course_id=<?= $courseId ?>#nueva">Consultar al profesor</a>
+    <a class="campus-nav-item active" href="course.php?id=<?= $courseId ?>">Materiales</a>
+    <a class="campus-nav-item" href="tickets.php?nuevo=1&amp;to=teacher&amp;course_id=<?= $courseId ?>#nueva">Consultar</a>
     <a class="campus-nav-item" href="#avisos">Avisos</a>
-    <a class="campus-nav-item" href="#eventos">Próximos eventos</a>
+    <a class="campus-nav-item" href="#eventos">Eventos</a>
     <?php if (trim((string) ($course['meet_url'] ?? '')) !== ''): ?>
-      <a class="campus-nav-item meet" href="<?= h((string) $course['meet_url']) ?>" target="_blank" rel="noopener">Clase en vivo (Meet)</a>
+      <a class="campus-nav-item meet" href="<?= h((string) $course['meet_url']) ?>" target="_blank" rel="noopener">Meet en vivo</a>
     <?php endif; ?>
     <?php if (is_staff($user)): ?>
-      <a class="campus-nav-item" href="admin/campus.php?course_id=<?= $courseId ?>">Editar campus</a>
+      <a class="campus-nav-item" href="<?= h(staff_portal_prefix()) ?>campus.php?course_id=<?= $courseId ?>">Editar materiales</a>
     <?php endif; ?>
 
-    <p class="campus-nav-label">Campus</p>
-    <a class="campus-nav-item" href="dashboard.php">Mis cursos</a>
-    <a class="campus-nav-item" href="tickets.php">Mis consultas</a>
+    <p class="campus-nav-label">Mis cursos</p>
+    <a class="campus-nav-item" href="cursos.php">Todos los cursos</a>
     <?php foreach ($myCourses as $mc): ?>
       <?php if ((int) $mc['id'] === $courseId) continue; ?>
-      <a class="campus-nav-item subtle" href="course.php?id=<?= (int) $mc['id'] ?>"><?= h($mc['title']) ?></a>
+      <a class="campus-nav-item subtle" href="mi-curso.php?id=<?= (int) $mc['id'] ?>"><?= h($mc['title']) ?></a>
     <?php endforeach; ?>
   </aside>
 
@@ -171,7 +171,7 @@ require __DIR__ . '/includes/header.php';
     <?php if (!$sections): ?>
       <div class="campus-section">
         <div class="campus-section-body">
-          <p class="muted">Todavía no hay secciones en este curso. El administrador puede armar el campus desde Admin → Editar campus.</p>
+          <p class="muted">Todavía no hay materiales en este curso. El profesor puede cargarlos desde el hub → Materiales.</p>
         </div>
       </div>
     <?php endif; ?>

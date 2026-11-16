@@ -191,8 +191,8 @@ require __DIR__ . '/../includes/header.php';
     <p class="eyebrow"><?= $isGeneral ? 'Administración' : 'Portal profesores' ?> · AcademiaFluxus</p>
     <h1>Hola, <?= h(aca_first_name((string) $user['name'])) ?></h1>
     <p class="lede"><?= $isGeneral
-      ? 'Alumnos, clases grabadas y consultas, todo desde acá.'
-      : 'Tu espacio de profesor: perfil, cursos asignados, clases y consultas.' ?></p>
+      ? 'Elegí un curso con su foto para cargar clases y materiales. Alumnos y consultas, desde el menú.'
+      : 'Elegí un curso asignado con su foto: ahí están las clases, los materiales y los datos.' ?></p>
   </div>
   <?php if (!$isGeneral): ?>
     <div class="actions">
@@ -208,10 +208,10 @@ require __DIR__ . '/../includes/header.php';
       <span><strong>Agregar alumno</strong><span>Con su email y una contraseña</span></span>
     </a>
   <?php endif; ?>
-  <?php if (user_has_permission($user, 'manage_course_content')): ?>
-    <a class="quick<?= !$isGeneral ? ' is-primary' : '' ?>" href="grabaciones.php">
-      <span class="stat-ico"><?= aca_icon('upload') ?></span>
-      <span><strong>Subir una clase</strong><span>Video o link de YouTube/Drive</span></span>
+  <?php if (user_has_permission($user, 'manage_course_content') || user_has_permission($user, 'edit_course_info')): ?>
+    <a class="quick<?= !$isGeneral ? ' is-primary' : '' ?>" href="courses.php">
+      <span class="stat-ico"><?= aca_icon('book') ?></span>
+      <span><strong><?= $isGeneral ? 'Cursos' : 'Mis cursos' ?></strong><span>Abrí uno con foto · clases y materiales</span></span>
     </a>
   <?php endif; ?>
   <?php if (user_has_permission($user, 'reply_tickets')): ?>
@@ -233,10 +233,42 @@ require __DIR__ . '/../includes/header.php';
       <span class="stat-ico"><?= aca_icon('key') ?></span>
       <span><strong>Administradores / Profesores</strong><span>Alta, permisos y cursos</span></span>
     </a>
-  <?php elseif (user_has_permission($user, 'edit_course_info') || user_has_permission($user, 'manage_course_content')): ?>
-    <a class="quick" href="courses.php">
-      <span class="stat-ico"><?= aca_icon('book') ?></span>
-      <span><strong>Mis cursos</strong><span>Abrí un curso con su foto</span></span>
+  <?php endif; ?>
+</div>
+
+<div class="stat-grid">
+  <?php if ($isGeneral || user_has_permission($user, 'view_students')): ?>
+    <a class="stat" href="<?= $isGeneral ? 'users.php' : 'estudiantes.php' ?>">
+      <span class="stat-ico"><?= aca_icon('users') ?></span>
+      <span class="stat-label"><?= $isGeneral ? 'Alumnos activos' : 'Alumnos en tus cursos' ?></span>
+      <strong><?= $activeStudents ?></strong>
+      <?php if ($isGeneral): ?>
+        <em><?= $inactiveStudents ?> de baja · <?= $totalStudents ?> en total</em>
+      <?php else: ?>
+        <em>Solo lectura</em>
+      <?php endif; ?>
+    </a>
+  <?php endif; ?>
+  <?php if (user_has_permission($user, 'manage_course_content') || $isGeneral): ?>
+    <a class="stat" href="courses.php">
+      <span class="stat-ico"><?= aca_icon('video') ?></span>
+      <span class="stat-label">Clases grabadas</span>
+      <strong><?= $totalVideos ?></strong>
+      <em>en <?= $totalCourses ?> curso<?= $totalCourses === 1 ? '' : 's' ?> · elegí el curso</em>
+    </a>
+  <?php endif; ?>
+  <div class="stat">
+    <span class="stat-ico"><?= aca_icon('eye') ?></span>
+    <span class="stat-label">Avance de los alumnos</span>
+    <strong><?= $overallPct ?>%</strong>
+    <em><?= $completed ?> de <?= $expected ?> contenidos vistos</em>
+  </div>
+  <?php if (user_has_permission($user, 'reply_tickets')): ?>
+    <a class="stat<?= $openTickets > 0 ? ' is-alert' : '' ?>" href="tickets.php">
+      <span class="stat-ico"><?= aca_icon('chat') ?></span>
+      <span class="stat-label">Consultas sin responder</span>
+      <strong><?= $openTickets ?></strong>
+      <em>Ver consultas</em>
     </a>
   <?php endif; ?>
 </div>
@@ -246,9 +278,12 @@ require __DIR__ . '/../includes/header.php';
   if ($tileCourses):
 ?>
 <section style="margin:1.5rem 0 0.5rem">
-  <div class="section-title"><h2><?= $isGeneral ? 'Entrar a un curso' : 'Tus cursos' ?></h2></div>
+  <div class="section-title">
+    <h2><?= $isGeneral ? 'Entrar a un curso' : 'Tus cursos' ?></h2>
+    <a href="courses.php">Ver todos →</a>
+  </div>
   <div class="staff-course-grid">
-    <?php foreach ($tileCourses as $c): ?>
+    <?php foreach (array_slice($tileCourses, 0, 6) as $c): ?>
       <?php
         $cid = (int) $c['id'];
         $coverUrl = course_cover_url($c);
@@ -276,43 +311,6 @@ require __DIR__ . '/../includes/header.php';
 </section>
 <?php endif; ?>
 
-<div class="stat-grid">
-  <?php if ($isGeneral || user_has_permission($user, 'view_students')): ?>
-    <a class="stat" href="<?= $isGeneral ? 'users.php' : 'estudiantes.php' ?>">
-      <span class="stat-ico"><?= aca_icon('users') ?></span>
-      <span class="stat-label"><?= $isGeneral ? 'Alumnos activos' : 'Alumnos en tus cursos' ?></span>
-      <strong><?= $activeStudents ?></strong>
-      <?php if ($isGeneral): ?>
-        <em><?= $inactiveStudents ?> de baja · <?= $totalStudents ?> en total</em>
-      <?php else: ?>
-        <em>Solo lectura</em>
-      <?php endif; ?>
-    </a>
-  <?php endif; ?>
-  <?php if (user_has_permission($user, 'manage_course_content') || $isGeneral): ?>
-    <a class="stat" href="grabaciones.php">
-      <span class="stat-ico"><?= aca_icon('video') ?></span>
-      <span class="stat-label">Clases grabadas</span>
-      <strong><?= $totalVideos ?></strong>
-      <em>en <?= $totalCourses ?> curso<?= $totalCourses === 1 ? '' : 's' ?></em>
-    </a>
-  <?php endif; ?>
-  <div class="stat">
-    <span class="stat-ico"><?= aca_icon('eye') ?></span>
-    <span class="stat-label">Avance de los alumnos</span>
-    <strong><?= $overallPct ?>%</strong>
-    <em><?= $completed ?> de <?= $expected ?> contenidos vistos</em>
-  </div>
-  <?php if (user_has_permission($user, 'reply_tickets')): ?>
-    <a class="stat<?= $openTickets > 0 ? ' is-alert' : '' ?>" href="tickets.php">
-      <span class="stat-ico"><?= aca_icon('chat') ?></span>
-      <span class="stat-label">Consultas sin responder</span>
-      <strong><?= $openTickets ?></strong>
-      <em>Ver consultas</em>
-    </a>
-  <?php endif; ?>
-</div>
-
 <section class="panel" style="margin-top:1.25rem">
   <h2><?= $isGeneral ? 'Avance por curso' : 'Avance de tus cursos' ?></h2>
   <?php if (!$courseMetrics): ?>
@@ -336,7 +334,7 @@ require __DIR__ . '/../includes/header.php';
           ?>
           <tr>
             <td>
-              <strong><?= h($row['title']) ?></strong><br>
+              <a href="curso.php?id=<?= (int) $row['id'] ?>"><strong><?= h($row['title']) ?></strong></a><br>
               <span class="muted small"><?= h($row['category']) ?></span>
             </td>
             <td><?= (int) $row['students'] ?></td>
