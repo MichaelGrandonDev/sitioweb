@@ -61,6 +61,14 @@ En Admin → Cursos, al crear o editar un curso se puede subir una **foto del cu
 - El alumno ve la foto en la tarjeta de **Mis cursos** y como cabecera del curso, con la descripción completa (respeta los saltos de línea).
 - Test: `php qa/test_course_cover.php`.
 
+## Profesor del curso
+
+Cada curso puede tener su propio **profesor**: nombre, breve descripción y foto (opcionales). Se editan en Admin → Cursos, en el mismo formulario del curso.
+
+- La foto del profesor se guarda como **WebP** de hasta 1000 px y se sirve por `teacher.php` (misma privacidad que la portada).
+- El alumno lo ve en la página del curso (“Tu profesor”) y, de forma compacta, en **Mis cursos** y en **Clases**.
+- Si no hay datos cargados, el bloque no se muestra. Test: `php qa/test_teacher_profile.php`.
+
 ## Clases grabadas: orden, vistas y bonus
 
 En Admin → **Clases**, elegí el curso. Abajo aparecen dos listas: **Clases del curso** y **Bonus (x de 3)**.
