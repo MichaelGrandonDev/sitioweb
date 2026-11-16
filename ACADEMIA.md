@@ -11,6 +11,34 @@ Mini LMS en PHP + SQLite, integrado al sitio en `/academia/`.
 - Tareas por clase (el alumno marca y puede dejar nota)
 - Diseño alineado a FluxusTerapia
 
+## Roles: administrador general y profesor
+
+Hay tres tipos de cuenta:
+
+| Rol | Quién es | Qué puede hacer |
+|-----|----------|-----------------|
+| **Administrador general** (`admin`) | Quien lleva toda la academia | Todo: alumnos, inscripciones, pagos, cursos, sitio, recordatorios, crear otros admins y profesores |
+| **Profesor** (`teacher`) | Subadministrador de uno o más cursos | Solo lo que el admin le marque: clases/materiales, datos del curso, ver alumnos (lectura), responder consultas de *sus* cursos |
+| **Alumno** (`student`) | Quien cursa | Campus: clases, materiales, consultas |
+
+### Cómo dar de alta un profesor
+
+1. Entrá como administrador general → **Administradores / Profesores**.
+2. En **Nuevo profesor**: nombre, usuario, contraseña.
+3. Marcá los **cursos** que va a dictar.
+4. Revisá los **permisos** (por defecto puede subir clases/materiales, editar info del curso, ver alumnos y responder consultas; *no* puede crear alumnos ni tocar pagos).
+5. El profesor entra por el mismo login: AcademiaFluxus → **Administrador** (`login.php?as=admin`). Verá un panel reducido.
+
+### Qué no puede hacer el profesor (aunque abra la URL a mano)
+
+Crear/borrar alumnos, inscripciones, pagos/cuotas/tienda, recordatorios globales, editar el sitio, crear otros admins, crear o borrar cursos ajenos. El servidor responde con un aviso y lo manda de vuelta al panel.
+
+### Perfil del profesor en el curso
+
+Sigue existiendo el bloque “Tu profesor” (nombre, bio, foto) por curso. Al asignar un profesor a un curso, si el nombre del profesor del curso estaba vacío, se completa con el nombre de la cuenta. El profesor (si tiene permiso) puede editarlo en **Mis cursos**.
+
+Test: `php qa/test_roles_profesor.php`.
+
 ## Instalación en HostGator
 
 1. Subí la carpeta `public_html/academia/` dentro de `fluxusterapia.com/`
