@@ -13,6 +13,7 @@ $allowed = [
     'campus.php',
     'tickets.php',
     'estudiantes.php',
+    'curso.php',
 ];
 if (!in_array($page, $allowed, true)) {
     http_response_code(404);

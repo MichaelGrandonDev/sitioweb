@@ -226,16 +226,33 @@ if ($courseId > 0) {
     $sessions = live_sessions($courseId);
 }
 
-$pageTitle = 'Clases';
+$courseFull = null;
+foreach (staff_courses($me) as $c) {
+    if ((int) $c['id'] === $courseId) {
+        $courseFull = $c;
+        break;
+    }
+}
+$courseCover = $courseFull ? course_cover_url($courseFull) : '';
+
+$pageTitle = 'Clases' . ($courseFull ? ' · ' . $courseFull['title'] : '');
 $basePath = '../';
 $assetPrefix = '../';
 require __DIR__ . '/../includes/header.php';
 ?>
+<nav class="admin-nav" style="margin-bottom:.75rem">
+  <a class="btn secondary" href="courses.php">← Cursos</a>
+  <?php if ($courseId): ?>
+    <a class="btn secondary" href="curso.php?id=<?= $courseId ?>">Hub del curso</a>
+    <a class="btn secondary" href="campus.php?course_id=<?= $courseId ?>">Materiales</a>
+  <?php endif; ?>
+</nav>
+
 <div class="page-head">
   <div>
-    <p class="eyebrow">Administración</p>
-    <h1>Clases</h1>
-    <p class="lede">En vivo y grabadas, por curso. Lo que cargues acá lo ven al instante los alumnos que tienen asignado ese curso.</p>
+    <p class="eyebrow">Clases grabadas y en vivo</p>
+    <h1><?= $courseFull ? h((string) $courseFull['title']) : 'Clases' ?></h1>
+    <p class="lede">Lo que cargues acá lo ven al instante los alumnos de este curso.</p>
   </div>
   <a class="btn secondary" href="../clases.php<?= $courseId ? '?course_id=' . $courseId : '' ?>"><?= aca_icon('eye') ?> Ver como alumno</a>
 </div>
@@ -248,8 +265,11 @@ require __DIR__ . '/../includes/header.php';
   </div>
 <?php else: ?>
 
-<section class="panel" style="margin-bottom:1rem;display:flex;flex-wrap:wrap;align-items:flex-end;gap:1rem">
-  <form method="get" style="flex:1;min-width:240px">
+<section class="staff-course-switcher panel">
+  <?php if ($courseCover !== ''): ?>
+    <img class="staff-course-switcher-cover" src="<?= h($courseCover) ?>" alt="" width="120" height="68" loading="lazy">
+  <?php endif; ?>
+  <form method="get" style="flex:1;min-width:200px">
     <label>Curso
       <select name="course_id" onchange="this.form.submit()">
         <?php foreach ($courses as $c): ?>
@@ -260,9 +280,8 @@ require __DIR__ . '/../includes/header.php';
       </select>
     </label>
   </form>
-  <p class="muted small" style="margin:0 0 .7rem;display:flex;align-items:center;gap:.4rem">
-    <?= aca_icon('users') ?> <?= $students ?> alumno<?= $students === 1 ? '' : 's' ?> con acceso ·
-    <a href="users.php" style="color:var(--accent);font-weight:500">asignar alumnos</a>
+  <p class="muted small" style="margin:0;display:flex;align-items:center;gap:.4rem">
+    <?= aca_icon('users') ?> <?= $students ?> alumno<?= $students === 1 ? '' : 's' ?>
   </p>
 </section>
 

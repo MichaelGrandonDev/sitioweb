@@ -3,8 +3,11 @@
 declare(strict_types=1);
 
 require __DIR__ . '/../bootstrap.php';
-$me = require_permission('edit_course_info');
+$me = require_staff();
 $isGeneral = is_full_admin($me);
+if (!$isGeneral && !user_has_permission($me, 'edit_course_info') && !user_has_permission($me, 'manage_course_content')) {
+    admin_forbidden('No tenés permiso para ver los cursos.');
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf($_POST['csrf'] ?? null)) {
@@ -49,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 flash('success', 'Curso creado. Cargá las unidades y materiales en Campus virtual.');
             }
-            redirect('campus.php?course_id=' . $newId);
+            redirect('curso.php?id=' . $newId);
         }
     }
 
@@ -198,20 +201,15 @@ $basePath = '../';
 $assetPrefix = '../';
 require __DIR__ . '/../includes/header.php';
 ?>
-<p class="eyebrow"><?= $isGeneral ? 'Admin' : 'Profesor' ?></p>
-<h1><?= $isGeneral ? 'Cursos y clases' : 'Mis cursos' ?></h1>
-<p class="lede"><?= $isGeneral
-  ? 'Creá cursos, dalos de baja o eliminálos. Las clases en vivo y grabadas se manejan en Clases; PDFs y otros materiales, en Unidades y materiales.'
-  : 'Editá la información de los cursos que te asignaron. Las clases y materiales se cargan desde Clases y Materiales.' ?></p>
+<div class="page-head">
+  <div>
+    <p class="eyebrow"><?= $isGeneral ? 'Administración' : 'Portal profesores' ?></p>
+    <h1><?= $isGeneral ? 'Cursos' : 'Mis cursos' ?></h1>
+    <p class="lede">Elegí un curso para ver clases, materiales y datos. Cada tarjeta abre el panel de ese curso.</p>
+  </div>
+</div>
 <nav class="admin-nav">
   <a class="btn secondary" href="index.php">← Panel</a>
-  <?php if (user_has_permission($me, 'manage_course_content')): ?>
-    <a class="btn secondary" href="grabaciones.php">Clases</a>
-    <a class="btn secondary" href="campus.php">Unidades y materiales</a>
-  <?php endif; ?>
-  <?php if ($isGeneral): ?>
-    <a class="btn secondary" href="users.php">Alumnos</a>
-  <?php endif; ?>
 </nav>
 
 <?php if ($isGeneral): ?>
@@ -238,160 +236,40 @@ require __DIR__ . '/../includes/header.php';
 </section>
 <?php endif; ?>
 
-<section class="panel" style="margin-bottom:1rem">
-  <h2><?= $isGeneral ? 'Cursos existentes' : 'Cursos asignados' ?></h2>
+<section style="margin-bottom:1.5rem">
+  <h2 class="section-title" style="margin-bottom:.85rem"><?= $isGeneral ? 'Todos los cursos' : 'Cursos asignados' ?></h2>
   <?php if (!$courses): ?>
-    <p class="muted">Todavía no hay cursos.</p>
+    <div class="panel empty-state">
+      <strong><?= $isGeneral ? 'Todavía no hay cursos' : 'Todavía no tenés cursos asignados' ?></strong>
+      <p class="muted"><?= $isGeneral ? 'Creá el primero con el formulario de arriba.' : 'Pedile al administrador general que te asigne uno.' ?></p>
+    </div>
   <?php else: ?>
-    <?php foreach ($courses as $c): ?>
-      <?php $cid = (int) $c['id']; $active = (int) ($c['published'] ?? 1) === 1; ?>
-      <article style="margin:1.25rem 0;padding-top:1.25rem;border-top:1px solid var(--line)">
-        <div class="actions" style="justify-content:space-between;margin-bottom:.75rem;flex-wrap:wrap">
-          <div>
-            <strong style="font-size:1.15rem"><?= h($c['title']) ?></strong>
-            <?= $active ? '<span class="badge done">Activo</span>' : '<span class="badge">Dado de baja</span>' ?>
-            <?php if ((int) ($c['shop_listed'] ?? 0)): ?>
-              <span class="badge">En tienda</span>
-            <?php endif; ?>
-            <p class="muted small" style="margin:.25rem 0 0"><?= h($c['category'] ?: 'Sin categoría') ?></p>
-          </div>
-          <div class="actions">
-            <a class="btn primary small-btn" href="campus.php?course_id=<?= $cid ?>">Unidades / materiales</a>
-            <a class="btn secondary small-btn" href="../course.php?id=<?= $cid ?>" target="_blank">Ver campus</a>
-          </div>
-        </div>
-        <form method="post" class="stack" enctype="multipart/form-data">
-          <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
-          <input type="hidden" name="action" value="update_course">
-          <input type="hidden" name="course_id" value="<?= $cid ?>">
-          <div class="form-grid two">
-            <label>Título <input name="title" required value="<?= h($c['title']) ?>"></label>
-            <label>Categoría <input name="category" value="<?= h($c['category']) ?>"></label>
-          </div>
-          <label>Descripción (la ve el alumno) <textarea name="description" rows="5"><?= h($c['description']) ?></textarea></label>
-          <?php $coverUrl = course_cover_url($c); ?>
-          <div class="cover-field">
+    <div class="staff-course-grid">
+      <?php foreach ($courses as $c): ?>
+        <?php
+          $cid = (int) $c['id'];
+          $active = (int) ($c['published'] ?? 1) === 1;
+          $coverUrl = course_cover_url($c);
+        ?>
+        <a class="staff-course-tile<?= $coverUrl !== '' ? ' has-cover' : '' ?><?= $active ? '' : ' is-off' ?>" href="curso.php?id=<?= $cid ?>">
+          <span class="staff-course-tile-media">
             <?php if ($coverUrl !== ''): ?>
-              <img class="cover-preview" src="<?= h($coverUrl) ?>" alt="Foto actual de <?= h($c['title']) ?>" width="160" height="90" loading="lazy">
+              <img src="<?= h($coverUrl) ?>" alt="" width="640" height="360" loading="lazy" decoding="async">
+            <?php else: ?>
+              <span class="staff-course-tile-placeholder"><?= aca_icon('book') ?></span>
             <?php endif; ?>
-            <div class="stack">
-              <label><?= $coverUrl !== '' ? 'Cambiar foto del curso' : 'Foto del curso' ?> <input type="file" name="cover" accept="image/jpeg,image/png,image/webp"></label>
-              <?php if ($coverUrl !== ''): ?>
-                <label class="check"><input type="checkbox" name="remove_cover" value="1"> Quitar la foto</label>
-              <?php endif; ?>
-            </div>
-          </div>
-          <fieldset class="teacher-fieldset">
-            <legend>Profesor del curso</legend>
-            <p class="muted small" style="margin:0 0 .6rem">Nombre, una breve presentación y foto. Si está vacío, el alumno no ve este bloque.</p>
-            <label>Nombre del profesor <input name="teacher_name" value="<?= h((string) ($c['teacher_name'] ?? '')) ?>" placeholder="Ej: Ana Pérez"></label>
-            <label>Breve descripción <textarea name="teacher_bio" rows="3" placeholder="Formación, estilo de enseñanza, una frase de presentación…"><?= h((string) ($c['teacher_bio'] ?? '')) ?></textarea></label>
-            <?php $teacherUrl = course_teacher_url($c); ?>
-            <div class="cover-field">
-              <?php if ($teacherUrl !== ''): ?>
-                <img class="teacher-preview" src="<?= h($teacherUrl) ?>" alt="Foto actual del profesor" width="72" height="72" loading="lazy">
-              <?php endif; ?>
-              <div class="stack">
-                <label><?= $teacherUrl !== '' ? 'Cambiar foto del profesor' : 'Foto del profesor' ?> <input type="file" name="teacher_photo" accept="image/jpeg,image/png,image/webp"></label>
-                <?php if ($teacherUrl !== ''): ?>
-                  <label class="check"><input type="checkbox" name="remove_teacher_photo" value="1"> Quitar la foto del profesor</label>
-                <?php endif; ?>
-              </div>
-            </div>
-          </fieldset>
-          <div class="form-grid two">
-            <label>Link Google Meet <input name="meet_url" type="url" value="<?= h((string) ($c['meet_url'] ?? '')) ?>"></label>
-            <label>Horario semanal <input name="meet_schedule" value="<?= h((string) ($c['meet_schedule'] ?? '')) ?>"></label>
-          </div>
-          <div class="actions">
-            <button class="btn secondary" type="submit">Guardar cambios</button>
-          </div>
-        </form>
-        <?php if ($isGeneral): ?>
-        <div class="actions" style="margin-top:.75rem">
-          <form method="post">
-            <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
-            <input type="hidden" name="action" value="toggle_course">
-            <input type="hidden" name="course_id" value="<?= $cid ?>">
-            <button class="btn secondary" type="submit"><?= $active ? 'Dar de baja curso' : 'Reactivar curso' ?></button>
-          </form>
-          <form method="post" onsubmit="return confirm('¿Eliminar este curso y todo su contenido de forma permanente?');">
-            <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
-            <input type="hidden" name="action" value="delete_course">
-            <input type="hidden" name="course_id" value="<?= $cid ?>">
-            <button class="btn danger" type="submit">Eliminar curso</button>
-          </form>
-        </div>
-        <?php endif; ?>
-      </article>
-    <?php endforeach; ?>
+          </span>
+          <span class="staff-course-tile-body">
+            <span class="cat"><?= h((string) ($c['category'] ?: 'Curso')) ?></span>
+            <strong><?= h((string) $c['title']) ?></strong>
+            <span class="staff-course-tile-foot">
+              <?= $active ? '<span class="badge done">Activo</span>' : '<span class="badge">Baja</span>' ?>
+              <em>Abrir →</em>
+            </span>
+          </span>
+        </a>
+      <?php endforeach; ?>
+    </div>
   <?php endif; ?>
 </section>
-
-<?php if (user_has_permission($me, 'manage_course_content') && $courses): ?>
-<section class="panel" style="margin-bottom:1rem">
-  <h2>Nueva clase rápida (YouTube o Drive)</h2>
-  <p class="muted small">También podés cargar videos y PDFs por unidad en <a href="campus.php">Campus virtual</a>.</p>
-  <form method="post" class="stack">
-    <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
-    <input type="hidden" name="action" value="create_lesson">
-    <label>Curso
-      <select name="course_id" required>
-        <option value="">Elegí curso…</option>
-        <?php foreach ($courses as $c): ?>
-          <option value="<?= (int) $c['id'] ?>"><?= h($c['title']) ?></option>
-        <?php endforeach; ?>
-      </select>
-    </label>
-    <label>Título de la clase <input name="title" required></label>
-    <label>Descripción <textarea name="description"></textarea></label>
-    <label>Link YouTube o Google Drive <input name="video_url" placeholder="https://youtube.com/... o https://drive.google.com/file/d/..."></label>
-    <button class="btn primary" type="submit">Publicar clase</button>
-  </form>
-</section>
-
-<?php if ($isGeneral): ?>
-<section class="panel" style="margin-bottom:1rem">
-  <h2>Nueva tarea</h2>
-  <form method="post" class="stack">
-    <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
-    <input type="hidden" name="action" value="create_task">
-    <label>Clase
-      <select name="lesson_id" required>
-        <option value="">Elegí clase…</option>
-        <?php foreach ($lessons as $l): ?>
-          <option value="<?= (int) $l['id'] ?>"><?= h($l['course_title'] . ' · ' . $l['title']) ?></option>
-        <?php endforeach; ?>
-      </select>
-    </label>
-    <label>Título de la tarea <input name="title" required></label>
-    <label>Instrucciones <textarea name="instructions" placeholder="Ej: Practica 10 minutos y comentá cómo te sentiste"></textarea></label>
-    <button class="btn primary" type="submit">Crear tarea</button>
-  </form>
-</section>
-<?php endif; ?>
-
-<?php if ($lessons): ?>
-<table class="table">
-  <thead><tr><th>Curso</th><th>Clase</th><th>Video</th><th></th></tr></thead>
-  <tbody>
-    <?php foreach ($lessons as $l): ?>
-      <tr>
-        <td><?= h($l['course_title']) ?></td>
-        <td><?= h($l['title']) ?></td>
-        <td class="small muted"><?= h(strlen((string) $l['video_url']) > 48 ? substr((string) $l['video_url'], 0, 45) . '…' : (string) $l['video_url']) ?></td>
-        <td>
-          <form method="post">
-            <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
-            <input type="hidden" name="action" value="delete_lesson">
-            <input type="hidden" name="lesson_id" value="<?= (int) $l['id'] ?>">
-            <button class="btn danger" type="submit">Eliminar</button>
-          </form>
-        </td>
-      </tr>
-    <?php endforeach; ?>
-  </tbody>
-</table>
-<?php endif; ?>
-<?php endif; ?>
 <?php require __DIR__ . '/../includes/footer.php'; ?>

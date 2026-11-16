@@ -233,13 +233,48 @@ require __DIR__ . '/../includes/header.php';
       <span class="stat-ico"><?= aca_icon('key') ?></span>
       <span><strong>Administradores / Profesores</strong><span>Alta, permisos y cursos</span></span>
     </a>
-  <?php elseif (user_has_permission($user, 'edit_course_info')): ?>
+  <?php elseif (user_has_permission($user, 'edit_course_info') || user_has_permission($user, 'manage_course_content')): ?>
     <a class="quick" href="courses.php">
       <span class="stat-ico"><?= aca_icon('book') ?></span>
-      <span><strong>Mis cursos</strong><span>Descripción, portada y perfil</span></span>
+      <span><strong>Mis cursos</strong><span>Abrí un curso con su foto</span></span>
     </a>
   <?php endif; ?>
 </div>
+
+<?php
+  $tileCourses = staff_courses($user);
+  if ($tileCourses):
+?>
+<section style="margin:1.5rem 0 0.5rem">
+  <div class="section-title"><h2><?= $isGeneral ? 'Entrar a un curso' : 'Tus cursos' ?></h2></div>
+  <div class="staff-course-grid">
+    <?php foreach ($tileCourses as $c): ?>
+      <?php
+        $cid = (int) $c['id'];
+        $coverUrl = course_cover_url($c);
+        $active = (int) ($c['published'] ?? 1) === 1;
+      ?>
+      <a class="staff-course-tile<?= $coverUrl !== '' ? ' has-cover' : '' ?><?= $active ? '' : ' is-off' ?>" href="curso.php?id=<?= $cid ?>">
+        <span class="staff-course-tile-media">
+          <?php if ($coverUrl !== ''): ?>
+            <img src="<?= h($coverUrl) ?>" alt="" width="640" height="360" loading="lazy" decoding="async">
+          <?php else: ?>
+            <span class="staff-course-tile-placeholder"><?= aca_icon('book') ?></span>
+          <?php endif; ?>
+        </span>
+        <span class="staff-course-tile-body">
+          <span class="cat"><?= h((string) ($c['category'] ?: 'Curso')) ?></span>
+          <strong><?= h((string) $c['title']) ?></strong>
+          <span class="staff-course-tile-foot">
+            <?= $active ? '<span class="badge done">Activo</span>' : '<span class="badge">Baja</span>' ?>
+            <em>Abrir →</em>
+          </span>
+        </span>
+      </a>
+    <?php endforeach; ?>
+  </div>
+</section>
+<?php endif; ?>
 
 <div class="stat-grid">
   <?php if ($isGeneral || user_has_permission($user, 'view_students')): ?>

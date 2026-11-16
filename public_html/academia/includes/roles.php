@@ -115,7 +115,7 @@ function require_staff(): array
         if (in_admin_dir()) {
             $page = basename((string) ($_SERVER['SCRIPT_NAME'] ?? 'index.php'));
             // Páginas solo del admin general: el profesor no tiene wrapper → al portal.
-            $teacherPages = ['index.php', 'grabaciones.php', 'courses.php', 'campus.php', 'tickets.php', 'estudiantes.php', 'perfil.php'];
+            $teacherPages = ['index.php', 'grabaciones.php', 'courses.php', 'campus.php', 'tickets.php', 'estudiantes.php', 'perfil.php', 'curso.php'];
             redirect('../profesor/' . (in_array($page, $teacherPages, true) ? $page : 'index.php'));
         }
     }
@@ -366,28 +366,21 @@ function admin_nav_items(array $user, int $openTickets = 0): array
     if (is_full_admin($user)) {
         return [
             [$p . 'index.php', 'Panel', 'grid', 0],
-            [$p . 'users.php', 'Alumnos', 'users', 0],
-            [$p . 'grabaciones.php', 'Clases', 'video', 0],
-            [$p . 'tickets.php', 'Consultas', 'chat', $openTickets],
             [$p . 'courses.php', 'Cursos', 'book', 0],
-            [$p . 'campus.php', 'Materiales', 'layers', 0],
+            [$p . 'users.php', 'Alumnos', 'users', 0],
+            [$p . 'tickets.php', 'Consultas', 'chat', $openTickets],
             [$p . 'inscriptions.php', 'Inscripciones', 'inbox', 0],
             [$p . 'recordatorios.php', 'Recordatorios', 'mail', 0],
             [$p . 'admins.php', 'Administradores', 'key', 0],
         ];
     }
 
+    // Profesor: primero los cursos (con foto); clases/materiales se abren desde cada curso.
     $items = [
         [$p . 'index.php', 'Panel', 'grid', 0],
+        [$p . 'courses.php', 'Mis cursos', 'book', 0],
         [$p . 'perfil.php', 'Mi perfil', 'user', 0],
     ];
-    if (user_has_permission($user, 'manage_course_content')) {
-        $items[] = [$p . 'grabaciones.php', 'Clases', 'video', 0];
-        $items[] = [$p . 'campus.php', 'Materiales', 'layers', 0];
-    }
-    if (user_has_permission($user, 'edit_course_info')) {
-        $items[] = [$p . 'courses.php', 'Mis cursos', 'book', 0];
-    }
     if (user_has_permission($user, 'view_students')) {
         $items[] = [$p . 'estudiantes.php', 'Alumnos', 'users', 0];
     }

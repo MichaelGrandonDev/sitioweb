@@ -21,6 +21,12 @@ if ($useShell) {
         'ticket.php' => 'tickets.php',
         'admin/estudiantes.php' => 'admin/estudiantes.php',
         'profesor/estudiantes.php' => 'profesor/estudiantes.php',
+        'admin/curso.php' => 'admin/courses.php',
+        'profesor/curso.php' => 'profesor/courses.php',
+        'admin/grabaciones.php' => 'admin/courses.php',
+        'profesor/grabaciones.php' => 'profesor/courses.php',
+        'admin/campus.php' => 'admin/courses.php',
+        'profesor/campus.php' => 'profesor/courses.php',
     ];
     $current = $aliases[$current] ?? $current;
 

@@ -188,35 +188,41 @@ if ($course) {
     $events = $e->fetchAll();
 }
 
-$pageTitle = 'Unidades y materiales';
+$courseCover = $course ? course_cover_url($course) : '';
+$pageTitle = 'Materiales' . ($course ? ' · ' . $course['title'] : '');
 $basePath = '../';
 $assetPrefix = '../';
 require __DIR__ . '/../includes/header.php';
 ?>
-<p class="eyebrow">Admin</p>
-<h1>Unidades programáticas y materiales</h1>
-<p class="lede">
-  Armá las unidades del curso y subí PDFs, videos, documentos o enlaces.
-  Para clases grabadas en video usá <a href="grabaciones.php">Clases</a>, que acepta archivos grandes.
-</p>
-<nav class="admin-nav">
-  <a class="btn secondary" href="index.php">← Panel</a>
-  <a class="btn secondary" href="courses.php">Cursos</a>
-  <a class="btn secondary" href="grabaciones.php">Clases</a>
-  <a class="btn secondary" href="users.php">Alumnos</a>
+<nav class="admin-nav" style="margin-bottom:.75rem">
+  <a class="btn secondary" href="courses.php">← Cursos</a>
+  <?php if ($courseId): ?>
+    <a class="btn secondary" href="curso.php?id=<?= $courseId ?>">Hub del curso</a>
+    <a class="btn secondary" href="grabaciones.php?course_id=<?= $courseId ?>">Clases</a>
+  <?php endif; ?>
   <?php if ($course): ?>
     <a class="btn primary" href="../course.php?id=<?= $courseId ?>" target="_blank">Ver campus alumno</a>
   <?php endif; ?>
 </nav>
 
-<section class="panel" style="margin:1rem 0">
-  <form method="get" class="stack">
-    <label>Curso a editar
+<div class="page-head">
+  <div>
+    <p class="eyebrow">Materiales del curso</p>
+    <h1><?= $course ? h((string) $course['title']) : 'Unidades y materiales' ?></h1>
+    <p class="lede">Armá unidades y subí PDFs, documentos o enlaces. Los videos grandes van en Clases.</p>
+  </div>
+</div>
+
+<section class="staff-course-switcher panel" style="margin:1rem 0">
+  <?php if ($courseCover !== ''): ?>
+    <img class="staff-course-switcher-cover" src="<?= h($courseCover) ?>" alt="" width="120" height="68" loading="lazy">
+  <?php endif; ?>
+  <form method="get" style="flex:1;min-width:200px">
+    <label>Curso
       <select name="course_id" onchange="this.form.submit()">
         <?php foreach ($courses as $c): ?>
           <option value="<?= (int) $c['id'] ?>" <?= (int) $c['id'] === $courseId ? 'selected' : '' ?>>
             <?= h($c['title']) ?><?= (int) ($c['published'] ?? 1) ? '' : ' (baja)' ?>
-            <?= (int) ($c['shop_listed'] ?? 0) ? ' · tienda' : '' ?>
           </option>
         <?php endforeach; ?>
       </select>
