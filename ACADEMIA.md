@@ -79,3 +79,36 @@ En Admin → **Clases**, elegí el curso. Abajo aparecen dos listas: **Clases de
 - Para que las bonus estén **siempre visibles**, cambiá `RECORDING_BONUS_NEEDS_COMPLETION` a `false` en `academia/includes/recordings.php` (el máximo se cambia en `RECORDING_MAX_BONUS`).
 - El alumno marca cada clase con **«Marcar como vista»** (en la lista o en la página de la clase; se puede desmarcar). Los videos subidos al campus se marcan solos al llegar a ~90 %; los de YouTube/Drive, solo con el botón.
 - Test: `php qa/test_clases_progreso.php`.
+
+## Recordatorios por mail a alumnos
+
+Desde **Admin → Recordatorios** podés recordarles a los alumnos que ya tienen acceso al campus y que todavía les quedan clases por ver (las bonus no cuentan).
+
+### Qué hace el admin
+
+1. Activá la **automatización global** y elegí cada cuántos días (por defecto 7).
+2. Editá el asunto y el texto de introducción del mail.
+3. En la lista, **Activar** o **Dejar de enviar** alumno por alumno.
+4. El estado muestra: Activo / Pausado / Completó (ya no se envía) / Sin email / último envío.
+5. «Simular corrida» cuenta candidatos **sin** mandar mails.
+
+El sistema deja de enviar solo cuando el alumno **completó todas las clases** de sus cursos (sin bonus) o cuando el admin lo pausa a mano.
+
+### Cron en HostGator
+
+1. En el servidor, en `academia/config.php`, poné una clave secreta en `reminder_cron_key` (no dejes `CHANGE_ME`).
+2. Programá un cron **diario** (por ejemplo a las 10:00) que llame:
+
+```bash
+curl -fsS "https://www.fluxusterapia.com/academia/cron_reminders.php?key=TU_CLAVE"
+```
+
+También podés probar en seco: agregá `&dry=1` (no envía mails).
+En el panel de HostGator: Cron Jobs → comando `curl` como arriba → frecuencia diaria.
+
+### Seguridad y mail
+
+- El cron exige la clave (`?key=` o header `X-Reminder-Key`).
+- Hay un tope de envíos por corrida y un mínimo de 30 s entre corridas.
+- Los mails usan el mismo `mail()` / remitente que la bienvenida (`mail_from` en `config.php`).
+- Test de lógica: `php qa/test_reminders.php`.
