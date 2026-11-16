@@ -10,10 +10,10 @@ $user = require_login();
 $pdo = db();
 
 if ($user['role'] === 'admin') {
-    $courses = $pdo->query('SELECT id, title FROM courses ORDER BY sort_order, title')->fetchAll();
+    $courses = $pdo->query('SELECT id, title, teacher_name, teacher_bio, teacher_photo_path FROM courses ORDER BY sort_order, title')->fetchAll();
 } else {
     $stmt = $pdo->prepare("
-      SELECT c.id, c.title FROM courses c
+      SELECT c.id, c.title, c.teacher_name, c.teacher_bio, c.teacher_photo_path FROM courses c
       JOIN enrollments e ON e.course_id = c.id
       WHERE e.user_id = ? AND c.published = 1
       ORDER BY c.sort_order, c.title
@@ -207,6 +207,7 @@ require __DIR__ . '/includes/header.php';
         <div>
           <p class="eyebrow" style="margin:0">Curso</p>
           <h2><?= h($c['title']) ?></h2>
+          <?= aca_teacher_block($c, 'compact') ?>
         </div>
         <?php if ($p['total'] > 0): ?>
           <div class="cc-progress">

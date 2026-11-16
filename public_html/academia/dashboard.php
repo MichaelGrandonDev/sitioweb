@@ -181,6 +181,7 @@ require __DIR__ . '/includes/header.php';
             <p class="muted small" style="margin:.8rem 0 0">Todavía no hay clases grabadas.</p>
           <?php endif; ?>
         </a>
+        <?= aca_teacher_block($course, 'compact') ?>
         <div class="actions">
           <a class="btn primary small-btn" href="clases.php?course_id=<?= (int) $course['id'] ?>"><?= aca_icon('play') ?> Ver clases</a>
           <a class="btn secondary small-btn" href="course.php?id=<?= (int) $course['id'] ?>">Materiales</a>

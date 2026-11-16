@@ -77,6 +77,43 @@ function aca_initial(string $name): string
     return function_exists('mb_substr') ? mb_strtoupper(mb_substr($name, 0, 1)) : strtoupper($name[0]);
 }
 
+/**
+ * Bloque "Tu profesor" del curso. $variant: full (página del curso) o compact (tarjeta / clases).
+ * No imprime nada si el curso no tiene profesor cargado.
+ */
+function aca_teacher_block(array $course, string $variant = 'full'): string
+{
+    if (!course_has_teacher($course)) {
+        return '';
+    }
+    $name = trim((string) ($course['teacher_name'] ?? ''));
+    $bio = trim((string) ($course['teacher_bio'] ?? ''));
+    $photoUrl = course_teacher_url($course);
+    $displayName = $name !== '' ? $name : 'Profesor/a';
+    $isCompact = $variant === 'compact';
+    $bioLimit = $isCompact ? 90 : 280;
+    $bioShown = $bio !== '' ? ($isCompact ? short_text($bio, $bioLimit) : $bio) : '';
+
+    $photo = $photoUrl !== ''
+        ? '<img class="teacher-photo" src="' . h($photoUrl) . '" alt="' . h($displayName) . '" width="96" height="96" loading="lazy" decoding="async">'
+        : '<span class="teacher-avatar" aria-hidden="true">' . h(aca_initial($displayName)) . '</span>';
+
+    $html = '<aside class="teacher-block' . ($isCompact ? ' is-compact' : '') . '">';
+    $html .= $photo;
+    $html .= '<div class="teacher-meta">';
+    if (!$isCompact) {
+        $html .= '<p class="teacher-label">Tu profesor</p>';
+    }
+    $html .= '<strong class="teacher-name">' . h($displayName) . '</strong>';
+    if ($bioShown !== '') {
+        $html .= $isCompact
+            ? '<span class="teacher-bio">' . h($bioShown) . '</span>'
+            : '<p class="teacher-bio">' . nl2br(h($bioShown)) . '</p>';
+    }
+    $html .= '</div></aside>';
+    return $html;
+}
+
 function aca_first_name(string $name): string
 {
     $parts = preg_split('/\s+/', trim($name)) ?: [];

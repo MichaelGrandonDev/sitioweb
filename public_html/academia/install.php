@@ -33,6 +33,9 @@ CREATE TABLE courses (
   meet_url TEXT NOT NULL DEFAULT '',
   meet_schedule TEXT NOT NULL DEFAULT '',
   cover_path TEXT NOT NULL DEFAULT '',
+  teacher_name TEXT NOT NULL DEFAULT '',
+  teacher_bio TEXT NOT NULL DEFAULT '',
+  teacher_photo_path TEXT NOT NULL DEFAULT '',
   published INTEGER NOT NULL DEFAULT 1,
   sort_order INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP

@@ -162,6 +162,8 @@ require __DIR__ . '/includes/header.php';
       </div>
     </header>
 
+    <?= aca_teacher_block($course, 'full') ?>
+
     <?php if ($plan['complete']): ?>
       <?= aca_course_done_banner((string) $course['title'], $courseId, count($plan['bonus'])) ?>
     <?php endif; ?>

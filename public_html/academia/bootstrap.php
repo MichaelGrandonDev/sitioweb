@@ -322,6 +322,16 @@ function migrate_schema(): void
     if (!in_array('cover_path', $courseCols, true)) {
         $pdo->exec("ALTER TABLE courses ADD COLUMN cover_path TEXT NOT NULL DEFAULT ''");
     }
+    // Perfil del profesor de cada curso (nombre, bio corta y foto).
+    if (!in_array('teacher_name', $courseCols, true)) {
+        $pdo->exec("ALTER TABLE courses ADD COLUMN teacher_name TEXT NOT NULL DEFAULT ''");
+    }
+    if (!in_array('teacher_bio', $courseCols, true)) {
+        $pdo->exec("ALTER TABLE courses ADD COLUMN teacher_bio TEXT NOT NULL DEFAULT ''");
+    }
+    if (!in_array('teacher_photo_path', $courseCols, true)) {
+        $pdo->exec("ALTER TABLE courses ADD COLUMN teacher_photo_path TEXT NOT NULL DEFAULT ''");
+    }
 
     $resCols = $cols($pdo, 'course_resources');
     if ($tableExists($pdo, 'course_resources') && !in_array('file_path', $resCols, true)) {

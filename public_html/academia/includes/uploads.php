@@ -90,14 +90,15 @@ function store_course_upload(int $courseId, array $file): array
 }
 
 const COURSE_COVER_MAX_SIDE = 1600;
+const COURSE_TEACHER_MAX_SIDE = 1000;
 const COURSE_COVER_MAX_BYTES = 15 * 1024 * 1024;
 
 /**
- * Foto de portada del curso subida desde el panel.
+ * Valida una foto subida desde el panel (portada o profesor).
  *
- * @return array{ok:bool, path?:string, error?:string}
+ * @return array{ok:bool, path?:string, error?:string}|null null = sin archivo; array con error/ok parcial antes de guardar
  */
-function store_course_cover(int $courseId, array $file): array
+function store_course_image_upload(array $file, callable $saver): array
 {
     $error = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
     if ($error === UPLOAD_ERR_NO_FILE) {
@@ -116,16 +117,36 @@ function store_course_cover(int $courseId, array $file): array
     if ((int) ($file['size'] ?? 0) > COURSE_COVER_MAX_BYTES) {
         return ['ok' => false, 'error' => 'La foto pesa más de 15 MB.'];
     }
-    return save_course_cover($courseId, $tmp);
+    return $saver($tmp);
 }
 
 /**
- * Guarda la portada como WebP de hasta COURSE_COVER_MAX_SIDE px (sin agrandar fotos chicas),
- * enderezada según el EXIF de la cámara. Sin GD en el hosting se guarda el original.
+ * Foto de portada del curso subida desde el panel.
  *
  * @return array{ok:bool, path?:string, error?:string}
  */
-function save_course_cover(int $courseId, string $source): array
+function store_course_cover(int $courseId, array $file): array
+{
+    return store_course_image_upload($file, static fn (string $tmp) => save_course_cover($courseId, $tmp));
+}
+
+/**
+ * Foto del profesor del curso subida desde el panel.
+ *
+ * @return array{ok:bool, path?:string, error?:string}
+ */
+function store_course_teacher(int $courseId, array $file): array
+{
+    return store_course_image_upload($file, static fn (string $tmp) => save_course_teacher($courseId, $tmp));
+}
+
+/**
+ * Guarda una imagen del curso como WebP (sin agrandar fotos chicas), enderezada según EXIF.
+ * Sin GD en el hosting se guarda el original. $basename: "portada" o "profesor".
+ *
+ * @return array{ok:bool, path?:string, error?:string}
+ */
+function save_course_image(int $courseId, string $source, string $basename, int $maxSide): array
 {
     $info = @getimagesize($source);
     $types = [IMAGETYPE_JPEG => 'jpg', IMAGETYPE_PNG => 'png', IMAGETYPE_WEBP => 'webp'];
@@ -137,7 +158,7 @@ function save_course_cover(int $courseId, string $source): array
     if (!is_dir($dir)) {
         mkdir($dir, 0755, true);
     }
-    $base = 'portada-' . bin2hex(random_bytes(4));
+    $base = $basename . '-' . bin2hex(random_bytes(4));
 
     $image = course_cover_load($source, (int) $info[2]);
     if ($image === null || !function_exists('imagewebp')) {
@@ -151,7 +172,7 @@ function save_course_cover(int $courseId, string $source): array
 
     $width = imagesx($image);
     $height = imagesy($image);
-    $scale = min(1, COURSE_COVER_MAX_SIDE / max($width, $height));
+    $scale = min(1, $maxSide / max($width, $height));
     if ($scale < 1) {
         $newWidth = max(1, (int) round($width * $scale));
         $newHeight = max(1, (int) round($height * $scale));
@@ -170,6 +191,26 @@ function save_course_cover(int $courseId, string $source): array
     }
     @chmod($dir . '/' . $name, 0644);
     return ['ok' => true, 'path' => 'course_' . $courseId . '/' . $name];
+}
+
+/**
+ * Guarda la portada como WebP de hasta COURSE_COVER_MAX_SIDE px.
+ *
+ * @return array{ok:bool, path?:string, error?:string}
+ */
+function save_course_cover(int $courseId, string $source): array
+{
+    return save_course_image($courseId, $source, 'portada', COURSE_COVER_MAX_SIDE);
+}
+
+/**
+ * Guarda la foto del profesor como WebP de hasta COURSE_TEACHER_MAX_SIDE px.
+ *
+ * @return array{ok:bool, path?:string, error?:string}
+ */
+function save_course_teacher(int $courseId, string $source): array
+{
+    return save_course_image($courseId, $source, 'profesor', COURSE_TEACHER_MAX_SIDE);
 }
 
 function course_cover_load(string $source, int $type): ?GdImage
@@ -215,6 +256,24 @@ function course_cover_url(array $course): string
         return '';
     }
     return academia_path('cover.php') . '?id=' . (int) $course['id'] . '&v=' . substr(md5($path), 0, 10);
+}
+
+/** ¿Hay algo del profesor cargado? Si no, el campus no muestra el bloque. */
+function course_has_teacher(array $course): bool
+{
+    return trim((string) ($course['teacher_name'] ?? '')) !== ''
+        || trim((string) ($course['teacher_bio'] ?? '')) !== ''
+        || trim((string) ($course['teacher_photo_path'] ?? '')) !== '';
+}
+
+/** URL de la foto del profesor ('' si no hay). Cambia con cada foto nueva. */
+function course_teacher_url(array $course): string
+{
+    $path = trim((string) ($course['teacher_photo_path'] ?? ''));
+    if ($path === '') {
+        return '';
+    }
+    return academia_path('teacher.php') . '?id=' . (int) $course['id'] . '&v=' . substr(md5($path), 0, 10);
 }
 
 function guess_resource_type_from_upload(string $path, string $fallback = 'pdf'): string
