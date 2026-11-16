@@ -51,6 +51,10 @@ require __DIR__ . '/includes/header.php';
       </div>
     </div>
     <p class="hint" style="margin-top:1rem">Para cambiar tu nombre o email, escribile a administración desde <a href="tickets.php?nuevo=1&amp;to=admin#nueva" style="color:var(--accent)">Consultas</a>.</p>
+    <a class="btn secondary home-site-btn" href="<?= h(aca_site_home_url()) ?>" target="_blank" rel="noopener noreferrer" style="margin-top:1rem">
+      <?= aca_icon('globe') ?> FluxusTerapia
+    </a>
+    <p class="hint" style="margin-top:0.45rem">Abrí el sitio público de la clínica (fuera del campus).</p>
   </section>
 
   <section class="panel">

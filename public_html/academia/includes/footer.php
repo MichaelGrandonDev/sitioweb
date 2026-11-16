@@ -8,6 +8,12 @@
         <span><?= h(str_replace('Clases grabadas', 'Clases', $label)) ?></span>
       </a>
     <?php endforeach; ?>
+    <?php if (!empty($showFluxusHomeBtn)): ?>
+      <a class="bn-home-site" href="<?= h($fluxusHome) ?>" target="_blank" rel="noopener noreferrer" title="Sitio FluxusTerapia">
+        <span class="bn-ico"><?= aca_icon('globe') ?></span>
+        <span>Fluxus</span>
+      </a>
+    <?php endif; ?>
     <?php if ($isAdminArea): ?>
       <button type="button" data-side-open><span class="bn-ico"><?= aca_icon('menu') ?></span><span>Más</span></button>
     <?php endif; ?>

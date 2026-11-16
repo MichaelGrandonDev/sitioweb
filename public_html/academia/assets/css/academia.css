@@ -1884,3 +1884,66 @@ a.stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-lift); }
   .done-banner strong { font-size: 1.45rem; }
   .cc-progress { flex-basis: 100%; }
 }
+
+/* Botón FluxusTerapia → sitio público (shell alumno) */
+.side-home-site {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin: 0.55rem 0 0.35rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(47, 143, 107, 0.12), rgba(15, 61, 54, 0.06));
+  border: 1px solid rgba(47, 143, 107, 0.28);
+  color: var(--brand, #0f3d36);
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+.side-home-site:hover {
+  background: var(--sage, #dfeae3);
+  border-color: var(--accent, #2f8f6b);
+  color: var(--accent, #2f8f6b);
+}
+.mobile-home-site {
+  margin-left: auto;
+  margin-right: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  background: var(--sage, #dfeae3);
+  color: var(--brand, #0f3d36);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.mobile-home-site + .icon-btn { margin-left: 0; }
+.bottom-nav .bn-home-site { color: var(--accent, #2f8f6b); }
+.home-site-btn { display: inline-flex; align-items: center; gap: 0.45rem; }
+
+/* Panel admin · recordatorios */
+.reminder-status {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--sage, #dfeae3);
+  color: var(--brand, #0f3d36);
+}
+.reminder-status.is-active { background: rgba(47, 143, 107, 0.18); color: #1f6b4c; }
+.reminder-status.is-paused { background: rgba(79, 99, 90, 0.12); color: var(--muted); }
+.reminder-status.is-done { background: rgba(15, 61, 54, 0.1); color: var(--brand); }
+.reminder-status.is-noemail { background: rgba(180, 80, 60, 0.12); color: #8a3a2a; }
+.reminder-filters { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.75rem 0 1rem; }
+.reminder-filters a {
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.reminder-filters a.is-on {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+}

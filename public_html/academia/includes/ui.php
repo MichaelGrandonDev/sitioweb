@@ -166,6 +166,14 @@ function aca_login_url(): string
     return rtrim((string) ($config['site_url'] ?? 'https://fluxusterapia.com'), '/') . '/academia/login.php?as=alumno';
 }
 
+/** URL del sitio público FluxusTerapia (home), no del campus. */
+function aca_site_home_url(): string
+{
+    global $config;
+    $url = rtrim((string) ($config['site_url'] ?? 'https://www.fluxusterapia.com'), '/');
+    return $url !== '' ? $url . '/' : 'https://www.fluxusterapia.com/';
+}
+
 /** Texto listo para mandar por WhatsApp con los datos de acceso. */
 function aca_access_message(string $name, string $email, string $password): string
 {

@@ -1,9 +1,12 @@
 <?php
 $user = current_user();
 $flash = take_flash();
-// Logo FluxusTerapia → home del sitio
-$fluxusHome = (isset($basePath) && $basePath === '../') ? '../../' : '../';
-$fluxusLogo = $fluxusHome . 'img/logo-circle.png';
+// Logo / botón FluxusTerapia → home del sitio público
+$fluxusHome = function_exists('aca_site_home_url')
+    ? aca_site_home_url()
+    : (((isset($basePath) && $basePath === '../') ? '../../' : '../'));
+$fluxusLogoRel = (isset($basePath) && $basePath === '../') ? '../../' : '../';
+$fluxusLogo = $fluxusLogoRel . 'img/logo-circle.png';
 $base = $basePath ?? (in_admin_dir() ? '../' : '');
 $useShell = $user !== null;
 
@@ -27,6 +30,7 @@ if ($useShell) {
             ['admin/courses.php', 'Cursos', 'book', 0],
             ['admin/campus.php', 'Materiales', 'layers', 0],
             ['admin/inscriptions.php', 'Inscripciones', 'inbox', 0],
+            ['admin/recordatorios.php', 'Recordatorios', 'mail', 0],
             ['admin/admins.php', 'Administradores', 'key', 0],
         ];
         $webItems = [
@@ -57,8 +61,10 @@ if ($useShell) {
         $webItems = [];
         $footLink = $user['role'] === 'admin' ? ['admin/index.php', 'Volver al panel', 'grid'] : null;
         $mobileItems = $navItems;
+        $showFluxusHomeBtn = true;
     }
 }
+$showFluxusHomeBtn = !empty($showFluxusHomeBtn);
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -104,6 +110,11 @@ if ($useShell) {
     <?php if ($footLink): ?>
       <a class="side-switch" href="<?= h($base . $footLink[0]) ?>"><?= aca_icon($footLink[2]) ?><span><?= h($footLink[1]) ?></span></a>
     <?php endif; ?>
+    <?php if ($showFluxusHomeBtn): ?>
+      <a class="side-home-site" href="<?= h($fluxusHome) ?>" target="_blank" rel="noopener noreferrer" title="Ir al sitio de FluxusTerapia">
+        <?= aca_icon('globe') ?><span>FluxusTerapia</span>
+      </a>
+    <?php endif; ?>
     <div class="side-user">
       <span class="avatar"><?= h(aca_initial((string) $user['name'])) ?></span>
       <span class="side-user-text">
@@ -119,6 +130,9 @@ if ($useShell) {
     <header class="mobile-top">
       <img src="<?= h($fluxusLogo) ?>" alt="" width="34" height="34">
       <p>Hola, <?= h(aca_first_name((string) $user['name'])) ?></p>
+      <?php if ($showFluxusHomeBtn): ?>
+        <a class="mobile-home-site" href="<?= h($fluxusHome) ?>" target="_blank" rel="noopener noreferrer">FluxusTerapia</a>
+      <?php endif; ?>
       <?php if ($isAdminArea): ?>
         <button class="icon-btn" type="button" data-side-open aria-label="Abrir menú"><?= aca_icon('menu') ?></button>
       <?php else: ?>
