@@ -3,7 +3,8 @@
 declare(strict_types=1);
 
 require __DIR__ . '/../bootstrap.php';
-require_admin();
+$me = require_permission('edit_course_info');
+$isGeneral = is_full_admin($me);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf($_POST['csrf'] ?? null)) {
@@ -14,6 +15,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $pdo = db();
 
     if ($action === 'create_course') {
+        if (!$isGeneral) {
+            admin_forbidden('Solo el administrador general puede crear cursos.');
+        }
         $title = trim((string) ($_POST['title'] ?? ''));
         $category = trim((string) ($_POST['category'] ?? ''));
         $description = trim((string) ($_POST['description'] ?? ''));
@@ -51,6 +55,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'update_course') {
         $courseId = (int) ($_POST['course_id'] ?? 0);
+        if (!user_can_edit_course_info($me, $courseId)) {
+            admin_forbidden('No podés editar este curso.');
+        }
         $title = trim((string) ($_POST['title'] ?? ''));
         $category = trim((string) ($_POST['category'] ?? ''));
         $description = trim((string) ($_POST['description'] ?? ''));
@@ -99,6 +106,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'toggle_course') {
+        if (!$isGeneral) {
+            admin_forbidden('Solo el administrador general puede dar de baja cursos.');
+        }
         $courseId = (int) ($_POST['course_id'] ?? 0);
         if ($courseId > 0) {
             $pdo->prepare('UPDATE courses SET published = CASE WHEN published = 1 THEN 0 ELSE 1 END WHERE id = ?')
@@ -108,6 +118,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'delete_course') {
+        if (!$isGeneral) {
+            admin_forbidden('Solo el administrador general puede eliminar cursos.');
+        }
         $courseId = (int) ($_POST['course_id'] ?? 0);
         if ($courseId > 0) {
             $files = $pdo->prepare('SELECT file_path FROM course_resources WHERE course_id = ?');
@@ -127,6 +140,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'create_lesson') {
         $courseId = (int) ($_POST['course_id'] ?? 0);
+        if (!user_can_manage_course_content($me, $courseId)) {
+            admin_forbidden('No podés agregar clases a este curso.');
+        }
         $title = trim((string) ($_POST['title'] ?? ''));
         $description = trim((string) ($_POST['description'] ?? ''));
         $video = trim((string) ($_POST['video_url'] ?? ''));
@@ -138,6 +154,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'create_task') {
+        if (!$isGeneral) {
+            admin_forbidden();
+        }
         $lessonId = (int) ($_POST['lesson_id'] ?? 0);
         $title = trim((string) ($_POST['title'] ?? ''));
         $instructions = trim((string) ($_POST['instructions'] ?? ''));
@@ -150,6 +169,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'delete_lesson') {
         $id = (int) ($_POST['lesson_id'] ?? 0);
+        $row = $pdo->prepare('SELECT course_id FROM lessons WHERE id = ?');
+        $row->execute([$id]);
+        $lessonCourse = (int) ($row->fetchColumn() ?: 0);
+        if (!user_can_manage_course_content($me, $lessonCourse)) {
+            admin_forbidden();
+        }
         $pdo->prepare('DELETE FROM lessons WHERE id = ?')->execute([$id]);
         flash('success', 'Clase eliminada.');
     }
@@ -157,24 +182,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect('courses.php');
 }
 
-$courses = db()->query('SELECT * FROM courses ORDER BY sort_order, title')->fetchAll();
-$lessons = db()->query('SELECT l.*, c.title AS course_title FROM lessons l JOIN courses c ON c.id = l.course_id ORDER BY c.sort_order, l.sort_order, l.id')->fetchAll();
+$courses = staff_courses($me);
+$allowedIds = staff_course_ids($me);
+if ($allowedIds === []) {
+    $lessons = [];
+} else {
+    $ph = implode(',', array_fill(0, count($allowedIds), '?'));
+    $ls = db()->prepare("SELECT l.*, c.title AS course_title FROM lessons l JOIN courses c ON c.id = l.course_id WHERE l.course_id IN ($ph) ORDER BY c.sort_order, l.sort_order, l.id");
+    $ls->execute($allowedIds);
+    $lessons = $ls->fetchAll();
+}
 
-$pageTitle = 'Cursos';
+$pageTitle = $isGeneral ? 'Cursos' : 'Mis cursos';
 $basePath = '../';
 $assetPrefix = '../';
 require __DIR__ . '/../includes/header.php';
 ?>
-<p class="eyebrow">Admin</p>
-<h1>Cursos y clases</h1>
-<p class="lede">Creá cursos, dalos de baja o eliminálos. Las clases en vivo y grabadas se manejan en Clases; PDFs y otros materiales, en Unidades y materiales.</p>
+<p class="eyebrow"><?= $isGeneral ? 'Admin' : 'Profesor' ?></p>
+<h1><?= $isGeneral ? 'Cursos y clases' : 'Mis cursos' ?></h1>
+<p class="lede"><?= $isGeneral
+  ? 'Creá cursos, dalos de baja o eliminálos. Las clases en vivo y grabadas se manejan en Clases; PDFs y otros materiales, en Unidades y materiales.'
+  : 'Editá la información de los cursos que te asignaron. Las clases y materiales se cargan desde Clases y Materiales.' ?></p>
 <nav class="admin-nav">
   <a class="btn secondary" href="index.php">← Panel</a>
-  <a class="btn secondary" href="grabaciones.php">Clases</a>
-  <a class="btn secondary" href="campus.php">Unidades y materiales</a>
-  <a class="btn secondary" href="users.php">Alumnos</a>
+  <?php if (user_has_permission($me, 'manage_course_content')): ?>
+    <a class="btn secondary" href="grabaciones.php">Clases</a>
+    <a class="btn secondary" href="campus.php">Unidades y materiales</a>
+  <?php endif; ?>
+  <?php if ($isGeneral): ?>
+    <a class="btn secondary" href="users.php">Alumnos</a>
+  <?php endif; ?>
 </nav>
 
+<?php if ($isGeneral): ?>
 <section class="panel" style="margin-bottom:1rem">
   <h2>Nuevo curso</h2>
   <form method="post" class="stack" enctype="multipart/form-data">
@@ -196,9 +236,10 @@ require __DIR__ . '/../includes/header.php';
     <button class="btn primary" type="submit">Crear curso</button>
   </form>
 </section>
+<?php endif; ?>
 
 <section class="panel" style="margin-bottom:1rem">
-  <h2>Cursos existentes</h2>
+  <h2><?= $isGeneral ? 'Cursos existentes' : 'Cursos asignados' ?></h2>
   <?php if (!$courses): ?>
     <p class="muted">Todavía no hay cursos.</p>
   <?php else: ?>
@@ -266,6 +307,7 @@ require __DIR__ . '/../includes/header.php';
             <button class="btn secondary" type="submit">Guardar cambios</button>
           </div>
         </form>
+        <?php if ($isGeneral): ?>
         <div class="actions" style="margin-top:.75rem">
           <form method="post">
             <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
@@ -280,11 +322,13 @@ require __DIR__ . '/../includes/header.php';
             <button class="btn danger" type="submit">Eliminar curso</button>
           </form>
         </div>
+        <?php endif; ?>
       </article>
     <?php endforeach; ?>
   <?php endif; ?>
 </section>
 
+<?php if (user_has_permission($me, 'manage_course_content') && $courses): ?>
 <section class="panel" style="margin-bottom:1rem">
   <h2>Nueva clase rápida (YouTube o Drive)</h2>
   <p class="muted small">También podés cargar videos y PDFs por unidad en <a href="campus.php">Campus virtual</a>.</p>
@@ -306,6 +350,7 @@ require __DIR__ . '/../includes/header.php';
   </form>
 </section>
 
+<?php if ($isGeneral): ?>
 <section class="panel" style="margin-bottom:1rem">
   <h2>Nueva tarea</h2>
   <form method="post" class="stack">
@@ -324,7 +369,9 @@ require __DIR__ . '/../includes/header.php';
     <button class="btn primary" type="submit">Crear tarea</button>
   </form>
 </section>
+<?php endif; ?>
 
+<?php if ($lessons): ?>
 <table class="table">
   <thead><tr><th>Curso</th><th>Clase</th><th>Video</th><th></th></tr></thead>
   <tbody>
@@ -345,4 +392,6 @@ require __DIR__ . '/../includes/header.php';
     <?php endforeach; ?>
   </tbody>
 </table>
+<?php endif; ?>
+<?php endif; ?>
 <?php require __DIR__ . '/../includes/footer.php'; ?>

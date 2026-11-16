@@ -9,8 +9,12 @@ if (!db_ready()) {
 $user = require_login();
 $pdo = db();
 
-if ($user['role'] === 'admin') {
+if (is_staff($user)) {
     $courses = $pdo->query('SELECT id, title, teacher_name, teacher_bio, teacher_photo_path FROM courses ORDER BY sort_order, title')->fetchAll();
+    if (is_teacher($user)) {
+        $allowed = teacher_course_ids($user);
+        $courses = array_values(array_filter($courses, static fn ($c) => in_array((int) $c['id'], $allowed, true)));
+    }
 } else {
     $stmt = $pdo->prepare("
       SELECT c.id, c.title, c.teacher_name, c.teacher_bio, c.teacher_photo_path FROM courses c
@@ -65,7 +69,7 @@ $total = array_sum(array_map(static fn ($b) => $b['plan']['total'], $blocks));
 $seen = array_sum(array_map(static fn ($b) => $b['plan']['seen'], $blocks));
 $pct = $total > 0 ? (int) round($seen / $total * 100) : 0;
 $itemCount = array_sum(array_map(static fn ($b) => count($b['plan']['classes']) + count($b['plan']['bonus']), $blocks));
-$isAdmin = $user['role'] === 'admin';
+$isAdmin = is_staff($user);
 
 $live = live_classes_for_user($user, $courseId);
 $liveLabels = ['live' => 'En vivo ahora', 'today' => 'Hoy', 'upcoming' => 'Próxima clase', 'weekly' => 'Clase semanal'];

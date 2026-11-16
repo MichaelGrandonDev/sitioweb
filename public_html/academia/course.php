@@ -59,7 +59,7 @@ $done->execute([(int) $user['id']]);
 $doneIds = array_map('intval', array_column($done->fetchAll(), 'resource_id'));
 
 // Numeración y bloqueo de las clases grabadas ("Clase 3", "Bonus 1").
-$plan = recording_plan(recordings_of_course($courseId), $doneIds, $user['role'] === 'admin');
+$plan = recording_plan(recordings_of_course($courseId), $doneIds, is_staff($user));
 $planItems = [];
 foreach (array_merge($plan['classes'], $plan['bonus']) as $p) {
     $planItems[(int) $p['id']] = $p;
@@ -106,7 +106,7 @@ $myCourses = db()->prepare("
 ");
 $myCourses->execute([(int) $user['id']]);
 $myCourses = $myCourses->fetchAll();
-if ($user['role'] === 'admin' && !$myCourses) {
+if (is_staff($user) && !$myCourses) {
     $myCourses = db()->query('SELECT id, title FROM courses ORDER BY sort_order, title')->fetchAll();
 }
 
@@ -127,7 +127,7 @@ require __DIR__ . '/includes/header.php';
     <?php if (trim((string) ($course['meet_url'] ?? '')) !== ''): ?>
       <a class="campus-nav-item meet" href="<?= h((string) $course['meet_url']) ?>" target="_blank" rel="noopener">Clase en vivo (Meet)</a>
     <?php endif; ?>
-    <?php if ($user['role'] === 'admin'): ?>
+    <?php if (is_staff($user)): ?>
       <a class="campus-nav-item" href="admin/campus.php?course_id=<?= $courseId ?>">Editar campus</a>
     <?php endif; ?>
 
@@ -313,7 +313,7 @@ require __DIR__ . '/includes/header.php';
         <span class="avatar"><?= h(strtoupper(substr((string) $user['name'], 0, 1))) ?></span>
         <span>
           <strong><?= h($user['name']) ?></strong>
-          <em><?= $user['role'] === 'admin' ? 'Administración' : 'Alumno/a' ?></em>
+          <em><?= is_staff($user) ? (is_teacher($user) ? 'Profesor/a' : 'Administración') : 'Alumno/a' ?></em>
         </span>
       </p>
     </section>

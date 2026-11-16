@@ -22,6 +22,15 @@ const RECORDING_MAX_BONUS = 3;
  */
 const RECORDING_BONUS_NEEDS_COMPLETION = true;
 
+/** Admin o profesor (compatible con tests que no cargan roles.php). */
+function recording_user_is_staff(array $user): bool
+{
+    if (function_exists('is_staff')) {
+        return is_staff($user);
+    }
+    return in_array((string) ($user['role'] ?? ''), ['admin', 'teacher'], true);
+}
+
 function recording_section_id(int $courseId): int
 {
     $pdo = db();
@@ -268,13 +277,13 @@ function recording_neighbors(array $plan, int $resourceId): array
 
 function recording_course_plan(int $courseId, array $user): array
 {
-    return recording_plan(recordings_of_course($courseId), recording_done_ids((int) $user['id']), $user['role'] === 'admin');
+    return recording_plan(recordings_of_course($courseId), recording_done_ids((int) $user['id']), recording_user_is_staff($user));
 }
 
 /** true si la clase es una bonus que el usuario todavía no desbloqueó. */
 function recording_is_locked(array $resource, array $user): bool
 {
-    if ((string) ($resource['type'] ?? '') !== 'video' || (int) ($resource['is_bonus'] ?? 0) !== 1 || $user['role'] === 'admin') {
+    if ((string) ($resource['type'] ?? '') !== 'video' || (int) ($resource['is_bonus'] ?? 0) !== 1 || recording_user_is_staff($user)) {
         return false;
     }
     return !recording_course_plan((int) $resource['course_id'], $user)['bonus_unlocked'];
@@ -455,7 +464,19 @@ function recordings_for_user(array $user, int $courseId = 0): array
       JOIN courses c ON c.id = r.course_id
       WHERE r.type = 'video'
     ";
-    if ($user['role'] !== 'admin') {
+    $role = (string) ($user['role'] ?? '');
+    if ($role === 'admin' || (function_exists('is_full_admin') && is_full_admin($user))) {
+        // sin filtro extra
+    } elseif ($role === 'teacher' || (function_exists('is_teacher') && is_teacher($user))) {
+        $ids = function_exists('teacher_course_ids') ? teacher_course_ids($user) : [];
+        if ($ids === []) {
+            return [];
+        }
+        $sql .= ' AND r.course_id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')';
+        foreach ($ids as $id) {
+            $params[] = $id;
+        }
+    } else {
         $sql .= ' AND c.published = 1 AND r.course_id IN (SELECT course_id FROM enrollments WHERE user_id = ?)';
         $params[] = (int) $user['id'];
     }
@@ -519,11 +540,21 @@ function live_classes_for_user(array $user, int $courseId = 0): array
 {
     $params = [];
     $sql = 'SELECT c.id, c.title, c.meet_url, c.meet_schedule FROM courses c';
-    if ($user['role'] !== 'admin') {
+    $role = (string) ($user['role'] ?? '');
+    if ($role === 'admin' || (function_exists('is_full_admin') && is_full_admin($user))) {
+        $sql .= ' WHERE 1 = 1';
+    } elseif ($role === 'teacher' || (function_exists('is_teacher') && is_teacher($user))) {
+        $ids = function_exists('teacher_course_ids') ? teacher_course_ids($user) : [];
+        if ($ids === []) {
+            return [];
+        }
+        $sql .= ' WHERE c.id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')';
+        foreach ($ids as $id) {
+            $params[] = $id;
+        }
+    } else {
         $sql .= ' JOIN enrollments e ON e.course_id = c.id AND e.user_id = ? WHERE c.published = 1';
         $params[] = (int) $user['id'];
-    } else {
-        $sql .= ' WHERE 1 = 1';
     }
     if ($courseId > 0) {
         $sql .= ' AND c.id = ?';

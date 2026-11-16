@@ -52,12 +52,22 @@ function tickets_migrate(PDO $pdo): void
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_messages_ticket ON ticket_messages(ticket_id)');
 }
 
-/** Admin: consultas sin responder. Alumno: consultas con respuesta que todavía no leyó. */
+/** Admin/profesor: consultas sin responder. Alumno: consultas con respuesta que todavía no leyó. */
 function tickets_pending_count(array $user): int
 {
     try {
-        if ($user['role'] === 'admin') {
+        if (is_full_admin($user)) {
             return (int) db()->query("SELECT COUNT(*) FROM tickets WHERE status = 'open'")->fetchColumn();
+        }
+        if (is_teacher($user) && user_has_permission($user, 'reply_tickets')) {
+            $ids = teacher_course_ids($user);
+            if ($ids === []) {
+                return 0;
+            }
+            $ph = implode(',', array_fill(0, count($ids), '?'));
+            $stmt = db()->prepare("SELECT COUNT(*) FROM tickets WHERE status = 'open' AND course_id IN ($ph)");
+            $stmt->execute($ids);
+            return (int) $stmt->fetchColumn();
         }
         $stmt = db()->prepare('SELECT COUNT(*) FROM tickets WHERE user_id = ? AND student_unread = 1');
         $stmt->execute([(int) $user['id']]);
@@ -65,6 +75,19 @@ function tickets_pending_count(array $user): int
     } catch (Throwable) {
         return 0;
     }
+}
+
+/** ¿Puede el staff ver/responder esta consulta? */
+function ticket_staff_can_access(array $user, array $ticket): bool
+{
+    if (is_full_admin($user)) {
+        return true;
+    }
+    if (!is_teacher($user) || !user_has_permission($user, 'reply_tickets')) {
+        return false;
+    }
+    $courseId = (int) ($ticket['course_id'] ?? 0);
+    return $courseId > 0 && teacher_has_course($user, $courseId);
 }
 
 function ticket_create(array $user, string $to, ?int $courseId, ?int $resourceId, string $subject, string $body): int

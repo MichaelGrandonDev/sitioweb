@@ -3,12 +3,15 @@
 declare(strict_types=1);
 
 require __DIR__ . '/../bootstrap.php';
-require_admin();
+$me = require_permission('manage_course_content');
 
 $courseId = (int) ($_GET['course_id'] ?? $_POST['course_id'] ?? 0);
-$courses = db()->query('SELECT * FROM courses ORDER BY sort_order, title')->fetchAll();
+$courses = staff_courses($me);
 if ($courseId <= 0 && $courses) {
     $courseId = (int) $courses[0]['id'];
+}
+if ($courseId > 0 && !user_can_manage_course_content($me, $courseId)) {
+    admin_forbidden('No podés editar los materiales de este curso.');
 }
 
 $course = null;
@@ -26,6 +29,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $action = (string) ($_POST['action'] ?? '');
     $courseId = (int) ($_POST['course_id'] ?? $courseId);
+    if (!user_can_manage_course_content($me, $courseId)) {
+        admin_forbidden('No podés editar los materiales de este curso.');
+    }
 
     if ($action === 'add_section') {
         $title = trim((string) ($_POST['title'] ?? ''));

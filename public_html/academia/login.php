@@ -9,7 +9,7 @@ if (!db_ready()) {
 }
 
 if ($user = current_user()) {
-    redirect($user['role'] === 'admin' ? 'admin/index.php' : 'dashboard.php');
+    redirect(is_staff($user) ? 'admin/index.php' : 'dashboard.php');
 }
 
 $as = strtolower(trim((string) ($_GET['as'] ?? $_POST['as'] ?? '')));
@@ -43,22 +43,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($found && password_verify($password, $found['password_hash'])) {
             $role = (string) $found['role'];
-            if ($expect === 'admin' && $role !== 'admin') {
+            if ($expect === 'admin' && !is_staff_role($role)) {
                 $error = 'Esta cuenta es de alumno. Entrá desde el portal del estudiante.';
-            } elseif ($expect === 'alumno' && $role === 'admin') {
-                $error = 'Esta es una cuenta de administrador. Entrá por “Administrador”.';
+            } elseif ($expect === 'alumno' && is_staff_role($role)) {
+                $error = 'Esta es una cuenta de administración o profesor. Entrá por “Administrador”.';
             } else {
                 fluxus_session_login();
                 $_SESSION['user_id'] = (int) $found['id'];
                 db()->prepare('UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?')->execute([(int) $found['id']]);
+                require_once __DIR__ . '/../includes/site_admin.php';
                 if ($role === 'admin') {
-                    require_once __DIR__ . '/../includes/site_admin.php';
                     site_admin_grant();
                 } else {
-                    require_once __DIR__ . '/../includes/site_admin.php';
                     unset($_SESSION['site_admin']);
                 }
-                redirect($role === 'admin' ? 'admin/index.php' : 'dashboard.php');
+                redirect(is_staff_role($role) ? 'admin/index.php' : 'dashboard.php');
             }
         } else {
             fluxus_login_failed();
@@ -114,11 +113,11 @@ require __DIR__ . '/includes/header.php';
 </section>
 <?php else: ?>
 <section class="auth-card auth-card--quiet">
-  <p class="eyebrow"><?= $as === 'admin' ? 'Administrador' : 'Alumno' ?></p>
+  <p class="eyebrow"><?= $as === 'admin' ? 'Administración' : 'Alumno' ?></p>
   <h1><?= $as === 'admin' ? 'Panel' : 'Campus' ?></h1>
   <p class="lede">
     <?= $as === 'admin'
-      ? 'Ingresá con tu usuario de administrador.'
+      ? 'Ingresá con tu usuario de administrador o de profesor.'
       : 'Usá tu email y la contraseña que te enviamos.' ?>
   </p>
   <?php if ($error): ?><div class="alert error"><?= h($error) ?></div><?php endif; ?>

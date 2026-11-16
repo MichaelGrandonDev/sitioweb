@@ -28,7 +28,7 @@ if (!user_can_access_course($user, (int) $resource['course_id']) || recording_is
 }
 
 $isVideo = (string) $resource['type'] === 'video';
-$isAdmin = $user['role'] === 'admin';
+$isAdmin = is_staff($user);
 if ($isVideo && !$isAdmin) {
     // Solo se sirve al reproductor: abrir el link en una pestaña o "guardar enlace" pide un documento.
     // Safari/iOS viejos no mandan Sec-Fetch-Dest, por eso la ausencia del header se permite.

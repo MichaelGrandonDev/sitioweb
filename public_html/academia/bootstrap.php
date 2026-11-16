@@ -13,6 +13,7 @@ require_once __DIR__ . '/includes/recordings.php';
 require_once __DIR__ . '/includes/tickets.php';
 require_once __DIR__ . '/includes/reminders.php';
 require_once __DIR__ . '/includes/ui.php';
+require_once __DIR__ . '/includes/roles.php';
 require_once __DIR__ . '/../includes/session.php';
 
 fluxus_session_start();
@@ -107,16 +108,7 @@ function require_login(): array
     return $user;
 }
 
-function require_admin(): array
-{
-    $user = require_login();
-    if ($user['role'] !== 'admin') {
-        redirect(academia_path('dashboard.php'));
-    }
-    require_once __DIR__ . '/../includes/site_admin.php';
-    site_admin_grant();
-    return $user;
-}
+// require_admin / require_staff / permisos: ver includes/roles.php
 
 function flash(string $type, string $message): void
 {
@@ -513,6 +505,7 @@ function migrate_schema(): void
     migrate_lessons_into_campus($pdo);
     tickets_migrate($pdo);
     reminders_migrate($pdo);
+    roles_migrate($pdo);
 }
 
 /**
@@ -608,7 +601,11 @@ function resource_type_meta(string $type): array
 
 function user_can_access_course(array $user, int $courseId): bool
 {
-    if ($user['role'] === 'admin') {
+    if (is_full_admin($user)) {
+        return true;
+    }
+    // Profesor: solo sus cursos asignados (para ver portada, materiales, etc.).
+    if (is_teacher($user) && teacher_has_course($user, $courseId)) {
         return true;
     }
     $stmt = db()->prepare("

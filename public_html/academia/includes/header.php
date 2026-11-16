@@ -12,43 +12,39 @@ $useShell = $user !== null;
 
 if ($useShell) {
     $openTickets = tickets_pending_count($user);
-    $isAdminArea = $user['role'] === 'admin' && in_admin_dir();
+    $isAdminArea = is_staff($user) && in_admin_dir();
     $current = (in_admin_dir() ? 'admin/' : '') . basename((string) ($_SERVER['SCRIPT_NAME'] ?? ''));
     $aliases = [
         'resource.php' => 'clases.php',
         'course.php' => 'dashboard.php',
         'ticket.php' => 'tickets.php',
+        'admin/estudiantes.php' => 'admin/estudiantes.php',
     ];
     $current = $aliases[$current] ?? $current;
 
     if ($isAdminArea) {
-        $navItems = [
-            ['admin/index.php', 'Panel', 'grid', 0],
-            ['admin/users.php', 'Alumnos', 'users', 0],
-            ['admin/grabaciones.php', 'Clases', 'video', 0],
-            ['admin/tickets.php', 'Consultas', 'chat', $openTickets],
-            ['admin/courses.php', 'Cursos', 'book', 0],
-            ['admin/campus.php', 'Materiales', 'layers', 0],
-            ['admin/inscriptions.php', 'Inscripciones', 'inbox', 0],
-            ['admin/recordatorios.php', 'Recordatorios', 'mail', 0],
-            ['admin/admins.php', 'Administradores', 'key', 0],
-        ];
-        $webItems = [
-            ['admin/sitio_textos.php', 'Textos', 'pen', 0],
-            ['admin/sitio_fotos.php', 'Fotos', 'image', 0],
-            ['admin/sitio_contacto.php', 'Contacto y WhatsApp', 'whatsapp', 0],
-            ['admin/sitio_estilo.php', 'Letra y colores', 'type', 0],
-        ];
+        $navItems = admin_nav_items($user, $openTickets);
+        if (is_full_admin($user)) {
+            $webItems = [
+                ['admin/sitio_textos.php', 'Textos', 'pen', 0],
+                ['admin/sitio_fotos.php', 'Fotos', 'image', 0],
+                ['admin/sitio_contacto.php', 'Contacto y WhatsApp', 'whatsapp', 0],
+                ['admin/sitio_estilo.php', 'Letra y colores', 'type', 0],
+            ];
+            $siteItems = [
+                ['../turnos/admin.php', 'Turnos y pacientes', 'calendar'],
+                ['../galeria/admin.php', 'Galería', 'image'],
+                ['../blogs/admin.php', 'Blogs', 'pen'],
+                ['fluxus/', 'Generador de clases', 'spark'],
+            ];
+        } else {
+            $webItems = [];
+            $siteItems = [];
+        }
         if ($current === 'admin/sitio_historial.php') {
             $current = 'admin/sitio_textos.php';
         }
-        $siteItems = [
-            ['../turnos/admin.php', 'Turnos y pacientes', 'calendar'],
-            ['../galeria/admin.php', 'Galería', 'image'],
-            ['../blogs/admin.php', 'Blogs', 'pen'],
-            ['fluxus/', 'Generador de clases', 'spark'],
-        ];
-        $footLink = ['dashboard.php', 'Ver como alumno', 'eye'];
+        $footLink = is_full_admin($user) ? ['dashboard.php', 'Ver como alumno', 'eye'] : null;
         $mobileItems = array_slice($navItems, 0, 4);
     } else {
         $navItems = [
@@ -59,7 +55,7 @@ if ($useShell) {
         ];
         $siteItems = [];
         $webItems = [];
-        $footLink = $user['role'] === 'admin' ? ['admin/index.php', 'Volver al panel', 'grid'] : null;
+        $footLink = is_staff($user) ? ['admin/index.php', 'Volver al panel', 'grid'] : null;
         $mobileItems = $navItems;
         $showFluxusHomeBtn = true;
     }
@@ -85,7 +81,7 @@ $showFluxusHomeBtn = !empty($showFluxusHomeBtn);
   <aside class="side" id="side">
     <a class="side-brand" href="<?= h($fluxusHome) ?>" title="Volver a FluxusTerapia">
       <img src="<?= h($fluxusLogo) ?>" alt="" width="40" height="40">
-      <span>AcademiaFluxus<em><?= $isAdminArea ? 'Administración' : 'Campus alumno' ?></em></span>
+      <span>AcademiaFluxus<em><?= $isAdminArea ? (is_teacher($user) ? 'Panel profesor' : 'Administración') : 'Campus alumno' ?></em></span>
     </a>
     <nav class="side-nav" aria-label="Secciones">
       <?php foreach ($navItems as [$href, $label, $icon, $badge]): ?>

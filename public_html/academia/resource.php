@@ -97,7 +97,7 @@ if ($type === 'video'):
     $prev = $nb['prev'];
     $next = $nb['next'];
     $hasFile = trim((string) ($resource['file_path'] ?? '')) !== '';
-    $isAdmin = $user['role'] === 'admin';
+    $isAdmin = is_staff($user);
 ?>
 <a class="btn ghost small-btn" href="clases.php?course_id=<?= $courseId ?>#rec-<?= $resourceId ?>" style="margin:-.4rem 0 .6rem -.6rem"><?= aca_icon('arrow-left') ?> Clases de <?= h($resource['course_title']) ?></a>
 <div class="player-layout">
@@ -289,7 +289,7 @@ endif;
         <source src="<?= h($fileUrl) ?>" type="video/mp4">
       </video>
       <p class="muted small" style="margin-top:.5rem">¿No se ve el video? Probá desde Safari o avisanos con una consulta.</p>
-      <?php if ($user['role'] === 'admin'): ?>
+      <?php if (is_staff($user)): ?>
         <p style="margin-top:.75rem"><a class="btn secondary" href="<?= h($fileUrl) ?>&download=1">Descargar video</a></p>
       <?php endif; ?>
     <?php else: ?>

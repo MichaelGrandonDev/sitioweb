@@ -7,7 +7,7 @@ if (!db_ready()) {
     redirect('install.php');
 }
 $user = require_login();
-if ($user['role'] === 'admin') {
+if (is_staff($user)) {
     redirect('admin/tickets.php');
 }
 $pdo = db();

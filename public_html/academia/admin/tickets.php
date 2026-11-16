@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 require __DIR__ . '/../bootstrap.php';
-require_admin();
+$me = require_permission('reply_tickets');
 
 $status = (string) ($_GET['status'] ?? 'open');
 $status = isset(TICKET_STATUS[$status]) || $status === 'all' ? $status : 'open';
@@ -20,6 +20,17 @@ if ($to !== '') {
     $where[] = 't.to_role = ?';
     $params[] = $to;
 }
+if (is_teacher($me)) {
+    $ids = teacher_course_ids($me);
+    if ($ids === []) {
+        $where[] = '1 = 0';
+    } else {
+        $where[] = 't.course_id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')';
+        foreach ($ids as $id) {
+            $params[] = $id;
+        }
+    }
+}
 $stmt = db()->prepare("
   SELECT t.*, u.name AS student_name, u.email AS student_email, c.title AS course_title,
     (SELECT COUNT(*) FROM ticket_messages m WHERE m.ticket_id = t.id) AS messages,
@@ -35,8 +46,20 @@ $stmt->execute($params);
 $tickets = $stmt->fetchAll();
 
 $counts = [];
-foreach (db()->query('SELECT status, COUNT(*) AS n FROM tickets GROUP BY status')->fetchAll() as $row) {
-    $counts[$row['status']] = (int) $row['n'];
+if (is_teacher($me)) {
+    $ids = teacher_course_ids($me);
+    if ($ids !== []) {
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        $cst = db()->prepare("SELECT status, COUNT(*) AS n FROM tickets WHERE course_id IN ($ph) GROUP BY status");
+        $cst->execute($ids);
+        foreach ($cst->fetchAll() as $row) {
+            $counts[$row['status']] = (int) $row['n'];
+        }
+    }
+} else {
+    foreach (db()->query('SELECT status, COUNT(*) AS n FROM tickets GROUP BY status')->fetchAll() as $row) {
+        $counts[$row['status']] = (int) $row['n'];
+    }
 }
 
 $qs = static fn (array $over) => 'tickets.php?' . http_build_query(array_filter(array_merge(['status' => $status, 'to' => $to], $over), static fn ($v) => $v !== ''));
@@ -51,8 +74,14 @@ require __DIR__ . '/../includes/header.php';
 <p class="lede">Las consultas para el profesor y para administración llegan acá y a tu email. Cuando respondés, al alumno le llega un aviso.</p>
 <nav class="admin-nav">
   <a class="btn secondary" href="index.php">← Panel</a>
-  <a class="btn secondary" href="users.php">Alumnos</a>
-  <a class="btn secondary" href="grabaciones.php">Clases</a>
+  <?php if (is_full_admin($me)): ?>
+    <a class="btn secondary" href="users.php">Alumnos</a>
+  <?php elseif (user_has_permission($me, 'view_students')): ?>
+    <a class="btn secondary" href="estudiantes.php">Alumnos</a>
+  <?php endif; ?>
+  <?php if (user_has_permission($me, 'manage_course_content')): ?>
+    <a class="btn secondary" href="grabaciones.php">Clases</a>
+  <?php endif; ?>
 </nav>
 
 <nav class="rec-filter" aria-label="Estado">

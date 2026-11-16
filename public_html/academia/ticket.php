@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 require __DIR__ . '/bootstrap.php';
 $user = require_login();
-$isStaff = $user['role'] === 'admin';
 $ticketId = (int) ($_GET['id'] ?? $_POST['id'] ?? 0);
 $ticket = ticket_find($ticketId);
+$isStaff = $ticket ? ticket_staff_can_access($user, $ticket) : is_staff($user);
 
 if (!$ticket || (!$isStaff && (int) $ticket['user_id'] !== (int) $user['id'])) {
     flash('error', 'Consulta no encontrada.');
-    redirect($isStaff ? 'admin/tickets.php' : 'tickets.php');
+    redirect(is_staff($user) ? 'admin/tickets.php' : 'tickets.php');
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -20,6 +20,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $action = (string) ($_POST['action'] ?? '');
     if ($action === 'reply') {
+        if ($isStaff && !user_has_permission($user, 'reply_tickets') && !is_full_admin($user)) {
+            admin_forbidden();
+        }
         $body = trim((string) ($_POST['body'] ?? ''));
         if ($body === '') {
             flash('error', 'Escribí un mensaje.');
@@ -28,6 +31,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('success', $isStaff ? 'Respuesta enviada. Le avisamos al alumno por email.' : 'Mensaje enviado.');
         }
     } elseif ($action === 'close' || $action === 'reopen') {
+        if (!$isStaff) {
+            flash('error', 'No tenés permiso.');
+            redirect('ticket.php?id=' . $ticketId);
+        }
         db()->prepare('UPDATE tickets SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
             ->execute([$action === 'close' ? 'closed' : 'open', $ticketId]);
         flash('success', $action === 'close' ? 'Consulta cerrada.' : 'Consulta reabierta.');
@@ -72,7 +79,7 @@ require __DIR__ . '/includes/header.php';
 
 <section class="ticket-thread">
   <?php foreach ($messages as $m): ?>
-    <?php $fromStaff = $m['role'] === 'admin'; ?>
+    <?php $fromStaff = is_staff_role((string) $m['role']); ?>
     <article class="ticket-msg<?= $fromStaff ? ' is-staff' : '' ?>">
       <header>
         <strong><?= $fromStaff ? h(TICKET_TO[$ticket['to_role']] ?? 'Profesor') . ' · ' . h($m['name']) : h($m['name']) ?></strong>

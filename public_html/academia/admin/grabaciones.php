@@ -3,14 +3,19 @@
 declare(strict_types=1);
 
 require __DIR__ . '/../bootstrap.php';
-$me = require_admin();
+$me = require_permission('manage_course_content');
 $pdo = db();
 
-$courses = $pdo->query('SELECT id, title, published FROM courses ORDER BY sort_order, title')->fetchAll();
+$courses = array_map(static function (array $c): array {
+    return ['id' => $c['id'], 'title' => $c['title'], 'published' => $c['published'] ?? 1];
+}, staff_courses($me));
 $courseIds = array_map('intval', array_column($courses, 'id'));
 $courseId = (int) ($_GET['course_id'] ?? $_POST['course_id'] ?? 0);
 if (!in_array($courseId, $courseIds, true)) {
     $courseId = $courseIds[0] ?? 0;
+}
+if ($courseId > 0 && !user_can_manage_course_content($me, $courseId)) {
+    admin_forbidden('No podés editar las clases de este curso.');
 }
 
 $isAjax = ($_POST['ajax'] ?? '') === '1';
@@ -45,6 +50,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $description = trim((string) ($_POST['description'] ?? ''));
     $asBonus = ($_POST['bonus'] ?? '') === '1';
 
+    // El profesor solo puede tocar cursos asignados (el admin general ya pasa).
+    if ($courseId > 0 && !user_can_manage_course_content($me, $courseId)) {
+        if ($isAjax) {
+            grabaciones_json(['ok' => false, 'error' => 'No tenés permiso para este curso.'], 403);
+        }
+        admin_forbidden('No tenés permiso para este curso.');
+    }
+
     if ($action === 'upload_start') {
         if (!in_array($courseId, $courseIds, true)) {
             grabaciones_json(['ok' => false, 'error' => 'Elegí un curso.'], 400);
@@ -69,12 +82,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$res['ok']) {
             grabaciones_json($res, 409);
         }
-        if (recording_add((int) $res['course_id'], $title, $description, '', (string) $res['path'], $asBonus) === 0) {
+        $finishedCourse = (int) $res['course_id'];
+        if (!user_can_manage_course_content($me, $finishedCourse)) {
+            delete_upload((string) $res['path']);
+            grabaciones_json(['ok' => false, 'error' => 'No tenés permiso para este curso.'], 403);
+        }
+        if (recording_add($finishedCourse, $title, $description, '', (string) $res['path'], $asBonus) === 0) {
             delete_upload((string) $res['path']);
             grabaciones_json(['ok' => false, 'error' => recording_bonus_limit_message()], 409);
         }
         flash('success', ($asBonus ? 'Clase bonus "' : 'Clase "') . $title . '" publicada. Ya la ven los alumnos del curso.');
-        grabaciones_json(['ok' => true, 'redirect' => 'grabaciones.php?course_id=' . (int) $res['course_id']]);
+        grabaciones_json(['ok' => true, 'redirect' => 'grabaciones.php?course_id=' . $finishedCourse]);
     }
 
     if ($action === 'upload_cancel') {
@@ -96,18 +114,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'move') {
-        recording_move_to((int) ($_POST['resource_id'] ?? 0), (int) ($_POST['position'] ?? 0));
-        redirect('grabaciones.php?course_id=' . $courseId . '#rec-' . (int) ($_POST['resource_id'] ?? 0));
+        $rid = (int) ($_POST['resource_id'] ?? 0);
+        $own = $pdo->prepare("SELECT course_id FROM course_resources WHERE id = ? AND type = 'video'");
+        $own->execute([$rid]);
+        $ownCourse = (int) ($own->fetchColumn() ?: 0);
+        if (!user_can_manage_course_content($me, $ownCourse)) {
+            admin_forbidden('No podés editar esta clase.');
+        }
+        recording_move_to($rid, (int) ($_POST['position'] ?? 0));
+        redirect('grabaciones.php?course_id=' . $courseId . '#rec-' . $rid);
     }
 
     if ($action === 'set_bonus') {
-        $res = recording_set_bonus((int) ($_POST['resource_id'] ?? 0), $asBonus);
+        $rid = (int) ($_POST['resource_id'] ?? 0);
+        $own = $pdo->prepare("SELECT course_id FROM course_resources WHERE id = ? AND type = 'video'");
+        $own->execute([$rid]);
+        $ownCourse = (int) ($own->fetchColumn() ?: 0);
+        if (!user_can_manage_course_content($me, $ownCourse)) {
+            admin_forbidden('No podés editar esta clase.');
+        }
+        $res = recording_set_bonus($rid, $asBonus);
         if ($res['ok']) {
             flash('success', $asBonus ? 'Listo: la clase ahora es bonus (no cuenta para el progreso).' : 'Listo: la clase volvió a la lista de clases, al final.');
         } else {
             flash('error', $res['error'] ?? 'No se pudo cambiar.');
         }
-        redirect('grabaciones.php?course_id=' . $courseId . '#rec-' . (int) ($_POST['resource_id'] ?? 0));
+        redirect('grabaciones.php?course_id=' . $courseId . '#rec-' . $rid);
     }
 
     if ($action === 'save_live' && $courseId > 0) {
