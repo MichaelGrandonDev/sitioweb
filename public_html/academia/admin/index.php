@@ -113,6 +113,10 @@ require __DIR__ . '/../includes/header.php';
     <span class="stat-ico"><?= aca_icon('globe') ?></span>
     <span><strong>Editar el sitio web</strong><span>Textos, fotos, WhatsApp y letra</span></span>
   </a>
+  <a class="quick" href="recordatorios.php">
+    <span class="stat-ico"><?= aca_icon('mail') ?></span>
+    <span><strong>Recordatorios</strong><span>Mails a alumnos con clases pendientes</span></span>
+  </a>
 </div>
 
 <div class="stat-grid">

@@ -18,6 +18,8 @@ return [
     'mail_from_name' => 'AcademiaFluxus',
     'mail_reply_to' => 'hola@fluxusterapia.com',
     'migrate_key' => 'CHANGE_ME',
+    // Clave del cron de recordatorios (?key=...). Cambiá en el servidor; no uses CHANGE_ME en producción.
+    'reminder_cron_key' => 'CHANGE_ME',
     // Cuotas mensuales
     'payments' => [
         'currency' => 'ARS',

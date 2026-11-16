@@ -11,6 +11,7 @@ require_once __DIR__ . '/includes/uploads.php';
 require_once __DIR__ . '/includes/inscriptions.php';
 require_once __DIR__ . '/includes/recordings.php';
 require_once __DIR__ . '/includes/tickets.php';
+require_once __DIR__ . '/includes/reminders.php';
 require_once __DIR__ . '/includes/ui.php';
 require_once __DIR__ . '/../includes/session.php';
 
@@ -511,6 +512,7 @@ function migrate_schema(): void
 
     migrate_lessons_into_campus($pdo);
     tickets_migrate($pdo);
+    reminders_migrate($pdo);
 }
 
 /**
