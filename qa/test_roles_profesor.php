@@ -187,11 +187,20 @@ teacher_courses_set(4, [10]);
 $t2 = ['id' => 4, 'role' => 'teacher', 'name' => 'Beto'];
 $nav = admin_nav_items($t2, 2);
 $hrefs = array_column($nav, 0);
+check('menú incluye Panel', in_array('admin/index.php', $hrefs, true));
+check('menú incluye Mi perfil', in_array('admin/perfil.php', $hrefs, true));
 check('menú incluye Clases', in_array('admin/grabaciones.php', $hrefs, true));
 check('menú incluye Alumnos (solo lectura)', in_array('admin/estudiantes.php', $hrefs, true));
 check('menú NO incluye Inscripciones', !in_array('admin/inscriptions.php', $hrefs, true));
 check('menú NO incluye Recordatorios', !in_array('admin/recordatorios.php', $hrefs, true));
 check('menú NO incluye Administradores', !in_array('admin/admins.php', $hrefs, true));
+
+$_SERVER['SCRIPT_NAME'] = '/academia/profesor/index.php';
+$navProfe = admin_nav_items($t2, 0);
+$hrefsProfe = array_column($navProfe, 0);
+check('en portal profesor el menú usa prefijo profesor/', in_array('profesor/index.php', $hrefsProfe, true));
+check('en portal profesor aparece Mi perfil', in_array('profesor/perfil.php', $hrefsProfe, true));
+unset($_SERVER['SCRIPT_NAME']);
 
 $adminNav = admin_nav_items($admin, 0);
 $adminHrefs = array_column($adminNav, 0);

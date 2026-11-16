@@ -276,6 +276,73 @@ function course_teacher_url(array $course): string
     return academia_path('teacher.php') . '?id=' . (int) $course['id'] . '&v=' . substr(md5($path), 0, 10);
 }
 
+/**
+ * Foto de perfil de la cuenta del profesor (portal /profesor/).
+ *
+ * @return array{ok:bool, path?:string, error?:string}
+ */
+function store_user_avatar(int $userId, array $file): array
+{
+    $error = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
+    if ($error === UPLOAD_ERR_NO_FILE) {
+        return ['ok' => false, 'error' => ''];
+    }
+    if ($error !== UPLOAD_ERR_OK) {
+        return ['ok' => false, 'error' => 'La foto no se pudo subir.'];
+    }
+    $tmp = (string) ($file['tmp_name'] ?? '');
+    if ($tmp === '' || !is_uploaded_file($tmp)) {
+        return ['ok' => false, 'error' => 'Foto inválida.'];
+    }
+    $info = @getimagesize($tmp);
+    $types = [IMAGETYPE_JPEG => 'jpg', IMAGETYPE_PNG => 'png', IMAGETYPE_WEBP => 'webp'];
+    if ($info === false || !isset($types[$info[2]])) {
+        return ['ok' => false, 'error' => 'Usá una foto JPG, PNG o WebP.'];
+    }
+    $dir = uploads_root() . '/profiles';
+    if (!is_dir($dir)) {
+        mkdir($dir, 0755, true);
+    }
+    $image = course_cover_load($tmp, (int) $info[2]);
+    $base = 'avatar-' . $userId . '-' . bin2hex(random_bytes(4));
+    if ($image === null || !function_exists('imagewebp')) {
+        $name = $base . '.' . $types[$info[2]];
+        if (!copy($tmp, $dir . '/' . $name)) {
+            return ['ok' => false, 'error' => 'No se pudo guardar la foto.'];
+        }
+        @chmod($dir . '/' . $name, 0644);
+        return ['ok' => true, 'path' => 'profiles/' . $name];
+    }
+    $width = imagesx($image);
+    $height = imagesy($image);
+    $max = 800;
+    $scale = min(1, $max / max($width, $height));
+    if ($scale < 1) {
+        $nw = max(1, (int) round($width * $scale));
+        $nh = max(1, (int) round($height * $scale));
+        $resized = imagecreatetruecolor($nw, $nh);
+        imagealphablending($resized, false);
+        imagesavealpha($resized, true);
+        imagecopyresampled($resized, $image, 0, 0, 0, 0, $nw, $nh, $width, $height);
+        $image = $resized;
+    }
+    $name = $base . '.webp';
+    if (!imagewebp($image, $dir . '/' . $name, 82)) {
+        return ['ok' => false, 'error' => 'No se pudo convertir la foto.'];
+    }
+    @chmod($dir . '/' . $name, 0644);
+    return ['ok' => true, 'path' => 'profiles/' . $name];
+}
+
+function user_avatar_url(array $user): string
+{
+    $path = trim((string) ($user['avatar_path'] ?? ''));
+    if ($path === '') {
+        return '';
+    }
+    return academia_path('avatar.php') . '?id=' . (int) $user['id'] . '&v=' . substr(md5($path), 0, 10);
+}
+
 function guess_resource_type_from_upload(string $path, string $fallback = 'pdf'): string
 {
     $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));

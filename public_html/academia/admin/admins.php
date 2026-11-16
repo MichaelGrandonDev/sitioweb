@@ -278,7 +278,7 @@ require __DIR__ . '/../includes/header.php';
 
 <section class="panel" id="profesores" style="margin-bottom:1.25rem">
   <h2 class="panel-title">Nuevo profesor (subadministrador)</h2>
-  <p class="muted small">Entra por <a href="../login.php?as=admin">AcademiaFluxus → Administrador</a>. Solo verá lo que marques abajo.</p>
+  <p class="muted small">Entra por el <a href="../login.php?as=profesor">Portal de profesores</a>. Solo verá lo que marques abajo.</p>
   <form method="post" class="stack">
     <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
     <input type="hidden" name="action" value="create_teacher">
@@ -416,6 +416,6 @@ require __DIR__ . '/../includes/header.php';
 </section>
 
 <p class="muted small" style="margin-top:1rem">
-  Entran por <a href="../login.php?as=admin">AcademiaFluxus → Administrador</a>.
+  Entran por el <a href="../login.php?as=profesor">Portal de profesores</a>.
 </p>
 <?php require __DIR__ . '/../includes/footer.php'; ?>

@@ -9,14 +9,17 @@ if (!db_ready()) {
 }
 
 if ($user = current_user()) {
-    redirect(is_staff($user) ? 'admin/index.php' : 'dashboard.php');
+    redirect(is_staff($user) ? staff_home_for_role($user) : 'dashboard.php');
 }
 
 $as = strtolower(trim((string) ($_GET['as'] ?? $_POST['as'] ?? '')));
 if ($as === 'paciente' || $as === 'usuario' || $as === 'student') {
     $as = 'alumno';
 }
-if ($as !== 'admin' && $as !== 'alumno') {
+if ($as === 'teacher' || $as === 'profe') {
+    $as = 'profesor';
+}
+if (!in_array($as, ['admin', 'alumno', 'profesor'], true)) {
     $as = '';
 }
 
@@ -31,6 +34,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($expect === 'paciente' || $expect === 'usuario' || $expect === 'student') {
             $expect = 'alumno';
         }
+        if ($expect === 'teacher' || $expect === 'profe') {
+            $expect = 'profesor';
+        }
 
         $stmt = db()->prepare("
           SELECT * FROM users
@@ -43,10 +49,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($found && password_verify($password, $found['password_hash'])) {
             $role = (string) $found['role'];
-            if ($expect === 'admin' && !is_staff_role($role)) {
-                $error = 'Esta cuenta es de alumno. Entrá desde el portal del estudiante.';
+            if ($expect === 'admin' && $role !== 'admin') {
+                $error = $role === 'teacher'
+                    ? 'Las cuentas de profesor entran por el Portal de profesores.'
+                    : 'Esta cuenta es de alumno. Entrá desde el portal del estudiante.';
+            } elseif ($expect === 'profesor' && $role !== 'teacher') {
+                $error = $role === 'admin'
+                    ? 'Esta es la cuenta de administrador general. Entrá por Acceso administración.'
+                    : 'Esta cuenta es de alumno. Entrá desde el portal del estudiante.';
             } elseif ($expect === 'alumno' && is_staff_role($role)) {
-                $error = 'Esta es una cuenta de administración o profesor. Entrá por “Administrador”.';
+                $error = $role === 'teacher'
+                    ? 'Esta es una cuenta de profesor. Entrá por el Portal de profesores.'
+                    : 'Esta es una cuenta de administración. Entrá por Acceso administración.';
             } else {
                 fluxus_session_login();
                 $_SESSION['user_id'] = (int) $found['id'];
@@ -57,7 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 } else {
                     unset($_SESSION['site_admin']);
                 }
-                redirect(is_staff_role($role) ? 'admin/index.php' : 'dashboard.php');
+                redirect(is_staff_role($role) ? staff_home_for_role($found) : 'dashboard.php');
             }
         } else {
             fluxus_login_failed();
@@ -66,12 +80,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$pageTitle = $as === 'admin' ? 'Acceso administrador' : 'Portal del estudiante';
+$pageTitle = match ($as) {
+    'admin' => 'Acceso administrador',
+    'profesor' => 'Portal de profesores',
+    default => 'Portal del estudiante',
+};
 $minimalShell = true;
 require __DIR__ . '/includes/header.php';
 ?>
 
-<?php if ($as !== 'admin'): ?>
+<?php if ($as === ''): ?>
 <section class="student-portal">
   <div class="sp-intro">
     <p class="eyebrow">AcademiaFluxus · Portal del estudiante</p>
@@ -108,16 +126,56 @@ require __DIR__ . '/includes/header.php';
 
   <nav class="portal-links sp-links" aria-label="Otras opciones">
     <a href="../">← FluxusTerapia</a>
+    <a href="login.php?as=profesor"><?= aca_icon('spark') ?> Portal de profesores</a>
     <a href="login.php?as=admin"><?= aca_icon('lock') ?> Acceso administración</a>
   </nav>
 </section>
+
+<?php elseif ($as === 'profesor'): ?>
+<section class="student-portal teacher-portal">
+  <div class="sp-intro">
+    <p class="eyebrow">AcademiaFluxus · Portal de profesores</p>
+    <h1>Tu espacio para dar clases</h1>
+    <p class="lede">Cargá clases y materiales, mirá el avance de tus alumnos y respondé consultas — solo en los cursos que te asignó el administrador.</p>
+  </div>
+
+  <div class="auth-card sp-login">
+    <h2>Ingresar como profesor</h2>
+    <?php if ($error): ?><div class="alert error"><?= h($error) ?></div><?php endif; ?>
+    <form method="post" class="stack">
+      <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="as" value="profesor">
+      <label>Usuario o email
+        <input type="text" name="username" required autocomplete="username" autocapitalize="none" spellcheck="false" autofocus>
+      </label>
+      <label>Contraseña
+        <input type="password" name="password" required autocomplete="current-password">
+      </label>
+      <button class="btn primary" type="submit">Entrar al portal</button>
+    </form>
+    <p class="muted small" style="margin:.9rem 0 0">La cuenta la crea el administrador general desde Administradores.</p>
+  </div>
+
+  <ul class="sp-features">
+    <li><span><?= aca_icon('user') ?></span><div><strong>Tu perfil</strong><small>Foto, presentación y contraseña.</small></div></li>
+    <li><span><?= aca_icon('upload') ?></span><div><strong>Clases y materiales</strong><small>Subí videos, PDFs y ordená el curso.</small></div></li>
+    <li><span><?= aca_icon('users') ?></span><div><strong>Alumnos</strong><small>Mirá quién está inscrito y su avance.</small></div></li>
+    <li><span><?= aca_icon('chat') ?></span><div><strong>Consultas</strong><small>Respondé las dudas de tus cursos.</small></div></li>
+  </ul>
+
+  <nav class="portal-links sp-links" aria-label="Otras opciones">
+    <a href="login.php">← Portal del estudiante</a>
+    <a href="login.php?as=admin"><?= aca_icon('lock') ?> Administración</a>
+  </nav>
+</section>
+
 <?php else: ?>
 <section class="auth-card auth-card--quiet">
   <p class="eyebrow"><?= $as === 'admin' ? 'Administración' : 'Alumno' ?></p>
-  <h1><?= $as === 'admin' ? 'Panel' : 'Campus' ?></h1>
+  <h1><?= $as === 'admin' ? 'Panel general' : 'Campus' ?></h1>
   <p class="lede">
     <?= $as === 'admin'
-      ? 'Ingresá con tu usuario de administrador o de profesor.'
+      ? 'Solo para el administrador general. Los profesores entran por el Portal de profesores.'
       : 'Usá tu email y la contraseña que te enviamos.' ?>
   </p>
   <?php if ($error): ?><div class="alert error"><?= h($error) ?></div><?php endif; ?>
@@ -135,6 +193,10 @@ require __DIR__ . '/includes/header.php';
     </button>
   </form>
   <p class="auth-back">
+    <?php if ($as === 'admin'): ?>
+      <a href="login.php?as=profesor">Soy profesor</a>
+      <span aria-hidden="true">·</span>
+    <?php endif; ?>
     <?php if ($as === 'alumno'): ?>
       <a href="inscripcion.php">Quiero inscribirme</a>
       <span aria-hidden="true">·</span>

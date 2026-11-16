@@ -7,18 +7,20 @@ $fluxusHome = function_exists('aca_site_home_url')
     : (((isset($basePath) && $basePath === '../') ? '../../' : '../'));
 $fluxusLogoRel = (isset($basePath) && $basePath === '../') ? '../../' : '../';
 $fluxusLogo = $fluxusLogoRel . 'img/logo-circle.png';
-$base = $basePath ?? (in_admin_dir() ? '../' : '');
+$base = $basePath ?? (in_staff_panel() ? '../' : '');
 $useShell = $user !== null;
 
 if ($useShell) {
     $openTickets = tickets_pending_count($user);
-    $isAdminArea = is_staff($user) && in_admin_dir();
-    $current = (in_admin_dir() ? 'admin/' : '') . basename((string) ($_SERVER['SCRIPT_NAME'] ?? ''));
+    $isAdminArea = is_staff($user) && in_staff_panel();
+    $portalPrefix = in_profesor_dir() ? 'profesor/' : (in_admin_dir() ? 'admin/' : '');
+    $current = $portalPrefix . basename((string) ($_SERVER['SCRIPT_NAME'] ?? ''));
     $aliases = [
         'resource.php' => 'clases.php',
         'course.php' => 'dashboard.php',
         'ticket.php' => 'tickets.php',
         'admin/estudiantes.php' => 'admin/estudiantes.php',
+        'profesor/estudiantes.php' => 'profesor/estudiantes.php',
     ];
     $current = $aliases[$current] ?? $current;
 
@@ -46,6 +48,7 @@ if ($useShell) {
         }
         $footLink = is_full_admin($user) ? ['dashboard.php', 'Ver como alumno', 'eye'] : null;
         $mobileItems = array_slice($navItems, 0, 4);
+        $showFluxusHomeBtn = is_teacher($user);
     } else {
         $navItems = [
             ['dashboard.php', 'Inicio', 'home', 0],
@@ -55,7 +58,9 @@ if ($useShell) {
         ];
         $siteItems = [];
         $webItems = [];
-        $footLink = is_staff($user) ? ['admin/index.php', 'Volver al panel', 'grid'] : null;
+        $footLink = is_staff($user)
+            ? [staff_home_for_role($user), is_teacher($user) ? 'Portal profesores' : 'Volver al panel', 'grid']
+            : null;
         $mobileItems = $navItems;
         $showFluxusHomeBtn = true;
     }
@@ -81,7 +86,9 @@ $showFluxusHomeBtn = !empty($showFluxusHomeBtn);
   <aside class="side" id="side">
     <a class="side-brand" href="<?= h($fluxusHome) ?>" title="Volver a FluxusTerapia">
       <img src="<?= h($fluxusLogo) ?>" alt="" width="40" height="40">
-      <span>AcademiaFluxus<em><?= $isAdminArea ? (is_teacher($user) ? 'Panel profesor' : 'Administración') : 'Campus alumno' ?></em></span>
+      <span>AcademiaFluxus<em><?= $isAdminArea
+        ? (is_teacher($user) || in_profesor_dir() ? 'Portal profesores' : 'Administración')
+        : 'Campus alumno' ?></em></span>
     </a>
     <nav class="side-nav" aria-label="Secciones">
       <?php foreach ($navItems as [$href, $label, $icon, $badge]): ?>

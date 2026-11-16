@@ -9,6 +9,40 @@ declare(strict_types=1);
  * - student: alumno
  */
 
+// Helpers de portal (también viven en bootstrap.php; acá para tests que solo cargan roles.php).
+if (!function_exists('in_admin_dir')) {
+    function in_admin_dir(): bool
+    {
+        $script = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? ''));
+        return str_contains($script, '/admin/');
+    }
+}
+if (!function_exists('in_profesor_dir')) {
+    function in_profesor_dir(): bool
+    {
+        $script = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? ''));
+        return str_contains($script, '/profesor/');
+    }
+}
+if (!function_exists('in_staff_panel')) {
+    function in_staff_panel(): bool
+    {
+        return in_admin_dir() || in_profesor_dir();
+    }
+}
+if (!function_exists('staff_portal_prefix')) {
+    function staff_portal_prefix(): string
+    {
+        return in_profesor_dir() ? 'profesor/' : 'admin/';
+    }
+}
+if (!function_exists('staff_home_path')) {
+    function staff_home_path(): string
+    {
+        return staff_portal_prefix() . 'index.php';
+    }
+}
+
 /** Permisos editables para un profesor (defaults sensatos). */
 const TEACHER_PERMISSIONS = [
     'manage_course_content' => ['label' => 'Subir y editar clases y materiales', 'default' => 1],
@@ -45,13 +79,22 @@ function is_staff_role(string $role): bool
 function admin_forbidden(string $message = 'No tenés permiso para esta sección.'): never
 {
     flash('error', $message);
-    $dest = in_admin_dir() ? 'index.php' : academia_path('admin/index.php');
+    $dest = in_staff_panel() ? 'index.php' : academia_path(staff_home_for_role(current_user() ?? ['role' => 'student']));
     http_response_code(403);
     redirect($dest);
 }
 
+function staff_home_for_role(?array $user): string
+{
+    if ($user && is_teacher($user)) {
+        return 'profesor/index.php';
+    }
+    return 'admin/index.php';
+}
+
 /**
  * Entrada al panel (admin general o profesor).
+ * El profesor usa /profesor/; el admin general, /admin/.
  * Solo el admin general recibe el permiso del sitio (turnos, galería, blogs).
  */
 function require_staff(): array
@@ -63,8 +106,28 @@ function require_staff(): array
     require_once __DIR__ . '/../../includes/site_admin.php';
     if (is_full_admin($user)) {
         site_admin_grant();
+        if (in_profesor_dir()) {
+            // El portal /profesor/ es solo para cuentas teacher.
+            redirect('../admin/index.php');
+        }
     } else {
         unset($_SESSION['site_admin']);
+        if (in_admin_dir()) {
+            $page = basename((string) ($_SERVER['SCRIPT_NAME'] ?? 'index.php'));
+            // Páginas solo del admin general: el profesor no tiene wrapper → al portal.
+            $teacherPages = ['index.php', 'grabaciones.php', 'courses.php', 'campus.php', 'tickets.php', 'estudiantes.php', 'perfil.php'];
+            redirect('../profesor/' . (in_array($page, $teacherPages, true) ? $page : 'index.php'));
+        }
+    }
+    return $user;
+}
+
+/** Solo profesores dentro del portal /profesor/. */
+function require_teacher_portal(): array
+{
+    $user = require_staff();
+    if (!is_teacher($user)) {
+        redirect('../admin/index.php');
     }
     return $user;
 }
@@ -298,35 +361,38 @@ function teacher_ensure_permissions_row(int $userId): void
  */
 function admin_nav_items(array $user, int $openTickets = 0): array
 {
+    $p = staff_portal_prefix();
+
     if (is_full_admin($user)) {
         return [
-            ['admin/index.php', 'Panel', 'grid', 0],
-            ['admin/users.php', 'Alumnos', 'users', 0],
-            ['admin/grabaciones.php', 'Clases', 'video', 0],
-            ['admin/tickets.php', 'Consultas', 'chat', $openTickets],
-            ['admin/courses.php', 'Cursos', 'book', 0],
-            ['admin/campus.php', 'Materiales', 'layers', 0],
-            ['admin/inscriptions.php', 'Inscripciones', 'inbox', 0],
-            ['admin/recordatorios.php', 'Recordatorios', 'mail', 0],
-            ['admin/admins.php', 'Administradores', 'key', 0],
+            [$p . 'index.php', 'Panel', 'grid', 0],
+            [$p . 'users.php', 'Alumnos', 'users', 0],
+            [$p . 'grabaciones.php', 'Clases', 'video', 0],
+            [$p . 'tickets.php', 'Consultas', 'chat', $openTickets],
+            [$p . 'courses.php', 'Cursos', 'book', 0],
+            [$p . 'campus.php', 'Materiales', 'layers', 0],
+            [$p . 'inscriptions.php', 'Inscripciones', 'inbox', 0],
+            [$p . 'recordatorios.php', 'Recordatorios', 'mail', 0],
+            [$p . 'admins.php', 'Administradores', 'key', 0],
         ];
     }
 
     $items = [
-        ['admin/index.php', 'Panel', 'grid', 0],
+        [$p . 'index.php', 'Panel', 'grid', 0],
+        [$p . 'perfil.php', 'Mi perfil', 'user', 0],
     ];
     if (user_has_permission($user, 'manage_course_content')) {
-        $items[] = ['admin/grabaciones.php', 'Clases', 'video', 0];
-        $items[] = ['admin/campus.php', 'Materiales', 'layers', 0];
+        $items[] = [$p . 'grabaciones.php', 'Clases', 'video', 0];
+        $items[] = [$p . 'campus.php', 'Materiales', 'layers', 0];
     }
     if (user_has_permission($user, 'edit_course_info')) {
-        $items[] = ['admin/courses.php', 'Mis cursos', 'book', 0];
+        $items[] = [$p . 'courses.php', 'Mis cursos', 'book', 0];
     }
     if (user_has_permission($user, 'view_students')) {
-        $items[] = ['admin/estudiantes.php', 'Alumnos', 'users', 0];
+        $items[] = [$p . 'estudiantes.php', 'Alumnos', 'users', 0];
     }
     if (user_has_permission($user, 'reply_tickets')) {
-        $items[] = ['admin/tickets.php', 'Consultas', 'chat', $openTickets];
+        $items[] = [$p . 'tickets.php', 'Consultas', 'chat', $openTickets];
     }
     return $items;
 }
@@ -365,6 +431,15 @@ function roles_migrate(PDO $pdo): void
         FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     ");
+
+    // Perfil del profesor (cuenta): bio y foto propias del portal.
+    $userCols = array_column($pdo->query('PRAGMA table_info(users)')->fetchAll(), 'name');
+    if (!in_array('bio', $userCols, true)) {
+        $pdo->exec("ALTER TABLE users ADD COLUMN bio TEXT NOT NULL DEFAULT ''");
+    }
+    if (!in_array('avatar_path', $userCols, true)) {
+        $pdo->exec("ALTER TABLE users ADD COLUMN avatar_path TEXT NOT NULL DEFAULT ''");
+    }
 }
 
 /** Recrea users para incluir role='teacher' en el CHECK. */

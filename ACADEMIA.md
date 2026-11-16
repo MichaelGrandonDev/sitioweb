@@ -27,15 +27,25 @@ Hay tres tipos de cuenta:
 2. En **Nuevo profesor**: nombre, usuario, contraseña.
 3. Marcá los **cursos** que va a dictar.
 4. Revisá los **permisos** (por defecto puede subir clases/materiales, editar info del curso, ver alumnos y responder consultas; *no* puede crear alumnos ni tocar pagos).
-5. El profesor entra por el mismo login: AcademiaFluxus → **Administrador** (`login.php?as=admin`). Verá un panel reducido.
+5. El profesor entra por el **Portal de profesores**: `login.php?as=profesor` (también hay un link en la pantalla de ingreso del alumno). Llega a `/academia/profesor/` con su panel, perfil, cursos y consultas.
 
 ### Qué no puede hacer el profesor (aunque abra la URL a mano)
 
 Crear/borrar alumnos, inscripciones, pagos/cuotas/tienda, recordatorios globales, editar el sitio, crear otros admins, crear o borrar cursos ajenos. El servidor responde con un aviso y lo manda de vuelta al panel.
 
+### Portal de profesores (`/academia/profesor/`)
+
+Plataforma propia del docente (misma lógica que el subadministrador, con menú y branding aparte):
+
+- **Panel** — avance de sus cursos y accesos rápidos  
+- **Mi perfil** — foto, nombre, email, presentación y contraseña; opción de aplicar esos datos a “Tu profesor” en sus cursos  
+- **Clases / Materiales / Mis cursos / Alumnos / Consultas** — según los permisos que le dio el admin general  
+
+El administrador general sigue en `/academia/admin/`. Si un profesor abre una URL de admin, el sistema lo manda al portal de profesores.
+
 ### Perfil del profesor en el curso
 
-Sigue existiendo el bloque “Tu profesor” (nombre, bio, foto) por curso. Al asignar un profesor a un curso, si el nombre del profesor del curso estaba vacío, se completa con el nombre de la cuenta. El profesor (si tiene permiso) puede editarlo en **Mis cursos**.
+Sigue existiendo el bloque “Tu profesor” (nombre, bio, foto) por curso. Al asignar un profesor a un curso, si el nombre del profesor del curso estaba vacío, se completa con el nombre de la cuenta. El profesor puede editarlo en **Mis cursos** o desde **Mi perfil** (con “Aplicar a mis cursos”).
 
 Test: `php qa/test_roles_profesor.php`.
 

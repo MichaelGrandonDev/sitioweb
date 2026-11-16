@@ -181,19 +181,24 @@ if ($isGeneral) {
 
 $overallPct = $expected > 0 ? (int) round(($completed / $expected) * 100) : 0;
 
-$pageTitle = $isGeneral ? 'Panel de administración' : 'Panel del profesor';
+$pageTitle = $isGeneral ? 'Panel de administración' : 'Portal de profesores';
 $basePath = '../';
 $assetPrefix = '../';
 require __DIR__ . '/../includes/header.php';
 ?>
 <div class="page-head">
   <div>
-    <p class="eyebrow"><?= $isGeneral ? 'Administración' : 'Profesor' ?> · AcademiaFluxus</p>
+    <p class="eyebrow"><?= $isGeneral ? 'Administración' : 'Portal profesores' ?> · AcademiaFluxus</p>
     <h1>Hola, <?= h(aca_first_name((string) $user['name'])) ?></h1>
     <p class="lede"><?= $isGeneral
       ? 'Alumnos, clases grabadas y consultas, todo desde acá.'
-      : 'Tus cursos asignados: clases, materiales y consultas de tus alumnos.' ?></p>
+      : 'Tu espacio de profesor: perfil, cursos asignados, clases y consultas.' ?></p>
   </div>
+  <?php if (!$isGeneral): ?>
+    <div class="actions">
+      <a class="btn secondary" href="perfil.php"><?= aca_icon('user') ?> Mi perfil</a>
+    </div>
+  <?php endif; ?>
 </div>
 
 <div class="quick-grid">

@@ -79,9 +79,33 @@ function in_admin_dir(): bool
     return str_contains($script, '/admin/');
 }
 
+/** Portal de profesores (/academia/profesor/). */
+function in_profesor_dir(): bool
+{
+    $script = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? ''));
+    return str_contains($script, '/profesor/');
+}
+
+/** Panel de staff: administración general o portal de profesores. */
+function in_staff_panel(): bool
+{
+    return in_admin_dir() || in_profesor_dir();
+}
+
+/** Prefijo de rutas del menú: admin/ o profesor/. */
+function staff_portal_prefix(): string
+{
+    return in_profesor_dir() ? 'profesor/' : 'admin/';
+}
+
+function staff_home_path(): string
+{
+    return staff_portal_prefix() . 'index.php';
+}
+
 function academia_path(string $file): string
 {
-    return in_admin_dir() ? '../' . ltrim($file, '/') : ltrim($file, '/');
+    return in_staff_panel() ? '../' . ltrim($file, '/') : ltrim($file, '/');
 }
 
 function current_user(): ?array
@@ -89,9 +113,20 @@ function current_user(): ?array
     if (empty($_SESSION['user_id'])) {
         return null;
     }
-    $stmt = db()->prepare('SELECT id, username, name, email, role, active, fee_plan_id, fee_active FROM users WHERE id = ? LIMIT 1');
-    $stmt->execute([(int) $_SESSION['user_id']]);
-    $user = $stmt->fetch();
+    $stmt = db()->prepare('SELECT id, username, name, email, role, active, fee_plan_id, fee_active, bio, avatar_path FROM users WHERE id = ? LIMIT 1');
+    try {
+        $stmt->execute([(int) $_SESSION['user_id']]);
+        $user = $stmt->fetch();
+    } catch (Throwable) {
+        // Instalaciones viejas sin bio/avatar_path: reintentar sin esas columnas.
+        $stmt = db()->prepare('SELECT id, username, name, email, role, active, fee_plan_id, fee_active FROM users WHERE id = ? LIMIT 1');
+        $stmt->execute([(int) $_SESSION['user_id']]);
+        $user = $stmt->fetch();
+        if ($user) {
+            $user['bio'] = '';
+            $user['avatar_path'] = '';
+        }
+    }
     if (!$user || !(int) $user['active']) {
         unset($_SESSION['user_id']);
         return null;
