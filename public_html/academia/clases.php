@@ -90,17 +90,18 @@ require __DIR__ . '/includes/header.php';
       }
   }
 ?>
-<nav class="admin-nav" style="margin-bottom:1rem">
+<nav class="student-crumb">
   <?php if ($courseId > 0): ?>
-    <a class="btn secondary" href="mi-curso.php?id=<?= $courseId ?>">← <?= h($courseTitle !== '' ? $courseTitle : 'Curso') ?></a>
+    <a href="mi-curso.php?id=<?= $courseId ?>">← <?= h($courseTitle !== '' ? $courseTitle : 'Curso') ?></a>
+    <span aria-hidden="true">/</span>
   <?php endif; ?>
-  <a class="btn secondary" href="cursos.php">Mis cursos</a>
+  <a href="cursos.php">Mis cursos</a>
 </nav>
-<div class="page-head">
+<div class="page-head student-page-head">
   <div>
     <p class="eyebrow"><?= $courseTitle !== '' ? h($courseTitle) : 'Campus alumno' ?></p>
     <h1>Clases</h1>
-    <p class="lede">En vivo cuando toca, y grabadas cuando quieras. Volvé al curso para ver materiales y Meet.</p>
+    <p class="lede">En vivo cuando toca, y grabadas cuando quieras.</p>
   </div>
   <?php if (count($blocks) > 1 && $total > 0): ?>
     <div class="stat" style="min-width:210px;padding:.9rem 1.1rem">

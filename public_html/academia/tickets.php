@@ -82,9 +82,13 @@ $basePath = '';
 $assetPrefix = '';
 require __DIR__ . '/includes/header.php';
 ?>
-<p class="eyebrow">Campus Alumno</p>
-<h1>Mis consultas</h1>
-<p class="lede">Escribile al profesor por dudas de las clases, o a administración por cualquier otro tema. Te respondemos acá y te avisamos por email.</p>
+<div class="page-head student-page-head">
+  <div>
+    <p class="eyebrow">Campus alumno</p>
+    <h1>Mis consultas</h1>
+    <p class="lede">Escribile al profesor por dudas de las clases, o a administración por acceso e inscripción.</p>
+  </div>
+</div>
 
 <?php if (!$showForm): ?>
   <p class="actions"><a class="btn primary" href="tickets.php?nuevo=1#nueva">Nueva consulta</a></p>

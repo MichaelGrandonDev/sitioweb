@@ -42,7 +42,7 @@ $basePath = '';
 $assetPrefix = '';
 require __DIR__ . '/includes/header.php';
 ?>
-<div class="page-head">
+<div class="page-head student-page-head">
   <div>
     <p class="eyebrow">Campus alumno</p>
     <h1>Mis cursos</h1>
@@ -51,38 +51,48 @@ require __DIR__ . '/includes/header.php';
 </div>
 
 <?php if (!$courses): ?>
-  <div class="panel empty-state">
+  <div class="panel empty-state student-empty">
     <strong>Todavía no tenés cursos asignados</strong>
     <p class="muted">Cuando administración te asigne uno, aparece acá.</p>
     <a class="btn primary" href="tickets.php?nuevo=1&amp;to=admin#nueva">Escribir a administración</a>
   </div>
 <?php else: ?>
-  <div class="staff-course-grid">
-    <?php foreach ($courses as $course): ?>
+  <div class="staff-course-grid student-course-grid student-course-grid-lg">
+    <?php foreach ($courses as $i => $course): ?>
       <?php
         $cid = (int) $course['id'];
         $coverUrl = course_cover_url($course);
         $plan = $plans[$cid];
       ?>
-      <a class="staff-course-tile<?= $coverUrl !== '' ? ' has-cover' : '' ?>" href="mi-curso.php?id=<?= $cid ?>">
+      <a class="staff-course-tile student-course-tile<?= $coverUrl !== '' ? ' has-cover' : '' ?>" href="mi-curso.php?id=<?= $cid ?>" style="--i:<?= $i ?>">
         <span class="staff-course-tile-media">
           <?php if ($coverUrl !== ''): ?>
             <img src="<?= h($coverUrl) ?>" alt="" width="640" height="360" loading="lazy" decoding="async">
           <?php else: ?>
             <span class="staff-course-tile-placeholder"><?= aca_icon('book') ?></span>
           <?php endif; ?>
+          <?php if ($plan['total'] > 0): ?>
+            <span class="student-tile-pct"><?= $plan['pct'] ?>%</span>
+          <?php endif; ?>
         </span>
         <span class="staff-course-tile-body">
           <span class="cat"><?= h((string) ($course['category'] ?: 'Curso')) ?></span>
           <strong><?= h((string) $course['title']) ?></strong>
-          <span class="staff-course-tile-foot">
-            <?php if ($plan['total'] > 0): ?>
+          <?php if (trim((string) ($course['description'] ?? '')) !== ''): ?>
+            <span class="student-tile-desc"><?= h(short_text((string) $course['description'], 90)) ?></span>
+          <?php endif; ?>
+          <?php if ($plan['total'] > 0): ?>
+            <span class="student-tile-bar" aria-hidden="true"><i style="width:<?= $plan['pct'] ?>%"></i></span>
+            <span class="staff-course-tile-foot">
               <span class="badge soft"><?= $plan['seen'] ?>/<?= $plan['total'] ?> clases</span>
-            <?php else: ?>
+              <em>Abrir →</em>
+            </span>
+          <?php else: ?>
+            <span class="staff-course-tile-foot">
               <span class="badge soft">Sin clases aún</span>
-            <?php endif; ?>
-            <em>Abrir →</em>
-          </span>
+              <em>Abrir →</em>
+            </span>
+          <?php endif; ?>
         </span>
       </a>
     <?php endforeach; ?>

@@ -34,10 +34,11 @@ $basePath = '';
 $assetPrefix = '';
 require __DIR__ . '/includes/header.php';
 ?>
-<div class="page-head">
+<div class="page-head student-page-head">
   <div>
     <p class="eyebrow">Campus alumno</p>
     <h1>Mi cuenta</h1>
+    <p class="lede">Tu perfil y el cambio de contraseña.</p>
   </div>
 </div>
 

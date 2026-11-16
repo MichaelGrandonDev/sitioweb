@@ -88,7 +88,12 @@ $showFluxusHomeBtn = !empty($showFluxusHomeBtn);
   <link rel="stylesheet" href="<?= h(($assetPrefix ?? $base) . 'assets/css/academia.css') ?>?v=<?= (int) @filemtime(__DIR__ . '/../assets/css/academia.css') ?>">
   <link rel="icon" href="<?= h($fluxusHome) ?>img/logo.png" type="image/png">
 </head>
-<body class="<?= trim((!empty($campusMode) ? 'is-campus ' : '') . (!empty($minimalShell) && !$useShell ? 'is-minimal ' : '') . ($useShell ? 'has-shell' : '')) ?>">
+<body class="<?= trim(
+    (!empty($campusMode) ? 'is-campus ' : '')
+    . (!empty($minimalShell) && !$useShell ? 'is-minimal ' : '')
+    . ($useShell ? 'has-shell ' : '')
+    . ($useShell && empty($isAdminArea) ? 'is-student' : '')
+) ?>">
 <?php if ($useShell): ?>
 <div class="shell">
   <aside class="side" id="side">

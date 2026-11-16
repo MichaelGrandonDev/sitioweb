@@ -39,21 +39,24 @@ $basePath = '';
 $assetPrefix = '';
 require __DIR__ . '/includes/header.php';
 ?>
-<nav class="admin-nav" style="margin-bottom:1rem">
-  <a class="btn secondary" href="cursos.php">← Mis cursos</a>
-  <a class="btn secondary" href="dashboard.php">Inicio</a>
+<nav class="student-crumb">
+  <a href="cursos.php"><?= aca_icon('arrow-left') ?> Mis cursos</a>
+  <span aria-hidden="true">/</span>
+  <a href="dashboard.php">Inicio</a>
 </nav>
 
-<header class="staff-course-hero<?= $coverUrl !== '' ? ' has-cover' : '' ?>">
+<header class="student-hub-hero<?= $coverUrl !== '' ? ' has-cover' : '' ?>">
   <?php if ($coverUrl !== ''): ?>
-    <img class="staff-course-hero-img" src="<?= h($coverUrl) ?>" alt="" width="1200" height="480" decoding="async">
+    <img class="student-hub-hero-img" src="<?= h($coverUrl) ?>" alt="" width="1200" height="560" decoding="async">
   <?php endif; ?>
-  <div class="staff-course-hero-body">
+  <div class="student-hub-hero-veil"></div>
+  <div class="student-hub-hero-body">
     <p class="eyebrow"><?= h((string) ($course['category'] ?: 'Curso')) ?></p>
     <h1><?= h((string) $course['title']) ?></h1>
-    <p class="staff-course-meta">
+    <p class="student-hub-meta">
       <?php if ($plan['total'] > 0): ?>
-        <span class="badge soft"><?= $plan['seen'] ?> de <?= $plan['total'] ?> clases vistas · <?= $plan['pct'] ?>%</span>
+        <span class="badge soft"><?= $plan['seen'] ?> de <?= $plan['total'] ?> clases · <?= $plan['pct'] ?>%</span>
+        <span class="student-hub-bar" aria-hidden="true"><i style="width:<?= $plan['pct'] ?>%"></i></span>
       <?php else: ?>
         <span class="badge soft">Todavía no hay clases grabadas</span>
       <?php endif; ?>
@@ -62,15 +65,15 @@ require __DIR__ . '/includes/header.php';
       <?php endif; ?>
     </p>
     <?php if (trim((string) ($course['description'] ?? '')) !== ''): ?>
-      <p class="lede" style="margin:.5rem 0 0"><?= h(short_text((string) $course['description'], 200)) ?></p>
+      <p class="lede"><?= h(short_text((string) $course['description'], 200)) ?></p>
     <?php endif; ?>
   </div>
 </header>
 
-<div style="margin:0 0 1rem"><?= aca_teacher_block($course, 'compact') ?></div>
+<div class="student-hub-teacher"><?= aca_teacher_block($course, 'compact') ?></div>
 
 <?php if ($nextLive && ($nextLive['next'] || $nextLive['url'] !== '')): ?>
-  <a class="live-banner is-<?= h($nextLive['status']) ?>" style="margin-bottom:1rem" href="<?= $nextLive['status'] === 'live' && $nextLive['url'] !== '' ? h($nextLive['url']) . '" target="_blank" rel="noopener' : 'clases.php?course_id=' . $courseId ?>">
+  <a class="live-banner student-live-banner is-<?= h($nextLive['status']) ?>" href="<?= $nextLive['status'] === 'live' && $nextLive['url'] !== '' ? h($nextLive['url']) . '" target="_blank" rel="noopener' : 'clases.php?course_id=' . $courseId ?>">
     <span class="live-pill"><?php if ($nextLive['status'] === 'live'): ?><i class="live-dot"></i>En vivo ahora<?php else: ?>Clase en vivo<?php endif; ?></span>
     <span>
       <small><?= h($nextLive['course_title']) ?></small>
@@ -80,7 +83,7 @@ require __DIR__ . '/includes/header.php';
   </a>
 <?php endif; ?>
 
-<div class="staff-hub-grid">
+<div class="staff-hub-grid student-hub-grid">
   <a class="staff-hub-btn is-primary" href="clases.php?course_id=<?= $courseId ?>">
     <span class="stat-ico"><?= aca_icon('play') ?></span>
     <strong>Clases</strong>
